@@ -381,10 +381,50 @@ function updateApprovalsBadge() {
   badge.style.display  = pending > 0 ? 'inline-flex' : 'none';
 }
 
+// ── Employee: Rolling Date Picker Helper ───────────────────
+function initEmployeeDatePicker() {
+  const dayEl = document.getElementById('emp-date-day');
+  const monthEl = document.getElementById('emp-date-month');
+  const yearEl = document.getElementById('emp-date-year');
+  if (!dayEl || !monthEl || !yearEl) return;
+  if (dayEl.children.length > 0) return; // Already populated
+
+  // Days 1-31
+  let daysHtml = '';
+  for (let i = 1; i <= 31; i++) {
+    daysHtml += `<option value="${i}">${i}</option>`;
+  }
+  dayEl.innerHTML = daysHtml;
+
+  // Months
+  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  let monthsHtml = '';
+  months.forEach((m, idx) => {
+    monthsHtml += `<option value="${idx+1}">${m}</option>`;
+  });
+  monthEl.innerHTML = monthsHtml;
+
+  // Years (current, -1, -2)
+  const currentYear = new Date().getFullYear();
+  let yearsHtml = '';
+  for (let y = currentYear; y >= currentYear - 2; y--) {
+    yearsHtml += `<option value="${y}">${y}</option>`;
+  }
+  yearEl.innerHTML = yearsHtml;
+
+  // Auto-select today
+  const today = new Date();
+  dayEl.value = today.getDate();
+  monthEl.value = today.getMonth() + 1;
+  yearEl.value = today.getFullYear();
+}
+
 // ── Employee: Submit Reading form ──────────────────────────
 function renderEmployeeView(session) {
   const nameEl = document.getElementById('emp-user-name');
   if (nameEl) nameEl.textContent = session.displayName;
+
+  initEmployeeDatePicker(); // Populates D/M/Y dropdown selects if empty
 
   const subs = (db.pending_entries || [])
     .filter(e => e.submittedBy === session.username)
@@ -399,7 +439,7 @@ function renderEmployeeView(session) {
           const si = s.status === 'approved' ? '✅' : s.status === 'rejected' ? '❌' : '⏳';
           return `
             <div style="background:#1e293b;border:1px solid #334155;border-left:3px solid ${sc};border-radius:0.75rem;padding:1rem;margin-bottom:0.75rem;">
-              <div style="display:flex;justify-content:space-between;align-items:center;">
+               <div style="display:flex;justify-content:space-between;align-items:center;">
                 <span style="font-weight:700;color:#f8fafc;">${s.entryData.date} · ${s.entryData.shift === 'day' ? '☀️ Day' : '🌙 Night'}</span>
                 <span style="color:${sc};font-weight:700;font-size:0.8rem;">${si} ${s.status.toUpperCase()}</span>
               </div>
@@ -421,10 +461,15 @@ function renderEmployeeView(session) {
 async function submitEmployeeReading(session) {
   const val = id => parseFloat(document.getElementById(id)?.value || 0) || 0;
   const int = id => parseInt(document.getElementById(id)?.value  || 0) || 0;
-  const date  = document.getElementById('emp-date')?.value;
-  const shift = document.getElementById('emp-shift')?.value || 'day';
 
-  if (!date) { showNotification('Please select a date.', 'danger'); return; }
+  const dayStr = document.getElementById('emp-date-day')?.value || '';
+  const monthStr = document.getElementById('emp-date-month')?.value || '';
+  const yearStr = document.getElementById('emp-date-year')?.value || '';
+
+  if (!dayStr || !monthStr || !yearStr) { showNotification('Please select a date.', 'danger'); return; }
+
+  const date = `${yearStr}-${monthStr.padStart(2, '0')}-${dayStr.padStart(2, '0')}`;
+  const shift = document.getElementById('emp-shift')?.value || 'day';
 
   const mkNozzle = (prefix, s) => ({
     open:        val(`${prefix}-open`),
@@ -457,13 +502,22 @@ async function submitEmployeeReading(session) {
   saveDB();
   showNotification('✅ Reading submitted for approval!', 'success');
 
-  // Clear form
-  ['emp-date','emp-du1p-open','emp-du1p-close','emp-du1p-tests',
+  // Clear numeric form inputs
+  ['emp-du1p-open','emp-du1p-close','emp-du1p-tests',
    'emp-du1d-open','emp-du1d-close','emp-du1d-tests',
    'emp-du2p-open','emp-du2p-close','emp-du2p-tests',
    'emp-du2d-open','emp-du2d-close','emp-du2d-tests',
    'emp-cash','emp-card','emp-remarks']
     .forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+
+  // Reset date selectors to today
+  const today = new Date();
+  const dEl = document.getElementById('emp-date-day');
+  const mEl = document.getElementById('emp-date-month');
+  const yEl = document.getElementById('emp-date-year');
+  if (dEl) dEl.value = today.getDate();
+  if (mEl) mEl.value = today.getMonth() + 1;
+  if (yEl) yEl.value = today.getFullYear();
 
   renderEmployeeView(session);
 }
