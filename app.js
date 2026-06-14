@@ -574,24 +574,98 @@ function approveEntry(entryId) {
   if (idx===-1) return;
   const entry = db.pending_entries[idx];
   const ed    = entry.entryData;
-  // Check for duplicate date
-  if (db.daily_ledger.find(r=>r.date===ed.date)) {
-    showNotification(`⚠️ Ledger entry for ${ed.date} already exists. Review manually.`, 'danger');
-    return;
+
+  // Retrieve existing ledger row or initialize a new one
+  let row = db.daily_ledger.find(r => r.date === ed.date);
+  let oldNetP = 0;
+  let oldNetD = 0;
+
+  if (row) {
+    // Record old sales values for stock reconciliation
+    try {
+      const oldCalc = computeLedgerRow(row);
+      oldNetP = oldCalc.totals.net_24h.petrol || 0;
+      oldNetD = oldCalc.totals.net_24h.diesel || 0;
+    } catch (err) {
+      console.warn('[Approval] Failed to compute old ledger row sales: ', err);
+    }
+  } else {
+    // Determine selling prices for the date
+    const activePrices = getPricesAt(ed.date);
+    row = {
+      date: ed.date,
+      prices: { petrol: activePrices.petrol, diesel: activePrices.diesel },
+      du1_p: { open: 0, close_day: 0, close_night: 0, tests_day: 0, tests_night: 0 },
+      du1_d: { open: 0, close_day: 0, close_night: 0, tests_day: 0, tests_night: 0 },
+      du2_p: { open: 0, close_day: 0, close_night: 0, tests_day: 0, tests_night: 0 },
+      du2_d: { open: 0, close_day: 0, close_night: 0, tests_day: 0, tests_night: 0 },
+      recon: { cash: 0, phonepe: 0, credit: 0, total_collection: 0, remarks: '' }
+    };
+    db.daily_ledger.push(row);
   }
-  db.daily_ledger.push({
-    date: ed.date, du1_p: ed.du1_p, du1_d: ed.du1_d, du2_p: ed.du2_p, du2_d: ed.du2_d,
-    recon: { cash: ed.cash_sales||0, phonepe: ed.card_sales||0, credit: 0,
-             total_collection: (ed.cash_sales||0)+(ed.card_sales||0), remarks: ed.remarks||'' },
-    _approved_by: session.username, _approved_at: new Date().toISOString(),
-    _submitted_by: entry.submittedBy
-  });
+
+  // Merge nozzle values based on shift
+  if (ed.shift === 'day') {
+    for (const nozzle of ['du1_p', 'du1_d', 'du2_p', 'du2_d']) {
+      row[nozzle].open = ed[nozzle].open || 0;
+      row[nozzle].close_day = ed[nozzle].close_day || 0;
+      row[nozzle].tests_day = ed[nozzle].tests_day || 0;
+      if (!row[nozzle].close_night || row[nozzle].close_night === 0) {
+        row[nozzle].close_night = ed[nozzle].close_day || 0;
+      }
+    }
+  } else {
+    // shift === 'night'
+    for (const nozzle of ['du1_p', 'du1_d', 'du2_p', 'du2_d']) {
+      row[nozzle].close_night = ed[nozzle].close_night || 0;
+      row[nozzle].tests_night = ed[nozzle].tests_night || 0;
+      if (!row[nozzle].close_day || row[nozzle].close_day === 0) {
+        row[nozzle].close_day = ed[nozzle].open || 0;
+      }
+      if (!row[nozzle].open || row[nozzle].open === 0) {
+        row[nozzle].open = ed[nozzle].open || 0;
+      }
+    }
+  }
+
+  // Merge financial collections
+  row.recon.cash = (row.recon.cash || 0) + (ed.cash_sales || 0);
+  row.recon.phonepe = (row.recon.phonepe || 0) + (ed.card_sales || 0);
+  row.recon.total_collection = row.recon.cash + row.recon.phonepe + (row.recon.credit || 0);
+
+  if (ed.remarks) {
+    row.recon.remarks = row.recon.remarks
+      ? `${row.recon.remarks} | ${ed.remarks}`
+      : ed.remarks;
+  }
+
+  // Set audit metadata
+  row._approved_by = session.username;
+  row._approved_at = new Date().toISOString();
+  row._submitted_by = entry.submittedBy;
+
+  // Recompute sales and reconcile stock level adjustments
+  try {
+    const newCalc = computeLedgerRow(row);
+    const newNetP = newCalc.totals.net_24h.petrol || 0;
+    const newNetD = newCalc.totals.net_24h.diesel || 0;
+
+    db.stock.petrol = Math.max(0, db.stock.petrol + oldNetP - newNetP);
+    db.stock.diesel = Math.max(0, db.stock.diesel + oldNetD - newNetD);
+  } catch (err) {
+    console.error('[Approval] Error recalculating stock metrics: ', err);
+  }
+
+  // Sort daily ledger descending by date
   db.daily_ledger.sort((a,b)=>b.date.localeCompare(a.date));
+
+  // Update pending entry state
   db.pending_entries[idx].status     = 'approved';
   db.pending_entries[idx].reviewedBy = session.username;
   db.pending_entries[idx].reviewedAt = new Date().toISOString();
+
   saveDB();
-  showNotification(`✅ Entry for ${ed.date} approved and added to ledger.`, 'success');
+  showNotification(`✅ Entry for ${ed.date} (${ed.shift === 'day' ? 'Day' : 'Night'} shift) approved and merged.`, 'success');
   renderApprovalsPanel();
 }
 
