@@ -112,6 +112,439 @@ async function initSync() {
 }
 
 
+// ============================================================
+// AUTHENTICATION — Login · Roles · Device Binding
+// ============================================================
+
+const AUTH_USERS_KEY   = 'octaneflow_users';
+const AUTH_SESSION_KEY = 'octaneflow_session';
+const DEVICE_ID_KEY    = 'octaneflow_device_id';
+
+// Permanent device fingerprint — generated once per browser install
+function getDeviceId() {
+  let id = localStorage.getItem(DEVICE_ID_KEY);
+  if (!id) {
+    id = (typeof crypto.randomUUID === 'function')
+      ? crypto.randomUUID()
+      : 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+          const r = crypto.getRandomValues(new Uint8Array(1))[0] % 16;
+          return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
+        });
+    localStorage.setItem(DEVICE_ID_KEY, id);
+  }
+  return id;
+}
+
+// SHA-256 hash via Web Crypto API
+async function hashString(str) {
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,'0')).join('');
+}
+
+// ── User Store ─────────────────────────────────────────────
+function getUsers() {
+  try { return JSON.parse(localStorage.getItem(AUTH_USERS_KEY) || '{}'); }
+  catch { return {}; }
+}
+function saveUsers(u) { localStorage.setItem(AUTH_USERS_KEY, JSON.stringify(u)); }
+
+// ── Session (sessionStorage — clears on browser close) ─────
+function getSession() {
+  try { return JSON.parse(sessionStorage.getItem(AUTH_SESSION_KEY) || 'null'); }
+  catch { return null; }
+}
+function setSession(user) {
+  sessionStorage.setItem(AUTH_SESSION_KEY, JSON.stringify({
+    username: user.username, displayName: user.displayName,
+    role: user.role, loginAt: new Date().toISOString()
+  }));
+}
+function clearSession() { sessionStorage.removeItem(AUTH_SESSION_KEY); }
+
+// ── Create default owner account on first load ─────────────
+async function initAuth() {
+  const users = getUsers();
+  if (!users['owner']) {
+    const hash = await hashString('OctaneFlow@2026');
+    users['owner'] = {
+      username: 'owner', displayName: 'Owner', role: 'owner',
+      passwordHash: hash, active: true,
+      createdAt: new Date().toISOString()
+    };
+    saveUsers(users);
+  }
+}
+
+// ── Login ──────────────────────────────────────────────────
+async function loginUser(username, credential) {
+  const users = getUsers();
+  const uname = username.toLowerCase().trim();
+  const user  = users[uname];
+
+  if (!user || !user.active)
+    return { success: false, error: 'Invalid username or credential.' };
+
+  const inputHash = await hashString(credential.trim());
+
+  if (user.role === 'owner') {
+    if (inputHash !== user.passwordHash)
+      return { success: false, error: 'Incorrect password.' };
+    setSession(user);
+    return { success: true, user };
+  }
+
+  // Employee — PIN check
+  if (inputHash !== user.pinHash)
+    return { success: false, error: 'Invalid username or PIN.' };
+
+  // Device binding
+  const deviceId = getDeviceId();
+  if (!user.deviceId) {
+    // First login on this device — register automatically
+    users[uname].deviceId = deviceId;
+    users[uname].deviceRegisteredAt = new Date().toISOString();
+    saveUsers(users);
+    setSession(users[uname]);
+    return { success: true, user: users[uname], newDevice: true };
+  }
+
+  if (user.deviceId !== deviceId)
+    return { success: false, error: 'Unauthorized device.\nThis account is not registered on this device.\nContact your manager.' };
+
+  setSession(user);
+  return { success: true, user };
+}
+
+// ── Logout ─────────────────────────────────────────────────
+function logoutUser() { clearSession(); location.reload(); }
+
+// ── Auth Gate — show login or app shell ────────────────────
+function checkAuth() {
+  const session   = getSession();
+  const loginEl   = document.getElementById('login-overlay');
+  const appEl     = document.getElementById('app-container-shell');
+  const empEl     = document.getElementById('employee-shell');
+
+  if (!session) {
+    if (loginEl) loginEl.style.display = 'flex';
+    if (appEl)   appEl.style.display   = 'none';
+    if (empEl)   empEl.style.display   = 'none';
+    return null;
+  }
+
+  if (loginEl) loginEl.style.display = 'none';
+
+  if (session.role === 'owner') {
+    if (appEl)  appEl.style.display  = 'flex';
+    if (empEl)  empEl.style.display  = 'none';
+    const nameEl = document.getElementById('session-user-name');
+    if (nameEl) nameEl.textContent = '👑 ' + session.displayName;
+    updateApprovalsBadge();
+  } else {
+    if (appEl)  appEl.style.display  = 'none';
+    if (empEl)  empEl.style.display  = 'flex';
+    renderEmployeeView(session);
+  }
+  return session;
+}
+
+// ── Wire login form ────────────────────────────────────────
+function initLoginForm() {
+  const form    = document.getElementById('login-form');
+  const errEl   = document.getElementById('login-error');
+  const btnEl   = document.getElementById('login-btn');
+  if (!form) return;
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const username   = document.getElementById('login-username')?.value || '';
+    const credential = document.getElementById('login-password')?.value || '';
+    if (errEl) errEl.textContent = '';
+    if (btnEl) { btnEl.disabled = true; btnEl.textContent = 'Logging in…'; }
+
+    const result = await loginUser(username, credential);
+
+    if (btnEl) { btnEl.disabled = false; btnEl.textContent = 'Log In'; }
+
+    if (!result.success) {
+      if (errEl) errEl.textContent = result.error;
+      return;
+    }
+    if (result.newDevice) {
+      showNotification('✅ Device registered. Welcome!', 'success');
+    }
+    checkAuth();
+    if (result.user.role === 'owner') {
+      initApp();
+    }
+  });
+}
+
+// ── Update approvals badge count ───────────────────────────
+function updateApprovalsBadge() {
+  const pending = (db.pending_entries || []).filter(e => e.status === 'pending').length;
+  const badge   = document.getElementById('approvals-badge');
+  if (!badge) return;
+  badge.textContent    = pending || '';
+  badge.style.display  = pending > 0 ? 'inline-flex' : 'none';
+}
+
+// ── Employee: Submit Reading form ──────────────────────────
+function renderEmployeeView(session) {
+  const nameEl = document.getElementById('emp-user-name');
+  if (nameEl) nameEl.textContent = session.displayName;
+
+  const subs = (db.pending_entries || [])
+    .filter(e => e.submittedBy === session.username)
+    .sort((a,b) => b.submittedAt.localeCompare(a.submittedAt));
+
+  const listEl = document.getElementById('emp-submissions-list');
+  if (listEl) {
+    listEl.innerHTML = subs.length === 0
+      ? '<p style="color:#64748b;text-align:center;padding:2rem;">No submissions yet.</p>'
+      : subs.map(s => {
+          const sc = s.status === 'approved' ? '#22c55e' : s.status === 'rejected' ? '#ef4444' : '#f97316';
+          const si = s.status === 'approved' ? '✅' : s.status === 'rejected' ? '❌' : '⏳';
+          return `
+            <div style="background:#1e293b;border:1px solid #334155;border-left:3px solid ${sc};border-radius:0.75rem;padding:1rem;margin-bottom:0.75rem;">
+              <div style="display:flex;justify-content:space-between;align-items:center;">
+                <span style="font-weight:700;color:#f8fafc;">${s.entryData.date} · ${s.entryData.shift === 'day' ? '☀️ Day' : '🌙 Night'}</span>
+                <span style="color:${sc};font-weight:700;font-size:0.8rem;">${si} ${s.status.toUpperCase()}</span>
+              </div>
+              <div style="font-size:0.75rem;color:#64748b;margin-top:0.2rem;">Submitted: ${s.submittedAt.replace('T',' ').slice(0,16)}</div>
+              ${s.status === 'rejected' && s.rejectionReason
+                ? `<div style="margin-top:0.5rem;padding:0.5rem;background:rgba(239,68,68,0.1);border-radius:0.4rem;color:#fca5a5;font-size:0.8rem;">❌ ${s.rejectionReason}</div>`
+                : ''}
+            </div>`;
+        }).join('');
+  }
+
+  const submitBtn = document.getElementById('emp-submit-btn');
+  if (submitBtn && !submitBtn._wired) {
+    submitBtn._wired = true;
+    submitBtn.addEventListener('click', () => submitEmployeeReading(session));
+  }
+}
+
+async function submitEmployeeReading(session) {
+  const val = id => parseFloat(document.getElementById(id)?.value || 0) || 0;
+  const int = id => parseInt(document.getElementById(id)?.value  || 0) || 0;
+  const date  = document.getElementById('emp-date')?.value;
+  const shift = document.getElementById('emp-shift')?.value || 'day';
+
+  if (!date) { showNotification('Please select a date.', 'danger'); return; }
+
+  const mkNozzle = (prefix, s) => ({
+    open:        val(`${prefix}-open`),
+    close_day:   s === 'day'   ? val(`${prefix}-close`) : 0,
+    close_night: s === 'night' ? val(`${prefix}-close`) : 0,
+    tests_day:   s === 'day'   ? int(`${prefix}-tests`) : 0,
+    tests_night: s === 'night' ? int(`${prefix}-tests`) : 0,
+  });
+
+  const entry = {
+    id: `pe_${Date.now()}`,
+    submittedBy: session.username, submittedByName: session.displayName,
+    submittedAt: new Date().toISOString(), deviceId: getDeviceId(),
+    status: 'pending',
+    entryData: {
+      date, shift,
+      du1_p: mkNozzle('emp-du1p', shift),
+      du1_d: mkNozzle('emp-du1d', shift),
+      du2_p: mkNozzle('emp-du2p', shift),
+      du2_d: mkNozzle('emp-du2d', shift),
+      cash_sales: val('emp-cash'),
+      card_sales: val('emp-card'),
+      remarks:    document.getElementById('emp-remarks')?.value?.trim() || ''
+    },
+    rejectionReason: '', reviewedBy: '', reviewedAt: ''
+  };
+
+  if (!db.pending_entries) db.pending_entries = [];
+  db.pending_entries.push(entry);
+  saveDB();
+  showNotification('✅ Reading submitted for approval!', 'success');
+
+  // Clear form
+  ['emp-date','emp-du1p-open','emp-du1p-close','emp-du1p-tests',
+   'emp-du1d-open','emp-du1d-close','emp-du1d-tests',
+   'emp-du2p-open','emp-du2p-close','emp-du2p-tests',
+   'emp-du2d-open','emp-du2d-close','emp-du2d-tests',
+   'emp-cash','emp-card','emp-remarks']
+    .forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+
+  renderEmployeeView(session);
+}
+
+// ── Owner: Approvals Panel ─────────────────────────────────
+function renderApprovalsPanel() {
+  updateApprovalsBadge();
+  const container = document.getElementById('approvals-list');
+  if (!container) return;
+  const all = (db.pending_entries || []).sort((a,b) => b.submittedAt.localeCompare(a.submittedAt));
+
+  if (all.length === 0) {
+    container.innerHTML = '<div style="text-align:center;color:#64748b;padding:3rem;font-size:1rem;">No submissions yet. Employees submit readings from their phones.</div>';
+    return;
+  }
+  container.innerHTML = all.map(entry => {
+    const isPending = entry.status === 'pending';
+    const sc = entry.status === 'approved' ? '#22c55e' : entry.status === 'rejected' ? '#ef4444' : '#f97316';
+    const ed = entry.entryData;
+    const ms  = Math.max(0,
+      ((ed.du1_p?.close_day||0)+(ed.du1_p?.close_night||0)-(ed.du1_p?.open||0)-(ed.du1_p?.tests_day||0)-(ed.du1_p?.tests_night||0)) +
+      ((ed.du2_p?.close_day||0)+(ed.du2_p?.close_night||0)-(ed.du2_p?.open||0)-(ed.du2_p?.tests_day||0)-(ed.du2_p?.tests_night||0)));
+    const hsd = Math.max(0,
+      ((ed.du1_d?.close_day||0)+(ed.du1_d?.close_night||0)-(ed.du1_d?.open||0)-(ed.du1_d?.tests_day||0)-(ed.du1_d?.tests_night||0)) +
+      ((ed.du2_d?.close_day||0)+(ed.du2_d?.close_night||0)-(ed.du2_d?.open||0)-(ed.du2_d?.tests_day||0)-(ed.du2_d?.tests_night||0)));
+    return `
+      <div style="background:#1e293b;border:1px solid ${isPending?'#f97316':'#334155'};border-radius:1rem;padding:1.25rem;margin-bottom:1rem;">
+        <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:0.5rem;margin-bottom:0.75rem;">
+          <div>
+            <div style="font-weight:800;color:#f8fafc;">${ed.date} · ${ed.shift==='day'?'☀️ Day':'🌙 Night'}</div>
+            <div style="font-size:0.78rem;color:#94a3b8;">By <strong style="color:#f97316;">${entry.submittedByName}</strong> · ${entry.submittedAt.replace('T',' ').slice(0,16)}</div>
+          </div>
+          <span style="color:${sc};font-weight:700;font-size:0.8rem;padding:0.2rem 0.7rem;background:rgba(0,0,0,0.4);border-radius:9999px;">${entry.status.toUpperCase()}</span>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:0.4rem;margin-bottom:0.75rem;">
+          ${[['MS Sold',ms.toFixed(0)+' L'],['HSD Sold',hsd.toFixed(0)+' L'],['Cash',formatCurrency(ed.cash_sales||0)],['Card/UPI',formatCurrency(ed.card_sales||0)]]
+            .map(([l,v])=>`<div style="background:#0f1117;border-radius:0.5rem;padding:0.5rem;text-align:center;"><div style="font-size:0.65rem;color:#64748b;">${l}</div><div style="font-weight:700;color:#f8fafc;font-size:0.85rem;">${v}</div></div>`).join('')}
+        </div>
+        ${ed.remarks?`<div style="font-size:0.78rem;color:#94a3b8;margin-bottom:0.5rem;">📝 ${ed.remarks}</div>`:''}
+        ${isPending?`
+        <div style="display:flex;gap:0.5rem;flex-wrap:wrap;">
+          <button onclick="approveEntry('${entry.id}')" style="flex:1;min-width:100px;background:#22c55e;color:#fff;border:none;border-radius:0.5rem;padding:0.55rem 1rem;font-weight:700;cursor:pointer;">✅ Approve</button>
+          <button onclick="promptRejectEntry('${entry.id}')" style="flex:1;min-width:100px;background:#ef4444;color:#fff;border:none;border-radius:0.5rem;padding:0.55rem 1rem;font-weight:700;cursor:pointer;">❌ Reject</button>
+        </div>`:''}
+        ${entry.status==='rejected'&&entry.rejectionReason?`<div style="margin-top:0.5rem;padding:0.5rem;background:rgba(239,68,68,0.1);border-radius:0.4rem;color:#fca5a5;font-size:0.78rem;">Rejected by ${entry.reviewedBy}: ${entry.rejectionReason}</div>`:''}
+      </div>`;
+  }).join('');
+}
+
+function approveEntry(entryId) {
+  const session = getSession();
+  if (!session || session.role !== 'owner') return;
+  const idx = (db.pending_entries||[]).findIndex(e=>e.id===entryId);
+  if (idx===-1) return;
+  const entry = db.pending_entries[idx];
+  const ed    = entry.entryData;
+  // Check for duplicate date
+  if (db.daily_ledger.find(r=>r.date===ed.date)) {
+    showNotification(`⚠️ Ledger entry for ${ed.date} already exists. Review manually.`, 'danger');
+    return;
+  }
+  db.daily_ledger.push({
+    date: ed.date, du1_p: ed.du1_p, du1_d: ed.du1_d, du2_p: ed.du2_p, du2_d: ed.du2_d,
+    recon: { cash: ed.cash_sales||0, phonepe: ed.card_sales||0, credit: 0,
+             total_collection: (ed.cash_sales||0)+(ed.card_sales||0), remarks: ed.remarks||'' },
+    _approved_by: session.username, _approved_at: new Date().toISOString(),
+    _submitted_by: entry.submittedBy
+  });
+  db.daily_ledger.sort((a,b)=>b.date.localeCompare(a.date));
+  db.pending_entries[idx].status     = 'approved';
+  db.pending_entries[idx].reviewedBy = session.username;
+  db.pending_entries[idx].reviewedAt = new Date().toISOString();
+  saveDB();
+  showNotification(`✅ Entry for ${ed.date} approved and added to ledger.`, 'success');
+  renderApprovalsPanel();
+}
+
+function promptRejectEntry(entryId) {
+  const reason = prompt('Rejection reason (employee will see this):');
+  if (reason === null) return;
+  const session = getSession();
+  const idx = (db.pending_entries||[]).findIndex(e=>e.id===entryId);
+  if (idx===-1) return;
+  db.pending_entries[idx].status          = 'rejected';
+  db.pending_entries[idx].rejectionReason = reason || 'No reason given';
+  db.pending_entries[idx].reviewedBy      = session.username;
+  db.pending_entries[idx].reviewedAt      = new Date().toISOString();
+  saveDB();
+  showNotification('Entry rejected.', 'info');
+  renderApprovalsPanel();
+}
+
+// ── User Management (owner: Settings tab) ─────────────────
+function renderUserManagement() {
+  const session = getSession();
+  if (!session || session.role !== 'owner') return;
+  const users    = getUsers();
+  const ulistEl  = document.getElementById('user-mgmt-list');
+  if (!ulistEl) return;
+
+  const employees = Object.values(users).filter(u => u.role === 'employee');
+  ulistEl.innerHTML = employees.length === 0
+    ? '<p style="color:#64748b;text-align:center;padding:1rem;">No employees yet. Add one below.</p>'
+    : employees.map(u => `
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:0.75rem;background:#0f1117;border-radius:0.6rem;margin-bottom:0.5rem;flex-wrap:wrap;gap:0.5rem;">
+          <div>
+            <span style="font-weight:700;color:#f8fafc;">${u.displayName}</span>
+            <span style="color:#64748b;font-size:0.78rem;margin-left:0.5rem;">@${u.username}</span><br>
+            <span style="font-size:0.72rem;color:${u.deviceId?'#22c55e':'#f97316'};">
+              ${u.deviceId ? `✅ Device registered ${u.deviceRegisteredAt?u.deviceRegisteredAt.split('T')[0]:''}` : '⏳ No device yet (first login will register)'}
+            </span>
+            · <span style="font-size:0.72rem;color:${u.active?'#22c55e':'#ef4444'};">${u.active?'Active':'Inactive'}</span>
+          </div>
+          <div style="display:flex;gap:0.4rem;flex-wrap:wrap;">
+            <button onclick="resetEmployeeDevice('${u.username}')" style="background:#1e293b;color:#94a3b8;border:1px solid #334155;border-radius:0.4rem;padding:0.3rem 0.6rem;font-size:0.72rem;cursor:pointer;">📱 Reset Device</button>
+            <button onclick="toggleEmployee('${u.username}')" style="background:${u.active?'rgba(239,68,68,0.1)':'rgba(34,197,94,0.1)'};color:${u.active?'#ef4444':'#22c55e'};border:1px solid ${u.active?'#ef4444':'#22c55e'};border-radius:0.4rem;padding:0.3rem 0.6rem;font-size:0.72rem;cursor:pointer;">${u.active?'Deactivate':'Activate'}</button>
+          </div>
+        </div>`).join('');
+
+  const addBtn = document.getElementById('add-employee-btn');
+  if (addBtn && !addBtn._wired) {
+    addBtn._wired = true;
+    addBtn.addEventListener('click', addEmployee);
+  }
+}
+
+async function addEmployee() {
+  const name = document.getElementById('new-emp-name')?.value.trim();
+  const user = document.getElementById('new-emp-username')?.value.trim().toLowerCase().replace(/\s+/g,'');
+  const pin  = document.getElementById('new-emp-pin')?.value.trim();
+  if (!name||!user||!pin) { showNotification('Fill in all three fields.','danger'); return; }
+  if (!/^\d{4,6}$/.test(pin)) { showNotification('PIN must be 4–6 digits.','danger'); return; }
+  const users = getUsers();
+  if (users[user]) { showNotification('Username already exists.','danger'); return; }
+  users[user] = {
+    username: user, displayName: name, role: 'employee',
+    pinHash: await hashString(pin),
+    deviceId: null, deviceRegisteredAt: null,
+    active: true, createdAt: new Date().toISOString()
+  };
+  saveUsers(users);
+  document.getElementById('new-emp-name').value = '';
+  document.getElementById('new-emp-username').value = '';
+  document.getElementById('new-emp-pin').value = '';
+  showNotification(`✅ Employee "${name}" added.`, 'success');
+  renderUserManagement();
+}
+
+function resetEmployeeDevice(username) {
+  if (!confirm(`Reset device for ${username}? They must log in again from their phone.`)) return;
+  const users = getUsers();
+  if (!users[username]) return;
+  users[username].deviceId = null;
+  users[username].deviceRegisteredAt = null;
+  saveUsers(users);
+  showNotification(`Device reset for ${username}.`, 'info');
+  renderUserManagement();
+}
+
+function toggleEmployee(username) {
+  const users = getUsers();
+  if (!users[username]) return;
+  users[username].active = !users[username].active;
+  saveUsers(users);
+  renderUserManagement();
+}
+
+// ── Format datetime helper ─────────────────────────────────
+function formatDateTime(iso) {
+  if (!iso) return '';
+  return iso.replace('T',' ').slice(0,16);
+}
+
 
 const DEFAULT_DB = {
   settings: {
@@ -1029,15 +1462,16 @@ document.querySelectorAll('.nav-item').forEach(item => {
 });
 
 function renderActiveView(viewName) {
-  if (viewName === 'dashboard') renderDashboard();
-  if (viewName === 'ledger') renderLedger();
-  if (viewName === 'purchases') renderPurchases();
-  if (viewName === 'pricing') renderPricing();
-  if (viewName === 'holidays') renderHolidays();
-  if (viewName === 'settings') renderSettings();
-  if (viewName === 'cashflow') renderCashFlow();
+  if (viewName === 'dashboard')   { renderDashboard(); updateApprovalsBadge(); }
+  if (viewName === 'ledger')      renderLedger();
+  if (viewName === 'purchases')   renderPurchases();
+  if (viewName === 'pricing')     renderPricing();
+  if (viewName === 'holidays')    renderHolidays();
+  if (viewName === 'settings')    { renderSettings(); renderUserManagement(); }
+  if (viewName === 'cashflow')    renderCashFlow();
   if (viewName === 'shift-recon') renderShiftRecon();
-  if (viewName === 'expenses') renderExpenseLedger();
+  if (viewName === 'expenses')    renderExpenseLedger();
+  if (viewName === 'approvals')   renderApprovalsPanel();
 }
 
 // -------------------------------------------------------------
@@ -2894,25 +3328,26 @@ function initApp() {
 }
 
 window.addEventListener('DOMContentLoaded', () => {
-  // Wire up Take a Tour button first
+  // Wire up Take a Tour button
   const tourBtn = document.getElementById('take-tour-btn');
-  if (tourBtn) {
-    tourBtn.addEventListener('click', () => {
-      startTour();
-    });
-  }
+  if (tourBtn) tourBtn.addEventListener('click', () => startTour());
 
-  // Auto-configure sync if credentials are already saved
+  // Auto-configure sync status
   const cfg = getSyncCfg();
-  if (cfg.binId && cfg.masterKey) {
-    console.log('[Sync] Credentials found — auto-sync enabled');
+  if (cfg.gistId && cfg.gistToken) {
+    console.log('[Sync] Gist credentials found — auto-sync enabled');
   }
 
-  try {
-    initApp();
-  } catch (err) {
-    console.error("App initialization failed:", err);
-  }
+  // ── AUTH INIT ──────────────────────────────────────────
+  initAuth().then(() => {
+    initLoginForm();   // wire the login form submit
+    const session = checkAuth(); // show login screen or app
+    if (session && session.role === 'owner') {
+      // Already logged in as owner — init the full app
+      try { initApp(); } catch(err) { console.error('App init failed:', err); }
+    }
+    // Employee view is rendered inside checkAuth → renderEmployeeView
+  });
 });
 
 

@@ -29,7 +29,110 @@
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-  <div class="app-container">
+  <!-- Login Overlay — shown until authenticated -->
+  <div id="login-overlay" style="display:flex;position:fixed;inset:0;z-index:10000;background:linear-gradient(135deg,#0f1117 0%,#1a1f2e 50%,#0f1117 100%);align-items:center;justify-content:center;">
+    <div style="width:100%;max-width:420px;padding:2rem;">
+      <div style="text-align:center;margin-bottom:2.5rem;">
+        <div style="width:72px;height:72px;background:linear-gradient(135deg,#f97316,#ea580c);border-radius:1.25rem;display:inline-flex;align-items:center;justify-content:center;margin-bottom:1rem;box-shadow:0 0 40px rgba(249,115,22,0.35);">
+          <svg viewBox="0 0 24 24" width="40" height="40" fill="white"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg>
+        </div>
+        <h1 style="font-size:1.75rem;font-weight:800;color:#f8fafc;margin:0;">OctaneFlow</h1>
+        <p style="color:#64748b;margin:0.35rem 0 0;">Fuel Station Management</p>
+      </div>
+      <form id="login-form" style="display:flex;flex-direction:column;gap:1rem;">
+        <div>
+          <label style="display:block;font-size:0.8rem;font-weight:600;color:#94a3b8;margin-bottom:0.4rem;">Username</label>
+          <input id="login-username" type="text" autocomplete="username" placeholder="owner / employee name" required
+            style="width:100%;box-sizing:border-box;background:#1e293b;border:1px solid #334155;color:#f8fafc;border-radius:0.75rem;padding:0.8rem 1rem;font-size:1rem;outline:none;">
+        </div>
+        <div>
+          <label style="display:block;font-size:0.8rem;font-weight:600;color:#94a3b8;margin-bottom:0.4rem;">Password / PIN</label>
+          <input id="login-password" type="password" autocomplete="current-password" placeholder="Password or 4-6 digit PIN" required
+            style="width:100%;box-sizing:border-box;background:#1e293b;border:1px solid #334155;color:#f8fafc;border-radius:0.75rem;padding:0.8rem 1rem;font-size:1rem;outline:none;">
+        </div>
+        <div id="login-error" style="color:#ef4444;font-size:0.82rem;min-height:1.2rem;white-space:pre-line;"></div>
+        <button id="login-btn" type="submit"
+          style="background:linear-gradient(135deg,#f97316,#ea580c);color:#fff;border:none;border-radius:0.75rem;padding:0.9rem;font-size:1rem;font-weight:700;cursor:pointer;transition:opacity 0.2s;">
+          Log In
+        </button>
+      </form>
+      <p style="text-align:center;color:#475569;font-size:0.72rem;margin-top:1.5rem;">Owner default: username <strong>owner</strong> · password <strong>OctaneFlow@2026</strong><br>Change in Settings after first login.</p>
+    </div>
+  </div>
+
+  <!-- Employee Shell — shown instead of main app for employees -->
+  <div id="employee-shell" style="display:none;flex-direction:column;min-height:100vh;background:#0f1117;">
+    <!-- Employee Header -->
+    <header style="background:#1e293b;border-bottom:1px solid #334155;padding:1rem 1.25rem;display:flex;justify-content:space-between;align-items:center;">
+      <div style="display:flex;align-items:center;gap:0.75rem;">
+        <div style="width:36px;height:36px;background:linear-gradient(135deg,#f97316,#ea580c);border-radius:0.6rem;display:flex;align-items:center;justify-content:center;">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="white"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
+        </div>
+        <div>
+          <div style="font-weight:700;color:#f8fafc;font-size:0.95rem;">👷 <span id="emp-user-name">Employee</span></div>
+          <div style="font-size:0.7rem;color:#64748b;">OctaneFlow · Submit Readings</div>
+        </div>
+      </div>
+      <button onclick="logoutUser()" style="background:rgba(239,68,68,0.1);color:#ef4444;border:1px solid rgba(239,68,68,0.3);border-radius:0.5rem;padding:0.4rem 0.85rem;font-size:0.8rem;font-weight:600;cursor:pointer;">Logout</button>
+    </header>
+    <!-- Employee Body -->
+    <div style="padding:1.25rem;max-width:700px;margin:0 auto;width:100%;box-sizing:border-box;">
+      <!-- Submit Form -->
+      <div class="panel" style="margin-bottom:1.5rem;">
+        <div class="panel-header"><h2 class="panel-title">📋 Submit Shift Reading</h2></div>
+        <div style="padding:1.25rem;display:flex;flex-direction:column;gap:1rem;">
+          <div class="form-row">
+            <div class="form-group">
+              <label for="emp-date">Date</label>
+              <input type="date" id="emp-date">
+            </div>
+            <div class="form-group">
+              <label for="emp-shift">Shift</label>
+              <select id="emp-shift" style="background:#1e293b;color:#f8fafc;border:1px solid #334155;border-radius:0.5rem;padding:0.6rem;width:100%;">
+                <option value="day">☀️ Day Shift</option>
+                <option value="night">🌙 Night Shift</option>
+              </select>
+            </div>
+          </div>
+          <!-- Nozzle Readings -->
+          <div style="display:grid;gap:0.75rem;">
+            <div style="color:#94a3b8;font-size:0.8rem;font-weight:600;border-bottom:1px solid #334155;padding-bottom:0.4rem;">🔴 Petrol Nozzles (DU1-P &amp; DU2-P)</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr 1fr 1fr;gap:0.5rem;font-size:0.75rem;">
+              <div class="form-group"><label>DU1-P Open</label><input type="number" id="emp-du1p-open" step="0.01" placeholder="0"></div>
+              <div class="form-group"><label>DU1-P Close</label><input type="number" id="emp-du1p-close" step="0.01" placeholder="0"></div>
+              <div class="form-group"><label>DU1-P Tests</label><input type="number" id="emp-du1p-tests" placeholder="0"></div>
+              <div class="form-group"><label>DU2-P Open</label><input type="number" id="emp-du2p-open" step="0.01" placeholder="0"></div>
+              <div class="form-group"><label>DU2-P Close</label><input type="number" id="emp-du2p-close" step="0.01" placeholder="0"></div>
+              <div class="form-group"><label>DU2-P Tests</label><input type="number" id="emp-du2p-tests" placeholder="0"></div>
+            </div>
+            <div style="color:#94a3b8;font-size:0.8rem;font-weight:600;border-bottom:1px solid #334155;padding-bottom:0.4rem;">🟡 Diesel Nozzles (DU1-D &amp; DU2-D)</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr 1fr 1fr;gap:0.5rem;font-size:0.75rem;">
+              <div class="form-group"><label>DU1-D Open</label><input type="number" id="emp-du1d-open" step="0.01" placeholder="0"></div>
+              <div class="form-group"><label>DU1-D Close</label><input type="number" id="emp-du1d-close" step="0.01" placeholder="0"></div>
+              <div class="form-group"><label>DU1-D Tests</label><input type="number" id="emp-du1d-tests" placeholder="0"></div>
+              <div class="form-group"><label>DU2-D Open</label><input type="number" id="emp-du2d-open" step="0.01" placeholder="0"></div>
+              <div class="form-group"><label>DU2-D Close</label><input type="number" id="emp-du2d-close" step="0.01" placeholder="0"></div>
+              <div class="form-group"><label>DU2-D Tests</label><input type="number" id="emp-du2d-tests" placeholder="0"></div>
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group"><label for="emp-cash">Cash Collected (₹)</label><input type="number" id="emp-cash" step="1" placeholder="0"></div>
+            <div class="form-group"><label for="emp-card">Card / UPI (₹)</label><input type="number" id="emp-card" step="1" placeholder="0"></div>
+          </div>
+          <div class="form-group"><label for="emp-remarks">Remarks (optional)</label><input type="text" id="emp-remarks" placeholder="Any notes for the owner…"></div>
+          <button id="emp-submit-btn" class="btn btn-primary" style="width:100%;padding:0.85rem;font-size:1rem;">✅ Submit for Approval</button>
+        </div>
+      </div>
+      <!-- Submissions History -->
+      <div class="panel">
+        <div class="panel-header"><h2 class="panel-title">📜 My Submissions</h2></div>
+        <div style="padding:1.25rem;" id="emp-submissions-list"></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="app-container-shell" class="app-container">
+
     
     <!-- Sidebar Navigation -->
     <aside class="sidebar">
@@ -91,9 +194,18 @@
             System Settings
           </button>
         </li>
+        <li class="nav-item" data-view="approvals" id="nav-approvals" style="position:relative;">
+          <button>
+            <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
+            Approvals
+            <span id="approvals-badge" style="display:none;position:absolute;top:6px;right:6px;background:#ef4444;color:#fff;border-radius:9999px;width:18px;height:18px;font-size:0.65rem;font-weight:800;align-items:center;justify-content:center;">0</span>
+          </button>
+        </li>
       </ul>
-      
+
       <div class="nav-footer">
+        <div id="session-user-name" style="color:#f97316;font-weight:700;font-size:0.8rem;margin-bottom:0.5rem;"></div>
+        <button onclick="logoutUser()" style="background:rgba(239,68,68,0.1);color:#ef4444;border:1px solid rgba(239,68,68,0.3);border-radius:0.5rem;padding:0.3rem 0.7rem;font-size:0.72rem;font-weight:600;cursor:pointer;width:100%;margin-bottom:0.5rem;">🚪 Logout</button>
         OctaneFlow v1.0.0<br>Local-First Platform
       </div>
     </aside>
@@ -1158,6 +1270,23 @@
 
       <section id="view-settings" class="view-section">
 
+        <!-- User Management Card -->
+        <div class="panel" style="margin-bottom:1.5rem;border:1px solid #334155;">
+          <div class="panel-header"><h2 class="panel-title">👥 User Management</h2></div>
+          <div style="padding:1.25rem;display:flex;flex-direction:column;gap:1rem;">
+            <div id="user-mgmt-list"></div>
+            <div style="border-top:1px solid #334155;padding-top:1rem;">
+              <div style="font-weight:700;color:#f8fafc;margin-bottom:0.75rem;font-size:0.85rem;">Add New Employee</div>
+              <div class="form-row">
+                <div class="form-group"><label for="new-emp-name">Full Name</label><input type="text" id="new-emp-name" placeholder="Ramesh Kumar"></div>
+                <div class="form-group"><label for="new-emp-username">Username</label><input type="text" id="new-emp-username" placeholder="ramesh or 9876543210"></div>
+                <div class="form-group"><label for="new-emp-pin">PIN (4–6 digits)</label><input type="password" id="new-emp-pin" placeholder="e.g. 1234" maxlength="6"></div>
+              </div>
+              <button id="add-employee-btn" class="btn btn-primary" style="margin-top:0.5rem;">➕ Add Employee</button>
+            </div>
+          </div>
+        </div>
+
         <!-- Cloud Sync Card -->
         <div class="panel" style="margin-bottom:1.5rem;border:1px solid #f97316;background:linear-gradient(135deg,rgba(249,115,22,0.08),rgba(15,17,23,0.9));">
           <div class="panel-header">
@@ -1398,8 +1527,21 @@
         </div>
       </section>
 
+      <!-- Approvals Section (Owner only) -->
+      <section id="view-approvals" class="view-section">
+        <div class="panel">
+          <div class="panel-header">
+            <h2 class="panel-title">✅ Employee Submissions — Pending Approvals</h2>
+          </div>
+          <div style="padding:1.25rem;" id="approvals-list">
+            <div style="text-align:center;color:#64748b;padding:3rem;">No submissions yet.</div>
+          </div>
+        </div>
+      </section>
+
     </main>
-  </div>
+  </div><!-- /app-container-shell -->
+
 
   <!-- Modal: Log Daily Readings -->
   <div class="modal-overlay" id="log-readings-modal">
