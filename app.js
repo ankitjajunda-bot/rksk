@@ -1,14 +1,15 @@
 // OctaneFlow App State and Logic - Daily Ledger Spreadsheet Edition
 
 // ============================================================
-// JSONBIN AUTO-SYNC ENGINE
-// Stores data in JSONBin.io so all devices share the same data.
+// GITHUB GIST AUTO-SYNC ENGINE
+// Stores data in a private GitHub Gist — no size limit, free.
 // Credentials live in localStorage under 'octaneflow_sync_cfg'
 // (separate from db so they survive a DB reset).
 // ============================================================
 
-const SYNC_CFG_KEY = 'octaneflow_sync_cfg';
-const JSONBIN_BASE = 'https://api.jsonbin.io/v3/b';
+const SYNC_CFG_KEY  = 'octaneflow_sync_cfg';
+const GIST_API_BASE = 'https://api.github.com/gists';
+const GIST_FILENAME = 'octaneflow_data.json';
 
 function getSyncCfg() {
   try { return JSON.parse(localStorage.getItem(SYNC_CFG_KEY) || '{}'); }
@@ -19,36 +20,37 @@ function saveSyncCfg(cfg) {
   localStorage.setItem(SYNC_CFG_KEY, JSON.stringify(cfg));
 }
 
-// Show a small cloud sync indicator in the UI
 function setSyncStatus(state) {
-  // states: 'syncing' | 'synced' | 'error' | 'offline' | 'off'
   const el = document.getElementById('sync-status-indicator');
   if (!el) return;
   const map = {
-    syncing: { icon: '☁️', text: 'Syncing…',  color: '#f97316' },
-    synced:  { icon: '✅', text: 'Synced',    color: '#22c55e' },
-    error:   { icon: '⚠️', text: 'Sync error', color: '#ef4444' },
-    offline: { icon: '📶', text: 'Offline',   color: '#94a3b8' },
-    off:     { icon: '🔌', text: 'Sync off',  color: '#475569' },
+    syncing: { icon: '☁️', text: 'Syncing…',   color: '#f97316' },
+    synced:  { icon: '✅', text: 'Synced',      color: '#22c55e' },
+    error:   { icon: '⚠️', text: 'Sync error',  color: '#ef4444' },
+    offline: { icon: '📶', text: 'Offline',     color: '#94a3b8' },
+    off:     { icon: '🔌', text: 'Sync off',    color: '#475569' },
   };
   const s = map[state] || map.off;
   el.innerHTML = `<span style="color:${s.color};font-size:0.75rem;font-weight:600;">${s.icon} ${s.text}</span>`;
 }
 
-// Pull latest data from JSONBin → returns parsed db object or null
+// Pull latest data from GitHub Gist
 async function syncPull() {
   const cfg = getSyncCfg();
-  if (!cfg.binId || !cfg.masterKey) return null;
+  if (!cfg.gistId || !cfg.gistToken) { setSyncStatus('off'); return null; }
   try {
     setSyncStatus('syncing');
-    const res = await fetch(`${JSONBIN_BASE}/${cfg.binId}/latest`, {
-      headers: { 'X-Master-Key': cfg.masterKey }
+    const res = await fetch(`${GIST_API_BASE}/${cfg.gistId}`, {
+      headers: {
+        'Authorization': `token ${cfg.gistToken}`,
+        'Accept': 'application/vnd.github+json'
+      }
     });
     if (!res.ok) { setSyncStatus('error'); return null; }
-    const json = await res.json();
-    const record = json.record;
-    // Ignore our placeholder init record
-    if (record && record._octaneflow_sync && !record.daily_ledger) return null;
+    const gist   = await res.json();
+    const file   = gist.files && gist.files[GIST_FILENAME];
+    if (!file)   { setSyncStatus('error'); return null; }
+    const record = JSON.parse(file.content);
     setSyncStatus('synced');
     return record;
   } catch {
@@ -57,51 +59,58 @@ async function syncPull() {
   }
 }
 
-// Push current db to JSONBin
+// Push current db to GitHub Gist
 async function syncPush() {
   const cfg = getSyncCfg();
-  if (!cfg.binId || !cfg.masterKey) return;
+  if (!cfg.gistId || !cfg.gistToken) return;
   try {
     setSyncStatus('syncing');
     const payload = { ...db, _synced_at: new Date().toISOString() };
-    const res = await fetch(`${JSONBIN_BASE}/${cfg.binId}`, {
-      method: 'PUT',
+    const res = await fetch(`${GIST_API_BASE}/${cfg.gistId}`, {
+      method: 'PATCH',
       headers: {
-        'Content-Type': 'application/json',
-        'X-Master-Key': cfg.masterKey
+        'Authorization': `token ${cfg.gistToken}`,
+        'Accept': 'application/vnd.github+json',
+        'Content-Type': 'application/json'
       },
-      body: JSON.stringify(payload)
+      body: JSON.stringify({
+        files: { [GIST_FILENAME]: { content: JSON.stringify(payload) } }
+      })
     });
+    if (res.ok) {
+      const cfg2 = getSyncCfg();
+      cfg2.last_push = new Date().toISOString();
+      saveSyncCfg(cfg2);
+    }
     setSyncStatus(res.ok ? 'synced' : 'error');
   } catch {
     setSyncStatus(navigator.onLine ? 'error' : 'offline');
   }
 }
 
-// Call this once on app start — pulls cloud data if newer than local
+// On app start — pull cloud data if it's newer than local
 async function initSync() {
   const cfg = getSyncCfg();
-  if (!cfg.binId || !cfg.masterKey) { setSyncStatus('off'); return; }
+  if (!cfg.gistId || !cfg.gistToken) { setSyncStatus('off'); return; }
   const cloudData = await syncPull();
   if (!cloudData || !cloudData.daily_ledger) return;
 
-  // Compare: use cloud data if it has more entries or is newer
-  const localLedgerLen  = (db && db.daily_ledger) ? db.daily_ledger.length  : 0;
-  const cloudLedgerLen  = cloudData.daily_ledger ? cloudData.daily_ledger.length : 0;
-  const cloudSyncedAt   = cloudData._synced_at ? new Date(cloudData._synced_at) : new Date(0);
-  const localSyncedAt   = cfg.last_push        ? new Date(cfg.last_push)        : new Date(0);
+  const localLen  = (db && db.daily_ledger) ? db.daily_ledger.length : 0;
+  const cloudLen  = cloudData.daily_ledger.length;
+  const cloudAt   = cloudData._synced_at ? new Date(cloudData._synced_at) : new Date(0);
+  const localAt   = cfg.last_push        ? new Date(cfg.last_push)        : new Date(0);
 
-  if (cloudLedgerLen > localLedgerLen || cloudSyncedAt > localSyncedAt) {
-    // Cloud is newer — load it
+  if (cloudLen > localLen || cloudAt > localAt) {
     db = cloudData;
     localStorage.setItem('octaneflow_db', JSON.stringify(db));
     cfg.last_push = cloudData._synced_at || new Date().toISOString();
     saveSyncCfg(cfg);
-    console.log('[Sync] Loaded cloud data — ledger rows:', cloudLedgerLen);
+    console.log('[Sync] Loaded cloud data — rows:', cloudLen);
   } else {
-    console.log('[Sync] Local data is current — ledger rows:', localLedgerLen);
+    console.log('[Sync] Local is current — rows:', localLen);
   }
 }
+
 
 
 const DEFAULT_DB = {
@@ -2224,23 +2233,23 @@ function deleteHoliday(dateStr) {
 
 function renderSettings() {
   // ── Cloud Sync Settings ──────────────────────────────────
-  const syncCfg = getSyncCfg();
-  const syncMasterKeyEl = document.getElementById('cfg-sync-master-key');
-  const syncBinIdEl     = document.getElementById('cfg-sync-bin-id');
-  if (syncMasterKeyEl) syncMasterKeyEl.value = syncCfg.masterKey || '';
-  if (syncBinIdEl)     syncBinIdEl.value     = syncCfg.binId     || '';
+  const syncCfg      = getSyncCfg();
+  const syncTokenEl  = document.getElementById('cfg-sync-master-key');
+  const syncGistEl   = document.getElementById('cfg-sync-bin-id');
+  if (syncTokenEl) syncTokenEl.value = syncCfg.gistToken || '';
+  if (syncGistEl)  syncGistEl.value  = syncCfg.gistId    || '';
 
   const saveSyncBtn = document.getElementById('cfg-save-sync-btn');
   if (saveSyncBtn && !saveSyncBtn._wired) {
     saveSyncBtn._wired = true;
     saveSyncBtn.addEventListener('click', async () => {
-      const mk  = (syncMasterKeyEl ? syncMasterKeyEl.value : '').trim();
-      const bid = (syncBinIdEl     ? syncBinIdEl.value     : '').trim();
-      if (!mk || !bid) { showNotification('Enter both Master Key and Bin ID.', 'danger'); return; }
-      saveSyncCfg({ masterKey: mk, binId: bid });
+      const tok  = (syncTokenEl ? syncTokenEl.value : '').trim();
+      const gid  = (syncGistEl  ? syncGistEl.value  : '').trim();
+      if (!tok || !gid) { showNotification('Enter both GitHub Token and Gist ID.', 'danger'); return; }
+      saveSyncCfg({ gistToken: tok, gistId: gid });
       showNotification('Sync settings saved. Pushing data to cloud…', 'success');
       await syncPush();
-      showNotification('✅ Data pushed to cloud successfully!', 'success');
+      showNotification('✅ Data pushed to Gist successfully!', 'success');
     });
   }
 
