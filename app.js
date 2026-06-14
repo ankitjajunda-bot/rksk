@@ -585,6 +585,7 @@ function renderUserManagement() {
 
   const addBtn = document.getElementById('add-employee-btn');
   if (addBtn && !addBtn._wired) {
+    console.log('[User Management] Wiring add employee button listener');
     addBtn._wired = true;
     addBtn.addEventListener('click', addEmployee);
   }
@@ -597,10 +598,12 @@ function renderUserManagement() {
 }
 
 async function addEmployee() {
+  console.log('[User Management] addEmployee clicked!');
   try {
     const name = document.getElementById('new-emp-name')?.value.trim();
     const user = document.getElementById('new-emp-username')?.value.trim().toLowerCase().replace(/\s+/g,'');
     const pin  = document.getElementById('new-emp-pin')?.value.trim();
+    console.log('[User Management] Form inputs:', { name, user, pin });
     if (!name||!user||!pin) { showNotification('Fill in all three fields.','danger'); return; }
     if (!/^\d{4,6}$/.test(pin)) { showNotification('PIN must be 4–6 digits.','danger'); return; }
     const users = getUsers();
