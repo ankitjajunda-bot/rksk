@@ -3427,6 +3427,22 @@ window.addEventListener('DOMContentLoaded', () => {
       checkAuth();
     });
   });
+
+  // 3. Background Auto-Sync: Check for cloud updates every 30 seconds
+  setInterval(() => {
+    const currentCfg = getSyncCfg();
+    const session = getSession();
+    if (currentCfg.gistId && currentCfg.gistToken && session && document.visibilityState === 'visible') {
+      initSync().then(() => {
+        if (session.role === 'owner') {
+          const activeItem = document.querySelector('.nav-item.active');
+          if (activeItem) renderActiveView(activeItem.dataset.view);
+        } else {
+          renderEmployeeView(session);
+        }
+      }).catch(() => {});
+    }
+  }, 30000);
 });
 
 
