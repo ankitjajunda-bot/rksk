@@ -356,12 +356,21 @@ function initLoginForm() {
 
     const result = await loginUser(username, credential);
 
-    if (btnEl) { btnEl.disabled = false; btnEl.textContent = 'Log In'; }
-
     if (!result.success) {
+      if (btnEl) { btnEl.disabled = false; btnEl.textContent = 'Log In'; }
       if (errEl) errEl.textContent = result.error;
       return;
     }
+
+    if (btnEl) { btnEl.textContent = 'Syncing latest data…'; }
+    try {
+      await initSync();
+    } catch (err) {
+      console.warn('[Sync] Failed to pull on login, loading cached database:', err);
+    }
+
+    if (btnEl) { btnEl.disabled = false; btnEl.textContent = 'Log In'; }
+
     if (result.newDevice) {
       showNotification('✅ Device registered. Welcome!', 'success');
     }
