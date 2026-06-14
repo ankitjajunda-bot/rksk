@@ -1,0 +1,40 @@
+# Personal financial data — NEVER upload
+octaneflow_history_backup.json
+*.csv
+*.xlsx
+*.xls
+
+# Scanned documents — private business records
+SCANNED PUMP DSR/
+PUMP Bills/
+*.jpeg
+*.jpg
+*.png
+apple-touch-icon.png
+favicon.png
+
+# Icons folder IS needed — whitelist it
+!icons/
+!icons/*.png
+
+# Python scripts and OCR tools
+*.py
+bridge.py
+ocr.swift
+ocr_tool
+ocr_tool/
+server.pem
+
+# Temporary and system files
+.DS_Store
+*.log
+__pycache__/
+*.pyc
+
+# Mac launcher (local only)
+OctaneFlow.command
+
+
+# README (optional — keep if you want)
+# README.md
+whatsapp-extension/
