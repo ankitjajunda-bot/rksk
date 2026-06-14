@@ -95,25 +95,56 @@
             </div>
           </div>
           <!-- Nozzle Readings -->
-          <div style="display:grid;gap:0.75rem;">
-            <div style="color:#94a3b8;font-size:0.8rem;font-weight:600;border-bottom:1px solid #334155;padding-bottom:0.4rem;">🔴 Petrol Nozzles (DU1-P &amp; DU2-P)</div>
-            <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr 1fr 1fr;gap:0.5rem;font-size:0.75rem;">
-              <div class="form-group"><label>DU1-P Open</label><input type="number" id="emp-du1p-open" step="0.01" placeholder="0"></div>
-              <div class="form-group"><label>DU1-P Close</label><input type="number" id="emp-du1p-close" step="0.01" placeholder="0"></div>
-              <div class="form-group"><label>DU1-P Tests</label><input type="number" id="emp-du1p-tests" placeholder="0"></div>
-              <div class="form-group"><label>DU2-P Open</label><input type="number" id="emp-du2p-open" step="0.01" placeholder="0"></div>
-              <div class="form-group"><label>DU2-P Close</label><input type="number" id="emp-du2p-close" step="0.01" placeholder="0"></div>
-              <div class="form-group"><label>DU2-P Tests</label><input type="number" id="emp-du2p-tests" placeholder="0"></div>
+          <div style="display:flex;flex-direction:column;gap:1rem;">
+            
+            <!-- Petrol Nozzle 1 (DU1-P) -->
+            <div style="background:rgba(255,255,255,0.02);border:1px solid #334155;border-radius:0.75rem;padding:1rem;">
+              <div style="font-weight:700;color:#f8fafc;font-size:0.85rem;margin-bottom:0.75rem;display:flex;align-items:center;gap:0.5rem;">
+                <span style="width:10px;height:10px;background:#ef4444;border-radius:50%;display:inline-block;"></span> Petrol DU1-P Nozzle
+              </div>
+              <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:0.6rem;">
+                <div class="form-group" style="margin:0;"><label style="font-size:0.7rem;color:#94a3b8;margin-bottom:0.25rem;">Opening Totalizer</label><input type="number" id="emp-du1p-open" step="0.01" placeholder="0.00" style="padding:0.6rem;font-size:0.85rem;width:100%;box-sizing:border-box;"></div>
+                <div class="form-group" style="margin:0;"><label style="font-size:0.7rem;color:#94a3b8;margin-bottom:0.25rem;">Closing Totalizer</label><input type="number" id="emp-du1p-close" step="0.01" placeholder="0.00" style="padding:0.6rem;font-size:0.85rem;width:100%;box-sizing:border-box;"></div>
+                <div class="form-group" style="margin:0;"><label style="font-size:0.7rem;color:#94a3b8;margin-bottom:0.25rem;">Testing (Ltr)</label><input type="number" id="emp-du1p-tests" placeholder="0" style="padding:0.6rem;font-size:0.85rem;width:100%;box-sizing:border-box;"></div>
+              </div>
             </div>
-            <div style="color:#94a3b8;font-size:0.8rem;font-weight:600;border-bottom:1px solid #334155;padding-bottom:0.4rem;">🟡 Diesel Nozzles (DU1-D &amp; DU2-D)</div>
-            <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr 1fr 1fr;gap:0.5rem;font-size:0.75rem;">
-              <div class="form-group"><label>DU1-D Open</label><input type="number" id="emp-du1d-open" step="0.01" placeholder="0"></div>
-              <div class="form-group"><label>DU1-D Close</label><input type="number" id="emp-du1d-close" step="0.01" placeholder="0"></div>
-              <div class="form-group"><label>DU1-D Tests</label><input type="number" id="emp-du1d-tests" placeholder="0"></div>
-              <div class="form-group"><label>DU2-D Open</label><input type="number" id="emp-du2d-open" step="0.01" placeholder="0"></div>
-              <div class="form-group"><label>DU2-D Close</label><input type="number" id="emp-du2d-close" step="0.01" placeholder="0"></div>
-              <div class="form-group"><label>DU2-D Tests</label><input type="number" id="emp-du2d-tests" placeholder="0"></div>
+
+            <!-- Petrol Nozzle 2 (DU2-P) -->
+            <div style="background:rgba(255,255,255,0.02);border:1px solid #334155;border-radius:0.75rem;padding:1rem;">
+              <div style="font-weight:700;color:#f8fafc;font-size:0.85rem;margin-bottom:0.75rem;display:flex;align-items:center;gap:0.5rem;">
+                <span style="width:10px;height:10px;background:#ef4444;border-radius:50%;display:inline-block;"></span> Petrol DU2-P Nozzle
+              </div>
+              <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:0.6rem;">
+                <div class="form-group" style="margin:0;"><label style="font-size:0.7rem;color:#94a3b8;margin-bottom:0.25rem;">Opening Totalizer</label><input type="number" id="emp-du2p-open" step="0.01" placeholder="0.00" style="padding:0.6rem;font-size:0.85rem;width:100%;box-sizing:border-box;"></div>
+                <div class="form-group" style="margin:0;"><label style="font-size:0.7rem;color:#94a3b8;margin-bottom:0.25rem;">Closing Totalizer</label><input type="number" id="emp-du2p-close" step="0.01" placeholder="0.00" style="padding:0.6rem;font-size:0.85rem;width:100%;box-sizing:border-box;"></div>
+                <div class="form-group" style="margin:0;"><label style="font-size:0.7rem;color:#94a3b8;margin-bottom:0.25rem;">Testing (Ltr)</label><input type="number" id="emp-du2p-tests" placeholder="0" style="padding:0.6rem;font-size:0.85rem;width:100%;box-sizing:border-box;"></div>
+              </div>
             </div>
+
+            <!-- Diesel Nozzle 1 (DU1-D) -->
+            <div style="background:rgba(255,255,255,0.02);border:1px solid #334155;border-radius:0.75rem;padding:1rem;">
+              <div style="font-weight:700;color:#f8fafc;font-size:0.85rem;margin-bottom:0.75rem;display:flex;align-items:center;gap:0.5rem;">
+                <span style="width:10px;height:10px;background:#eab308;border-radius:50%;display:inline-block;"></span> Diesel DU1-D Nozzle
+              </div>
+              <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:0.6rem;">
+                <div class="form-group" style="margin:0;"><label style="font-size:0.7rem;color:#94a3b8;margin-bottom:0.25rem;">Opening Totalizer</label><input type="number" id="emp-du1d-open" step="0.01" placeholder="0.00" style="padding:0.6rem;font-size:0.85rem;width:100%;box-sizing:border-box;"></div>
+                <div class="form-group" style="margin:0;"><label style="font-size:0.7rem;color:#94a3b8;margin-bottom:0.25rem;">Closing Totalizer</label><input type="number" id="emp-du1d-close" step="0.01" placeholder="0.00" style="padding:0.6rem;font-size:0.85rem;width:100%;box-sizing:border-box;"></div>
+                <div class="form-group" style="margin:0;"><label style="font-size:0.7rem;color:#94a3b8;margin-bottom:0.25rem;">Testing (Ltr)</label><input type="number" id="emp-du1d-tests" placeholder="0" style="padding:0.6rem;font-size:0.85rem;width:100%;box-sizing:border-box;"></div>
+              </div>
+            </div>
+
+            <!-- Diesel Nozzle 2 (DU2-D) -->
+            <div style="background:rgba(255,255,255,0.02);border:1px solid #334155;border-radius:0.75rem;padding:1rem;">
+              <div style="font-weight:700;color:#f8fafc;font-size:0.85rem;margin-bottom:0.75rem;display:flex;align-items:center;gap:0.5rem;">
+                <span style="width:10px;height:10px;background:#eab308;border-radius:50%;display:inline-block;"></span> Diesel DU2-D Nozzle
+              </div>
+              <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:0.6rem;">
+                <div class="form-group" style="margin:0;"><label style="font-size:0.7rem;color:#94a3b8;margin-bottom:0.25rem;">Opening Totalizer</label><input type="number" id="emp-du2d-open" step="0.01" placeholder="0.00" style="padding:0.6rem;font-size:0.85rem;width:100%;box-sizing:border-box;"></div>
+                <div class="form-group" style="margin:0;"><label style="font-size:0.7rem;color:#94a3b8;margin-bottom:0.25rem;">Closing Totalizer</label><input type="number" id="emp-du2d-close" step="0.01" placeholder="0.00" style="padding:0.6rem;font-size:0.85rem;width:100%;box-sizing:border-box;"></div>
+                <div class="form-group" style="margin:0;"><label style="font-size:0.7rem;color:#94a3b8;margin-bottom:0.25rem;">Testing (Ltr)</label><input type="number" id="emp-du2d-tests" placeholder="0" style="padding:0.6rem;font-size:0.85rem;width:100%;box-sizing:border-box;"></div>
+              </div>
+            </div>
+
           </div>
           <div class="form-row">
             <div class="form-group"><label for="emp-cash">Cash Collected (₹)</label><input type="number" id="emp-cash" step="1" placeholder="0"></div>
