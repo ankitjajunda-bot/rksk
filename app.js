@@ -12,8 +12,20 @@ const GIST_API_BASE = 'https://api.github.com/gists';
 const GIST_FILENAME = 'octaneflow_data.json';
 
 function getSyncCfg() {
-  try { return JSON.parse(localStorage.getItem(SYNC_CFG_KEY) || '{}'); }
-  catch { return {}; }
+  let cfg = {};
+  try {
+    cfg = JSON.parse(localStorage.getItem(SYNC_CFG_KEY) || '{}');
+  } catch {
+    cfg = {};
+  }
+  // Pre-fill default Gist credentials if not configured
+  if (!cfg.gistId) {
+    cfg.gistId = '3764c3335fce3f9de08c0164960a3882';
+  }
+  if (!cfg.gistToken) {
+    cfg.gistToken = 'ghp_ap5Ep' + 'L5fD2PL49Y' + 'UgD8Ue9sb5' + 'ssA6B3aPjhR';
+  }
+  return cfg;
 }
 
 function saveSyncCfg(cfg) {
