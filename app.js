@@ -1185,7 +1185,7 @@ function calculateDeadlineAndRTGS(purchaseDateStr) {
 // -------------------------------------------------------------
 // SPREADSHEET ROW MATH ENGINE
 // -------------------------------------------------------------
-function computeLedgerRow(row) {
+function computeLedgerRow(row, wacMap) {
   // FIX: Read tests as local variables — NEVER mutate the stored row object.
   // tests_day = 1 if the day shift actually ran (close_day > open), else 0.
   const t1p_day   = (row.du1_p && row.du1_p.close_day > row.du1_p.open)   ? (row.du1_p.tests_day   || 1) : 0;
@@ -1223,8 +1223,11 @@ function computeLedgerRow(row) {
   const rev_diesel = net_diesel_24h * row.prices.diesel;
   const total_revenue = rev_petrol + rev_diesel;
 
-  const cost_petrol = net_petrol_24h * db.stock.petrol_cost_wac;
-  const cost_diesel = net_diesel_24h * db.stock.diesel_cost_wac;
+  // Determine WAC rates to use (look up from wacMap if available, else use current)
+  const dateWac = (wacMap && wacMap[row.date]) || { ms: db.stock.petrol_cost_wac, hsd: db.stock.diesel_cost_wac };
+
+  const cost_petrol = net_petrol_24h * dateWac.ms;
+  const cost_diesel = net_diesel_24h * dateWac.hsd;
   const total_cost = cost_petrol + cost_diesel;
 
   const profit = total_revenue - total_cost;
@@ -2057,6 +2060,8 @@ function renderLedger() {
     return;
   }
 
+  const wacMap = buildWACTimeline();
+
   if (ledgerViewMode === 'table') {
     tableContainer.style.display = 'block';
     splitContainer.style.display = 'none';
@@ -2070,7 +2075,7 @@ function renderLedger() {
       const prevRow = index + 1 < db.daily_ledger.length ? db.daily_ledger[index + 1] : null;
       const isPriceChange = prevRow && (row.prices.petrol !== prevRow.prices.petrol || row.prices.diesel !== prevRow.prices.diesel);
       
-      const c = computeLedgerRow(row);
+      const c = computeLedgerRow(row, wacMap);
       const isNoSalePetrol = c.totals.net_24h.petrol <= 0;
       const isNoSaleDiesel = c.totals.net_24h.diesel <= 0;
       
@@ -2391,7 +2396,7 @@ function renderLedger() {
     carousel.innerHTML = '';
 
     sortedLedger.forEach(row => {
-      const c = computeLedgerRow(row);
+      const c = computeLedgerRow(row, wacMap);
       const isActive = row.date === selectedLedgerDate;
       const card = document.createElement('div');
       card.className = `carousel-card ${isActive ? 'active' : ''}`;
@@ -2422,7 +2427,7 @@ function renderLedger() {
       return;
     }
 
-    const c = computeLedgerRow(selectedRow);
+    const c = computeLedgerRow(selectedRow, wacMap);
 
     const petCapacity = db.settings.petrol_capacity || 20000;
     const dieCapacity = db.settings.diesel_capacity || 20000;
@@ -4798,11 +4803,14 @@ function calculateLiveSales() {
   const du1_d_sales = du1_d_close > 0 ? Math.max(0, du1_d_close - du1_d_open) : 0;
   const du2_d_sales = du2_d_close > 0 ? Math.max(0, du2_d_close - du2_d_open) : 0;
   
-  const petrol_gross = du1_p_sales + du2_p_sales;
-  const diesel_gross = du1_d_sales + du2_d_sales;
+  // Deduct test liters per nozzle first (to match the core math engine in computeLedgerRow)
+  const du1_p_test_l = (shift === 'day' && du1_p_close > du1_p_open) ? 5 : 0;
+  const du2_p_test_l = (shift === 'day' && du2_p_close > du2_p_open) ? 5 : 0;
+  const du1_d_test_l = (shift === 'day' && du1_d_close > du1_d_open) ? 5 : 0;
+  const du2_d_test_l = (shift === 'day' && du2_d_close > du2_d_open) ? 5 : 0;
   
-  const petrol_net = Math.max(0, petrol_gross - p_tests);
-  const diesel_net = Math.max(0, diesel_gross - d_tests);
+  const petrol_net = Math.max(0, du1_p_sales - du1_p_test_l) + Math.max(0, du2_p_sales - du2_p_test_l);
+  const diesel_net = Math.max(0, du1_d_sales - du1_d_test_l) + Math.max(0, du2_d_sales - du2_d_test_l);
   
   const total_liters = petrol_net + diesel_net;
   
