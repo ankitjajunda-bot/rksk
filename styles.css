@@ -1819,5 +1819,50 @@ tr:hover td {
   box-shadow: none !important;
 }
 
+/* DSR Checker additions */
+.editable-cell {
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px dashed rgba(255, 255, 255, 0.15);
+  border-radius: 4px;
+  padding: 4px 8px;
+  text-align: right;
+  outline: none;
+  font-family: monospace;
+  font-size: 0.85rem;
+  color: #fff;
+  display: inline-block;
+  min-width: 65px;
+  transition: all 0.2s;
+  cursor: pointer;
+}
+.editable-cell:focus {
+  background: rgba(249, 115, 22, 0.1);
+  border: 1px solid var(--primary);
+  box-shadow: 0 0 8px rgba(249, 115, 22, 0.4);
+}
+.validation-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  border-radius: 9999px;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+.validation-badge.success {
+  background: rgba(34, 197, 94, 0.15);
+  color: #22c55e;
+  border: 1px solid rgba(34, 197, 94, 0.3);
+}
+.validation-badge.warning {
+  background: rgba(239, 68, 68, 0.15);
+  color: #ef4444;
+  border: 1px solid rgba(239, 68, 68, 0.3);
+}
+.diff-highlight {
+  background: rgba(234, 179, 8, 0.1) !important;
+  color: #eab308 !important;
+}
+
 
 

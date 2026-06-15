@@ -32,6 +32,17 @@ function saveSyncCfg(cfg) {
   localStorage.setItem(SYNC_CFG_KEY, JSON.stringify(cfg));
 }
 
+function formatSyncTime(isoString) {
+  if (!isoString) return "";
+  const date = new Date(isoString);
+  let hours = date.getHours();
+  const minutes = date.getMinutes().toString().padStart(2, '0');
+  const ampm = hours >= 12 ? 'PM' : 'AM';
+  hours = hours % 12;
+  hours = hours ? hours : 12;
+  return `(Sync: ${hours}:${minutes} ${ampm})`;
+}
+
 function setSyncStatus(state) {
   const el = document.getElementById('sync-status-indicator');
   if (!el) return;
@@ -43,7 +54,15 @@ function setSyncStatus(state) {
     off:     { icon: '🔌', text: 'Sync off',    color: '#475569' },
   };
   const s = map[state] || map.off;
-  el.innerHTML = `<span style="color:${s.color};font-size:0.75rem;font-weight:600;">${s.icon} ${s.text}</span>`;
+  let timeStr = "";
+  if (state === 'synced') {
+    const cfg = getSyncCfg();
+    const lastSync = cfg.last_push || localStorage.getItem('octaneflow_last_sync');
+    if (lastSync) {
+      timeStr = " " + formatSyncTime(lastSync);
+    }
+  }
+  el.innerHTML = `<span style="color:${s.color};font-size:0.75rem;font-weight:600;">${s.icon} ${s.text}${timeStr}</span>`;
 }
 
 // Pull latest data from GitHub Gist
@@ -74,8 +93,8 @@ async function syncPull() {
       setSyncStatus('error');
       SystemLogger.error('syncPull', `Gist does not contain files or target file '${GIST_FILENAME}' is missing.`);
       return null;
-    }
     const record = JSON.parse(file.content);
+    localStorage.setItem('octaneflow_last_sync', new Date().toISOString());
     setSyncStatus('synced');
     SystemLogger.success('syncPull', `Cloud pull succeeded. Retrieved database synced at ${record._synced_at || 'unknown'}`);
     return record;
@@ -168,6 +187,7 @@ async function syncPush() {
       const cfg2 = getSyncCfg();
       cfg2.last_push = new Date().toISOString();
       saveSyncCfg(cfg2);
+      localStorage.setItem('octaneflow_last_sync', cfg2.last_push);
       setSyncStatus('synced');
       SystemLogger.success('syncPush', 'Cloud push completed successfully. Cloud database updated.');
     } else {
@@ -2385,7 +2405,9 @@ function deleteLedgerRow(dateStr) {
   }
 }
 
-function recordTanker(dateStr, timeStr, loadType, customP, customD, priceP, priceD) {
+function recordTanker(dateStr, timeStr, loadType, customP, customD, priceP, priceD,
+                      petrolInvoiceDensity = 0, petrolObservedDensity = 0, petrolObservedTemp = 0,
+                      dieselInvoiceDensity = 0, dieselObservedDensity = 0, dieselObservedTemp = 0) {
   let petrolQty = 0;
   let dieselQty = 0;
 
@@ -2434,6 +2456,16 @@ function recordTanker(dateStr, timeStr, loadType, customP, customD, priceP, pric
 
   const creditDetails = calculateDeadlineAndRTGS(dateStr);
 
+  const petrolRho15 = petrolQty > 0 ? getDensityAt15(petrolObservedDensity, petrolObservedTemp) : 0;
+  const petrolVcf = petrolQty > 0 && petrolRho15 > 0 ? petrolObservedDensity / petrolRho15 : 0;
+  const petrolCorrectedVol = petrolQty > 0 ? petrolQty * petrolVcf : 0;
+  const petrolShortage = petrolQty > 0 ? petrolQty - petrolCorrectedVol : 0;
+
+  const dieselRho15 = dieselQty > 0 ? getDensityAt15(dieselObservedDensity, dieselObservedTemp) : 0;
+  const dieselVcf = dieselQty > 0 && dieselRho15 > 0 ? dieselObservedDensity / dieselRho15 : 0;
+  const dieselCorrectedVol = dieselQty > 0 ? dieselQty * dieselVcf : 0;
+  const dieselShortage = dieselQty > 0 ? dieselQty - dieselCorrectedVol : 0;
+
   const purchase = {
     id: 'p_' + Date.now(),
     date: dateStr + 'T' + timeStr,
@@ -2448,7 +2480,23 @@ function recordTanker(dateStr, timeStr, loadType, customP, customD, priceP, pric
     rtgs_filing_date: creditDetails.rtgsDate,
     payment_status: 'unpaid',
     paid_date: null,
-    interest_charged: 0
+    interest_charged: 0,
+
+    petrol_invoice_density: petrolInvoiceDensity,
+    petrol_observed_density: petrolObservedDensity,
+    petrol_observed_temp: petrolObservedTemp,
+    petrol_rho15: petrolRho15,
+    petrol_vcf: petrolVcf,
+    petrol_corrected_vol: petrolCorrectedVol,
+    petrol_shortage: petrolShortage,
+
+    diesel_invoice_density: dieselInvoiceDensity,
+    diesel_observed_density: dieselObservedDensity,
+    diesel_observed_temp: dieselObservedTemp,
+    diesel_rho15: dieselRho15,
+    diesel_vcf: dieselVcf,
+    diesel_corrected_vol: dieselCorrectedVol,
+    diesel_shortage: dieselShortage
   };
 
   db.purchases.unshift(purchase);
@@ -2620,7 +2668,8 @@ const SUB_TABS = {
   operations: [
     { id: 'shift-recon', label: 'Shift Recon' },
     { id: 'ledger',      label: 'Sales Ledger' },
-    { id: 'approvals',   label: 'Pending Approvals', badge: 'approvals-badge' }
+    { id: 'approvals',   label: 'Pending Approvals', badge: 'approvals-badge' },
+    { id: 'dsr-checker', label: 'DSR Data Checker' }
   ],
   logistics: [
     { id: 'purchases',   label: 'Tanker Purchases' },
@@ -2653,10 +2702,15 @@ const titles = {
   cashflow: "Cash Flow & Orders Solver",
   'shift-recon': "Shift Reconciliation & Cash Count",
   expenses: "Expense Ledger",
-  approvals: "Shift Approvals"
+  approvals: "Shift Approvals",
+  'dsr-checker': "DSR Data Checker & OCR Verifier"
 };
 
 function switchSubview(mainView, subviewId) {
+  if (subviewId === 'dsr-checker' && (!session || session.role !== 'owner')) {
+    showNotification("Access denied: Owners only.", "danger");
+    return;
+  }
   currentSubviews[mainView] = subviewId;
 
   // Update view visibility
@@ -2690,6 +2744,9 @@ function renderSubtabsBar(mainView) {
   const activeSub = currentSubviews[mainView];
 
   bar.innerHTML = subtabs.map(tab => {
+    if (tab.id === 'dsr-checker' && (!session || session.role !== 'owner')) {
+      return '';
+    }
     const isActive = tab.id === activeSub;
     const badgeHtml = tab.badge ? `<span class="badge" id="${tab.badge}-sub" style="margin-left:0.4rem;background:#ef4444;color:#fff;border-radius:9999px;padding:0.1rem 0.4rem;font-size:0.65rem;font-weight:800;display:none;">0</span>` : '';
     return `
@@ -2744,6 +2801,7 @@ function renderActiveView(viewName) {
   if (viewName === 'shift-recon') renderShiftRecon();
   if (viewName === 'expenses')    renderExpenseLedger();
   if (viewName === 'approvals')   renderApprovalsPanel();
+  if (viewName === 'dsr-checker') renderDsrChecker();
 }
 
 // -------------------------------------------------------------
@@ -3851,13 +3909,41 @@ function renderPurchases() {
 
     const payActionText = p.payment_status === 'paid' ? 'Reset Status' : 'Mark Paid';
 
+    let petrolAuditHtml = '';
+    if (p.petrol_liters > 0 && p.petrol_observed_density) {
+      const pDev = p.petrol_rho15 - p.petrol_invoice_density;
+      const pDevColor = Math.abs(pDev) > 3.0 ? '#ef4444' : '#22c55e';
+      petrolAuditHtml = `
+        <div style="font-size: 0.72rem; line-height: 1.35; margin-top: 0.4rem; padding-top: 0.4rem; border-top: 1px dotted var(--border); color: var(--text-muted); font-family: monospace;">
+          Obs: <strong>${p.petrol_observed_density}</strong> @ <strong>${p.petrol_observed_temp}°C</strong><br>
+          ρ15: <strong>${p.petrol_rho15?.toFixed(1) || '-'}</strong> (Dev: <strong style="color: ${pDevColor}">${pDev > 0 ? '+' : ''}${pDev?.toFixed(1) || '0'}</strong>)<br>
+          Corr: <strong>${p.petrol_corrected_vol?.toFixed(0) || '-'} L</strong><br>
+          Short: <strong style="${p.petrol_shortage > 0 ? 'color: #ef4444;' : ''}">${p.petrol_shortage?.toFixed(0) || '0'} L</strong>
+        </div>
+      `;
+    }
+
+    let dieselAuditHtml = '';
+    if (p.diesel_liters > 0 && p.diesel_observed_density) {
+      const dDev = p.diesel_rho15 - p.diesel_invoice_density;
+      const dDevColor = Math.abs(dDev) > 3.0 ? '#ef4444' : '#22c55e';
+      dieselAuditHtml = `
+        <div style="font-size: 0.72rem; line-height: 1.35; margin-top: 0.4rem; padding-top: 0.4rem; border-top: 1px dotted var(--border); color: var(--text-muted); font-family: monospace;">
+          Obs: <strong>${p.diesel_observed_density}</strong> @ <strong>${p.diesel_observed_temp}°C</strong><br>
+          ρ15: <strong>${p.diesel_rho15?.toFixed(1) || '-'}</strong> (Dev: <strong style="color: ${dDevColor}">${dDev > 0 ? '+' : ''}${dDev?.toFixed(1) || '0'}</strong>)<br>
+          Corr: <strong>${p.diesel_corrected_vol?.toFixed(0) || '-'} L</strong><br>
+          Short: <strong style="${p.diesel_shortage > 0 ? 'color: #ef4444;' : ''}">${p.diesel_shortage?.toFixed(0) || '0'} L</strong>
+        </div>
+      `;
+    }
+
     tr.innerHTML = `
       <td>
         <strong>${formatDate(p.date.split('T')[0])}</strong><br>
         <span style="font-size: 0.8rem; color: var(--text-dim);">${p.date.split('T')[1]}</span>
       </td>
-      <td>${formatVol(p.petrol_liters)}</td>
-      <td>${formatVol(p.diesel_liters)}</td>
+      <td>${formatVol(p.petrol_liters)}${petrolAuditHtml}</td>
+      <td>${formatVol(p.diesel_liters)}${dieselAuditHtml}</td>
       <td>
         <span style="font-size:0.8rem; color: var(--text-muted);">
           P: @${parseFloat(p.price_petrol).toFixed(2)}<br>
@@ -4211,6 +4297,168 @@ function applyLedgerPrefill() {
 
 document.getElementById('ledger-date').addEventListener('change', applyLedgerPrefill);
 
+let astmTable = null;
+
+async function loadAstmTable() {
+  if (astmTable) return astmTable;
+  try {
+    const res = await fetch('astm_table_53b.json');
+    if (!res.ok) throw new Error("Failed to load ASTM Table 53B");
+    astmTable = await res.json();
+    window.astmTable = astmTable;
+    console.log('[ASTM] Table 53B data successfully loaded.');
+    return astmTable;
+  } catch (err) {
+    console.error('[ASTM] Error loading table:', err);
+    return null;
+  }
+}
+
+function calculateRho15Formula(rho_t, temp) {
+  const K0 = 186.9696;
+  const K1 = 0.4862;
+  const dt = temp - 15.0;
+  let rho15 = rho_t;
+  for (let i = 0; i < 10; i++) {
+    const alpha15 = (K0 + K1 * rho15) / (rho15 * rho15);
+    const vcf = Math.exp(-alpha15 * dt * (1.0 + 0.8 * alpha15 * dt));
+    rho15 = rho_t / vcf;
+  }
+  return rho15;
+}
+
+function getDensityAt15(obsD, obsT) {
+  obsD = parseFloat(obsD);
+  obsT = parseFloat(obsT);
+  if (isNaN(obsD) || isNaN(obsT) || obsD <= 0 || obsT < 0) return 0;
+
+  if (!astmTable) {
+    return calculateRho15Formula(obsD, obsT);
+  }
+
+  if (obsD < 670 || obsD > 1056 || obsT < 0.0 || obsT > 50.0) {
+    return calculateRho15Formula(obsD, obsT);
+  }
+
+  const d1 = Math.floor(obsD);
+  const d2 = Math.ceil(obsD);
+  const t1 = Math.floor(obsT * 2) / 2;
+  const t2 = t1 + 0.5 <= 50.0 ? t1 + 0.5 : 50.0;
+
+  const getVal = (d, t) => {
+    const dStr = String(d);
+    const tStr = t.toFixed(1);
+    if (astmTable[dStr] && astmTable[dStr][tStr] !== undefined) {
+      return parseFloat(astmTable[dStr][tStr]);
+    }
+    return null;
+  };
+
+  const v11 = getVal(d1, t1);
+  const v21 = getVal(d2, t1);
+  const v12 = getVal(d1, t2);
+  const v22 = getVal(d2, t2);
+
+  if (v11 === null || v21 === null || v12 === null || v22 === null) {
+    return calculateRho15Formula(obsD, obsT);
+  }
+
+  const wd = d2 === d1 ? 0 : (obsD - d1) / (d2 - d1);
+  const wt = t2 === t1 ? 0 : (obsT - t1) / (t2 - t1);
+
+  const val_t1 = v11 + wd * (v21 - v11);
+  const val_t2 = v12 + wd * (v22 - v12);
+
+  const val = val_t1 + wt * (val_t2 - val_t1);
+  return val;
+}
+
+function updateLiveAstmCalculations() {
+  const loadType = tankerLoadSelect.value;
+  const customP = loadType === 'custom' ? (parseInt(customPInput.value) || 0) : 0;
+  const customD = loadType === 'custom' ? (parseInt(customDInput.value) || 0) : 0;
+
+  let petrolQty = 0;
+  let dieselQty = 0;
+
+  if (loadType === 'full-petrol') {
+    petrolQty = 12000;
+  } else if (loadType === 'full-diesel') {
+    dieselQty = 12000;
+  } else if (loadType === 'mixed-8d-4p') {
+    dieselQty = 8000;
+    petrolQty = 4000;
+  } else if (loadType === 'mixed-8p-4d') {
+    petrolQty = 8000;
+    dieselQty = 4000;
+  } else if (loadType === 'custom') {
+    petrolQty = customP;
+    dieselQty = customD;
+  }
+
+  // Petrol calculations
+  if (petrolQty > 0) {
+    const invD = parseFloat(document.getElementById('petrol-invoice-density').value) || 0;
+    const obsD = parseFloat(document.getElementById('petrol-observed-density').value) || 0;
+    const obsT = parseFloat(document.getElementById('petrol-observed-temp').value) || 0;
+    const statusEl = document.getElementById('petrol-astm-status');
+
+    if (invD && obsD && obsT) {
+      const rho15 = getDensityAt15(obsD, obsT);
+      const vcf = rho15 > 0 ? obsD / rho15 : 0;
+      const vol15 = petrolQty * vcf;
+      const shortage = petrolQty - vol15;
+      const dev = rho15 - invD;
+      const devColor = Math.abs(dev) > 3.0 ? '#ef4444' : '#10b981';
+
+      if (statusEl) {
+        statusEl.innerHTML = `
+          <div style="background: rgba(255,255,255,0.03); border: 1px solid var(--border); padding: 0.6rem; border-radius: 6px; margin-top: 0.5rem; font-family: monospace; font-size: 0.78rem; line-height: 1.4;">
+            <div>Density @ 15°C: <strong>${rho15.toFixed(2)}</strong> kg/m³</div>
+            <div>Density Dev: <strong style="color: ${devColor};">${dev.toFixed(2)}</strong> kg/m³ (Limit: ±3.0)</div>
+            <div>VCF: <strong>${vcf.toFixed(5)}</strong></div>
+            <div>Corrected Vol: <strong>${vol15.toFixed(1)}</strong> L</div>
+            <div>Shortage: <strong style="${shortage > 0 ? 'color:#ef4444;' : 'color:#10b981;'}">${shortage.toFixed(1)}</strong> L</div>
+          </div>
+        `;
+      }
+    } else if (statusEl) {
+      statusEl.innerHTML = '';
+    }
+  }
+
+  // Diesel calculations
+  if (dieselQty > 0) {
+    const invD = parseFloat(document.getElementById('diesel-invoice-density').value) || 0;
+    const obsD = parseFloat(document.getElementById('diesel-observed-density').value) || 0;
+    const obsT = parseFloat(document.getElementById('diesel-observed-temp').value) || 0;
+    const statusEl = document.getElementById('diesel-astm-status');
+
+    if (invD && obsD && obsT) {
+      const rho15 = getDensityAt15(obsD, obsT);
+      const vcf = rho15 > 0 ? obsD / rho15 : 0;
+      const vol15 = dieselQty * vcf;
+      const shortage = dieselQty - vol15;
+      const dev = rho15 - invD;
+      const devColor = Math.abs(dev) > 3.0 ? '#ef4444' : '#10b981';
+
+      if (statusEl) {
+        statusEl.innerHTML = `
+          <div style="background: rgba(255,255,255,0.03); border: 1px solid var(--border); padding: 0.6rem; border-radius: 6px; margin-top: 0.5rem; font-family: monospace; font-size: 0.78rem; line-height: 1.4;">
+            <div>Density @ 15°C: <strong>${rho15.toFixed(2)}</strong> kg/m³</div>
+            <div>Density Dev: <strong style="color: ${devColor};">${dev.toFixed(2)}</strong> kg/m³ (Limit: ±3.0)</div>
+            <div>VCF: <strong>${vcf.toFixed(5)}</strong></div>
+            <div>Corrected Vol: <strong>${vol15.toFixed(1)}</strong> L</div>
+            <div>Shortage: <strong style="${shortage > 0 ? 'color:#ef4444;' : 'color:#10b981;'}">${shortage.toFixed(1)}</strong> L</div>
+          </div>
+        `;
+      }
+    } else if (statusEl) {
+      statusEl.innerHTML = '';
+    }
+  }
+}
+
 function openModal(id) {
   const modal = document.getElementById(id);
   modal.classList.add('active');
@@ -4234,6 +4482,9 @@ function updatePriceInputRequirements() {
   const loadType = tankerLoadSelect.value;
   const pricePInput = document.getElementById('purchase-price-petrol');
   const priceDInput = document.getElementById('purchase-price-diesel');
+  
+  const petrolSection = document.getElementById('petrol-astm-section');
+  const dieselSection = document.getElementById('diesel-astm-section');
 
   let needPetrol = false;
   let needDiesel = false;
@@ -4251,6 +4502,9 @@ function updatePriceInputRequirements() {
     if (p > 0) needPetrol = true;
     if (d > 0) needDiesel = true;
   }
+
+  if (petrolSection) petrolSection.style.display = needPetrol ? 'block' : 'none';
+  if (dieselSection) dieselSection.style.display = needDiesel ? 'block' : 'none';
 
   if (pricePInput) {
     if (needPetrol) {
@@ -4276,6 +4530,10 @@ function updatePriceInputRequirements() {
       priceDInput.value = "";
       priceDInput.placeholder = "Not applicable";
     }
+  }
+
+  if (typeof updateLiveAstmCalculations === 'function') {
+    updateLiveAstmCalculations();
   }
 }
 
@@ -4445,12 +4703,21 @@ document.getElementById('tanker-purchase-form').addEventListener('submit', (e) =
   if (dieselQty > 0) {
     confirmMsg += `\nDiesel Rate: ₹${priceD.toFixed(2)}/L (${dieselQty.toLocaleString()} L)`;
   }
+  const petrolInvoiceDensity = petrolQty > 0 ? parseFloat(document.getElementById('petrol-invoice-density').value) || 0 : 0;
+  const petrolObservedDensity = petrolQty > 0 ? parseFloat(document.getElementById('petrol-observed-density').value) || 0 : 0;
+  const petrolObservedTemp = petrolQty > 0 ? parseFloat(document.getElementById('petrol-observed-temp').value) || 0 : 0;
+
+  const dieselInvoiceDensity = dieselQty > 0 ? parseFloat(document.getElementById('diesel-invoice-density').value) || 0 : 0;
+  const dieselObservedDensity = dieselQty > 0 ? parseFloat(document.getElementById('diesel-observed-density').value) || 0 : 0;
+  const dieselObservedTemp = dieselQty > 0 ? parseFloat(document.getElementById('diesel-observed-temp').value) || 0 : 0;
 
   if (!confirm(confirmMsg)) {
     return;
   }
 
-  recordTanker(date, time, loadType, customP, customD, priceP, priceD);
+  recordTanker(date, time, loadType, customP, customD, priceP, priceD,
+               petrolInvoiceDensity, petrolObservedDensity, petrolObservedTemp,
+               dieselInvoiceDensity, dieselObservedDensity, dieselObservedTemp);
   initApp();
 });
 
@@ -4822,6 +5089,25 @@ function initApp() {
 
   // Configure tanker purchase form price field requirements
   updatePriceInputRequirements();
+
+  // Load ASTM table and trigger initial calculations
+  loadAstmTable().then(() => {
+    updateLiveAstmCalculations();
+  });
+
+  // Bind input and change listeners for real-time tanker density calculations
+  const densityFields = [
+    'petrol-invoice-density', 'petrol-observed-density', 'petrol-observed-temp',
+    'diesel-invoice-density', 'diesel-observed-density', 'diesel-observed-temp',
+    'custom-petrol-qty', 'custom-diesel-qty'
+  ];
+  densityFields.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) {
+      el.addEventListener('input', updateLiveAstmCalculations);
+      el.addEventListener('change', updateLiveAstmCalculations);
+    }
+  });
 
   // Start cloud sync check (async — won't block render)
   initSync().then(() => {
@@ -7682,3 +7968,441 @@ window.updateGroupCalculations = updateGroupCalculations;
 window.bulkApproveEntries = bulkApproveEntries;
 window.approveEntry = approveEntry;
 window.promptRejectEntry = promptRejectEntry;
+
+// ── DSR DATA CHECKER / VERIFICATION DASHBOARD ───────────────────
+let currentDsrMonth = 'november';
+
+const DSR_MONTH_MAP = {
+  'november': { name: 'November 2025', year: 2025, index: 11 },
+  'december': { name: 'December 2025', year: 2025, index: 12 },
+  'january': { name: 'January 2026', year: 2026, index: 1 },
+  'February': { name: 'February 2026', year: 2026, index: 2 },
+  'february': { name: 'February 2026', year: 2026, index: 2 },
+  'march': { name: 'March 2026', year: 2026, index: 3 },
+  'april': { name: 'April 2026', year: 2026, index: 4 },
+  'may': { name: 'May 2026', year: 2026, index: 5 },
+  'june': { name: 'June 2026', year: 2026, index: 6 }
+};
+
+async function loadDsrDraftData() {
+  if (window.dsrDraftData) return window.dsrDraftData;
+
+  const savedEdits = localStorage.getItem('octaneflow_dsr_draft_edits');
+  if (savedEdits) {
+    try {
+      window.dsrDraftData = JSON.parse(savedEdits);
+      return window.dsrDraftData;
+    } catch (e) {
+      console.error("Failed to parse saved DSR draft edits:", e);
+    }
+  }
+
+  try {
+    const res = await fetch('dsr_digitized_draft.json');
+    if (!res.ok) throw new Error("Failed to load digitized DSR draft");
+    const json = await res.json();
+    window.dsrDraftData = json.daily_ledger || json;
+    return window.dsrDraftData;
+  } catch (err) {
+    console.error("Error loading DSR draft data:", err);
+    return [];
+  }
+}
+
+function saveDsrDraftEdits() {
+  if (window.dsrDraftData) {
+    localStorage.setItem('octaneflow_dsr_draft_edits', JSON.stringify(window.dsrDraftData));
+  }
+}
+
+function calculateRowExpectedRev(row) {
+  const p1_open = row.du1_p.open || 0;
+  const p1_close = row.du1_p.close_day || 0;
+  const p2_open = row.du2_p.open || 0;
+  const p2_close = row.du2_p.close_day || 0;
+  const p_tests = ((row.du1_p.tests_day || 0) + (row.du1_p.tests_night || 0) + (row.du2_p.tests_day || 0) + (row.du2_p.tests_night || 0)) * 5;
+  const p_sales = Math.max(0, (p1_close - p1_open) + (p2_close - p2_open) - p_tests);
+
+  const d1_open = row.du1_d.open || 0;
+  const d1_close = row.du1_d.close_day || 0;
+  const d2_open = row.du2_d.open || 0;
+  const d2_close = row.du2_d.close_day || 0;
+  const d_tests = ((row.du1_d.tests_day || 0) + (row.du1_d.tests_night || 0) + (row.du2_d.tests_day || 0) + (row.du2_d.tests_night || 0)) * 5;
+  const d_sales = Math.max(0, (d1_close - d1_open) + (d2_close - d2_open) - d_tests);
+
+  return p_sales * (row.prices?.petrol || 0) + d_sales * (row.prices?.diesel || 0);
+}
+
+function validateDsrData(data) {
+  const issues = [];
+  data.sort((a, b) => a.date.localeCompare(b.date));
+
+  for (let i = 0; i < data.length; i++) {
+    const row = data[i];
+    const prevRow = i > 0 ? data[i - 1] : null;
+
+    const p1_open = row.du1_p.open || 0;
+    const p1_close = row.du1_p.close_day || 0;
+    const p2_open = row.du2_p.open || 0;
+    const p2_close = row.du2_p.close_day || 0;
+    const p_tests = ((row.du1_p.tests_day || 0) + (row.du1_p.tests_night || 0) + (row.du2_p.tests_day || 0) + (row.du2_p.tests_night || 0)) * 5;
+    const p_sales = Math.max(0, (p1_close - p1_open) + (p2_close - p2_open) - p_tests);
+
+    const d1_open = row.du1_d.open || 0;
+    const d1_close = row.du1_d.close_day || 0;
+    const d2_open = row.du2_d.open || 0;
+    const d2_close = row.du2_d.close_day || 0;
+    const d_tests = ((row.du1_d.tests_day || 0) + (row.du1_d.tests_night || 0) + (row.du2_d.tests_day || 0) + (row.du2_d.tests_night || 0)) * 5;
+    const d_sales = Math.max(0, (d1_close - d1_open) + (d2_close - d2_open) - d_tests);
+
+    const expectedRev = p_sales * (row.prices?.petrol || 0) + d_sales * (row.prices?.diesel || 0);
+    const actualColl = row.actual_collection !== undefined ? row.actual_collection : expectedRev;
+    const variance = expectedRev - actualColl;
+
+    if (p1_close < p1_open) {
+      issues.push(`[${row.date}] Petrol DU1 closing (${p1_close}) is less than opening (${p1_open})`);
+    }
+    if (p2_close < p2_open) {
+      issues.push(`[${row.date}] Petrol DU2 closing (${p2_close}) is less than opening (${p2_open})`);
+    }
+    if (d1_close < d1_open) {
+      issues.push(`[${row.date}] Diesel DU1 closing (${d1_close}) is less than opening (${d1_open})`);
+    }
+    if (d2_close < d2_open) {
+      issues.push(`[${row.date}] Diesel DU2 closing (${d2_close}) is less than opening (${d2_open})`);
+    }
+
+    if (prevRow) {
+      if (Math.abs(p1_open - prevRow.du1_p.close_day) > 0.01) {
+        issues.push(`[${row.date}] Petrol DU1 opening (${p1_open.toFixed(2)}) doesn't match previous day's closing (${prevRow.du1_p.close_day.toFixed(2)})`);
+      }
+      if (Math.abs(p2_open - prevRow.du2_p.close_day) > 0.01) {
+        issues.push(`[${row.date}] Petrol DU2 opening (${p2_open.toFixed(2)}) doesn't match previous day's closing (${prevRow.du2_p.close_day.toFixed(2)})`);
+      }
+      if (Math.abs(d1_open - prevRow.du1_d.close_day) > 0.01) {
+        issues.push(`[${row.date}] Diesel DU1 opening (${d1_open.toFixed(2)}) doesn't match previous day's closing (${prevRow.du1_d.close_day.toFixed(2)})`);
+      }
+      if (Math.abs(d2_open - prevRow.du2_d.close_day) > 0.01) {
+        issues.push(`[${row.date}] Diesel DU2 opening (${d2_open.toFixed(2)}) doesn't match previous day's closing (${prevRow.du2_d.close_day.toFixed(2)})`);
+      }
+    }
+
+    if (Math.abs(variance) > 5000) {
+      issues.push(`[${row.date}] High cash variance: expected ₹${expectedRev.toFixed(0)}, actual ₹${actualColl.toFixed(0)} (diff: ₹${variance.toFixed(0)})`);
+    }
+  }
+
+  return issues;
+}
+
+function updateDsrSummaryCards(petrolSales, dieselSales, issues) {
+  document.getElementById('dsr-summary-petrol-sales').textContent = `${petrolSales.toLocaleString(undefined, {minimumFractionDigits: 1, maximumFractionDigits: 1})} L`;
+  document.getElementById('dsr-summary-diesel-sales').textContent = `${dieselSales.toLocaleString(undefined, {minimumFractionDigits: 1, maximumFractionDigits: 1})} L`;
+
+  const statusBadge = document.getElementById('dsr-summary-status-badge');
+  const issueCountEl = document.getElementById('dsr-summary-issue-count');
+  const errorLog = document.getElementById('dsr-validation-error-log');
+  const errorList = document.getElementById('dsr-validation-error-list');
+
+  if (issues.length === 0) {
+    statusBadge.innerHTML = `<span class="validation-badge success" style="background: rgba(34, 197, 94, 0.1); color: #22c55e; padding: 4px 8px; border-radius: 4px; font-size:0.75rem; font-weight:600;">✅ All Clean</span>`;
+    issueCountEl.textContent = '0 issues detected';
+    errorLog.style.display = 'none';
+  } else {
+    statusBadge.innerHTML = `<span class="validation-badge warning" style="background: rgba(239, 68, 68, 0.1); color: #ef4444; padding: 4px 8px; border-radius: 4px; font-size:0.75rem; font-weight:600;">⚠️ Issues</span>`;
+    issueCountEl.textContent = `${issues.length} discrepancy errors detected`;
+
+    errorList.innerHTML = '';
+    issues.forEach(issue => {
+      const li = document.createElement('li');
+      li.textContent = issue;
+      errorList.appendChild(li);
+    });
+    errorLog.style.display = 'block';
+  }
+}
+
+function propagateDsrOpeningTotalizers() {
+  window.dsrDraftData.sort((a, b) => a.date.localeCompare(b.date));
+  for (let i = 1; i < window.dsrDraftData.length; i++) {
+    const prev = window.dsrDraftData[i - 1];
+    const curr = window.dsrDraftData[i];
+
+    curr.du1_p.open = prev.du1_p.close_day;
+    curr.du2_p.open = prev.du2_p.close_day;
+    curr.du1_d.open = prev.du1_d.close_day;
+    curr.du2_d.open = prev.du2_d.close_day;
+  }
+}
+
+async function renderDsrChecker() {
+  if (!window.dsrDraftData) {
+    const tableBody = document.getElementById('dsr-review-table-body');
+    if (tableBody) {
+      tableBody.innerHTML = `<tr><td colspan="15" style="text-align:center; color: var(--text-dim); padding: 3rem;">Loading digitized DSR logs...</td></tr>`;
+    }
+    await loadDsrDraftData();
+  }
+
+  const data = window.dsrDraftData || [];
+  const meta = DSR_MONTH_MAP[currentDsrMonth];
+  if (!meta) return;
+
+  const prefix = `${meta.year}-${String(meta.index).padStart(2, '0')}`;
+  const monthData = data.filter(row => row.date.startsWith(prefix));
+
+  monthData.sort((a, b) => a.date.localeCompare(b.date));
+
+  document.getElementById('dsr-summary-month-name').textContent = meta.name;
+  document.getElementById('dsr-summary-total-days').textContent = `${monthData.length} days loaded`;
+
+  const tbody = document.getElementById('dsr-review-table-body');
+  if (!tbody) return;
+  tbody.innerHTML = '';
+
+  if (monthData.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="15" style="text-align:center; color: var(--text-dim); padding: 3rem;">No DSR data available for this month.</td></tr>`;
+    updateDsrSummaryCards(0, 0, []);
+    return;
+  }
+
+  const issues = validateDsrData(monthData);
+
+  let petrolTotalSales = 0;
+  let dieselTotalSales = 0;
+
+  monthData.forEach((row, idx) => {
+    const prevRow = idx > 0 ? monthData[idx - 1] : null;
+
+    const p1_open = row.du1_p.open || 0;
+    const p1_close = row.du1_p.close_day || 0;
+    const p2_open = row.du2_p.open || 0;
+    const p2_close = row.du2_p.close_day || 0;
+    const p_tests = ((row.du1_p.tests_day || 0) + (row.du1_p.tests_night || 0) + (row.du2_p.tests_day || 0) + (row.du2_p.tests_night || 0)) * 5;
+    const p_sales = Math.max(0, (p1_close - p1_open) + (p2_close - p2_open) - p_tests);
+    petrolTotalSales += p_sales;
+
+    const d1_open = row.du1_d.open || 0;
+    const d1_close = row.du1_d.close_day || 0;
+    const d2_open = row.du2_d.open || 0;
+    const d2_close = row.du2_d.close_day || 0;
+    const d_tests = ((row.du1_d.tests_day || 0) + (row.du1_d.tests_night || 0) + (row.du2_d.tests_day || 0) + (row.du2_d.tests_night || 0)) * 5;
+    const d_sales = Math.max(0, (d1_close - d1_open) + (d2_close - d2_open) - d_tests);
+    dieselTotalSales += d_sales;
+
+    const expectedRev = p_sales * (row.prices?.petrol || 0) + d_sales * (row.prices?.diesel || 0);
+    const actualColl = row.actual_collection !== undefined ? row.actual_collection : expectedRev;
+    const variance = expectedRev - actualColl;
+
+    const hasP1ContinuityError = prevRow && Math.abs(p1_open - prevRow.du1_p.close_day) > 0.01;
+    const hasP2ContinuityError = prevRow && Math.abs(p2_open - prevRow.du2_p.close_day) > 0.01;
+    const hasD1ContinuityError = prevRow && Math.abs(d1_open - prevRow.du1_d.close_day) > 0.01;
+    const hasD2ContinuityError = prevRow && Math.abs(d2_open - prevRow.du2_d.close_day) > 0.01;
+
+    const hasP1TrendError = p1_close < p1_open;
+    const hasP2TrendError = p2_close < p2_open;
+    const hasD1TrendError = d1_close < d1_open;
+    const hasD2TrendError = d2_close < d2_open;
+
+    const hasVarianceError = Math.abs(variance) > 5000;
+
+    const rowHasError = hasP1ContinuityError || hasP2ContinuityError || hasD1ContinuityError || hasD2ContinuityError ||
+                        hasP1TrendError || hasP2TrendError || hasD1TrendError || hasD2TrendError ||
+                        hasVarianceError;
+
+    const tr = document.createElement('tr');
+    if (rowHasError) {
+      tr.style.background = 'rgba(239, 68, 68, 0.04)';
+    }
+
+    const varianceColor = Math.abs(variance) > 5000 ? '#ef4444' : Math.abs(variance) > 100 ? '#eab308' : '#22c55e';
+
+    tr.innerHTML = `
+      <td style="font-weight:600; font-size:0.8rem; white-space:nowrap; padding: 0.5rem; border-bottom: 1px solid var(--border);">${row.date}</td>
+
+      <!-- Petrol Totalizers -->
+      <td style="padding: 0.5rem; border-bottom: 1px solid var(--border); text-align: right;" class="col-petrol">
+        <span class="editable-cell ${hasP1ContinuityError ? 'diff-highlight' : ''}" style="border-bottom: 1px dashed var(--color-petrol); padding: 2px 4px; cursor: pointer;" contenteditable="true" onblur="updateDsrCell('${row.date}', 'du1_p', 'open', this.textContent)">${p1_open.toFixed(2)}</span>
+      </td>
+      <td style="padding: 0.5rem; border-bottom: 1px solid var(--border); text-align: right;" class="col-petrol">
+        <span class="editable-cell ${hasP1TrendError ? 'diff-highlight' : ''}" style="border-bottom: 1px dashed var(--color-petrol); padding: 2px 4px; cursor: pointer;" contenteditable="true" onblur="updateDsrCell('${row.date}', 'du1_p', 'close_day', this.textContent)">${p1_close.toFixed(2)}</span>
+      </td>
+      <td style="padding: 0.5rem; border-bottom: 1px solid var(--border); text-align: right;" class="col-petrol">
+        <span class="editable-cell ${hasP2ContinuityError ? 'diff-highlight' : ''}" style="border-bottom: 1px dashed var(--color-petrol); padding: 2px 4px; cursor: pointer;" contenteditable="true" onblur="updateDsrCell('${row.date}', 'du2_p', 'open', this.textContent)">${p2_open.toFixed(2)}</span>
+      </td>
+      <td style="padding: 0.5rem; border-bottom: 1px solid var(--border); text-align: right;" class="col-petrol">
+        <span class="editable-cell ${hasP2TrendError ? 'diff-highlight' : ''}" style="border-bottom: 1px dashed var(--color-petrol); padding: 2px 4px; cursor: pointer;" contenteditable="true" onblur="updateDsrCell('${row.date}', 'du2_p', 'close_day', this.textContent)">${p2_close.toFixed(2)}</span>
+      </td>
+      <td style="padding: 0.5rem; border-bottom: 1px solid var(--border); text-align: right; color: var(--text-dim); font-size: 0.75rem;" class="col-petrol">
+        ${p_tests} L
+      </td>
+      <td style="padding: 0.5rem; border-bottom: 1px solid var(--border); text-align: right; font-weight: 700; color: var(--color-petrol);" class="col-petrol">
+        ${p_sales.toFixed(1)} L
+      </td>
+
+      <!-- Diesel Totalizers -->
+      <td style="padding: 0.5rem; border-bottom: 1px solid var(--border); text-align: right;" class="col-diesel">
+        <span class="editable-cell ${hasD1ContinuityError ? 'diff-highlight' : ''}" style="border-bottom: 1px dashed var(--color-diesel); padding: 2px 4px; cursor: pointer;" contenteditable="true" onblur="updateDsrCell('${row.date}', 'du1_d', 'open', this.textContent)">${d1_open.toFixed(2)}</span>
+      </td>
+      <td style="padding: 0.5rem; border-bottom: 1px solid var(--border); text-align: right;" class="col-diesel">
+        <span class="editable-cell ${hasD1TrendError ? 'diff-highlight' : ''}" style="border-bottom: 1px dashed var(--color-diesel); padding: 2px 4px; cursor: pointer;" contenteditable="true" onblur="updateDsrCell('${row.date}', 'du1_d', 'close_day', this.textContent)">${d1_close.toFixed(2)}</span>
+      </td>
+      <td style="padding: 0.5rem; border-bottom: 1px solid var(--border); text-align: right;" class="col-diesel">
+        <span class="editable-cell ${hasD2ContinuityError ? 'diff-highlight' : ''}" style="border-bottom: 1px dashed var(--color-diesel); padding: 2px 4px; cursor: pointer;" contenteditable="true" onblur="updateDsrCell('${row.date}', 'du2_d', 'open', this.textContent)">${d2_open.toFixed(2)}</span>
+      </td>
+      <td style="padding: 0.5rem; border-bottom: 1px solid var(--border); text-align: right;" class="col-diesel">
+        <span class="editable-cell ${hasD2TrendError ? 'diff-highlight' : ''}" style="border-bottom: 1px dashed var(--color-diesel); padding: 2px 4px; cursor: pointer;" contenteditable="true" onblur="updateDsrCell('${row.date}', 'du2_d', 'close_day', this.textContent)">${d2_close.toFixed(2)}</span>
+      </td>
+      <td style="padding: 0.5rem; border-bottom: 1px solid var(--border); text-align: right; color: var(--text-dim); font-size: 0.75rem;" class="col-diesel">
+        ${d_tests} L
+      </td>
+      <td style="padding: 0.5rem; border-bottom: 1px solid var(--border); text-align: right; font-weight: 700; color: var(--color-diesel);" class="col-diesel">
+        ${d_sales.toFixed(1)} L
+      </td>
+
+      <!-- Cash Variance Analysis -->
+      <td style="padding: 0.5rem; border-bottom: 1px solid var(--border); text-align: right; color: var(--text-muted); font-size: 0.8rem;">
+        ₹${expectedRev.toFixed(0)}
+      </td>
+      <td style="padding: 0.5rem; border-bottom: 1px solid var(--border); text-align: right;">
+        <span class="editable-cell" style="border-bottom: 1px dashed var(--primary); padding: 2px 4px; cursor: pointer; color: #fff; font-weight: 600;" contenteditable="true" onblur="updateDsrCell('${row.date}', 'recon', 'actual_collection', this.textContent)">₹${actualColl.toFixed(0)}</span>
+      </td>
+      <td style="padding: 0.5rem; border-bottom: 1px solid var(--border); text-align: right; font-weight: 700; color: ${varianceColor}; font-family: monospace;">
+        ${variance >= 0 ? '+' : ''}₹${variance.toFixed(0)}
+      </td>
+
+      <!-- Math Check Status -->
+      <td style="padding: 0.5rem; border-bottom: 1px solid var(--border); text-align: center;">
+        ${rowHasError ?
+          `<span class="validation-badge warning" style="background: rgba(234, 179, 8, 0.1); color: #eab308; padding: 2px 6px; border-radius: 4px; font-size: 0.75rem;" title="Discrepancy in calculations, continuity, or variance check">⚠️ Issue</span>` :
+          `<span class="validation-badge success" style="background: rgba(34, 197, 94, 0.1); color: #22c55e; padding: 2px 6px; border-radius: 4px; font-size: 0.75rem;" title="Continuity and mathematical formulas match perfectly">✅ Clean</span>`
+        }
+      </td>
+    `;
+    tbody.appendChild(tr);
+  });
+
+  updateDsrSummaryCards(petrolTotalSales, dieselTotalSales, issues);
+}
+
+window.selectDsrMonth = function(monthKey) {
+  currentDsrMonth = monthKey;
+
+  document.querySelectorAll('#dsr-month-tabs .btn').forEach(el => {
+    el.classList.remove('active');
+  });
+
+  const btn = document.getElementById(`dsr-tab-${monthKey}`) || document.getElementById(`dsr-tab-${monthKey.toLowerCase()}`);
+  if (btn) btn.classList.add('active');
+
+  renderDsrChecker();
+};
+
+window.updateDsrCell = function(date, unitKey, fieldKey, rawValue) {
+  const cleanVal = rawValue.replace(/[^0-9\.]/g, '');
+  const num = parseFloat(cleanVal);
+  if (isNaN(num)) {
+    renderDsrChecker();
+    return;
+  }
+
+  const row = window.dsrDraftData.find(r => r.date === date);
+  if (row) {
+    if (unitKey === 'recon' && fieldKey === 'actual_collection') {
+      row.actual_collection = num;
+    } else if (row[unitKey]) {
+      const oldVal = row[unitKey][fieldKey];
+      if (oldVal !== num) {
+        row[unitKey][fieldKey] = num;
+        if (fieldKey === 'close_day') {
+          row[unitKey]['close_night'] = num;
+        }
+        propagateDsrOpeningTotalizers();
+      }
+    }
+    saveDsrDraftEdits();
+    renderDsrChecker();
+  }
+};
+
+window.exportDsrJSON = function() {
+  if (!window.dsrDraftData) return;
+  const jsonStr = JSON.stringify({ daily_ledger: window.dsrDraftData }, null, 2);
+  const blob = new Blob([jsonStr], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `octaneflow_digitized_dsr_draft_${currentDsrMonth}.json`;
+  a.click();
+};
+
+window.approveAndMergeDsr = function() {
+  const issues = validateDsrData(window.dsrDraftData);
+  if (issues.length > 0) {
+    if (!confirm(`⚠️ Warning: There are still ${issues.length} validation errors in the logs. Are you sure you want to merge anyway?`)) {
+      return;
+    }
+  } else {
+    if (!confirm("Are you sure you want to merge all verified draft records to the production daily ledger?")) {
+      return;
+    }
+  }
+
+  const session = getSession();
+  const approvedBy = session ? session.username : 'owner';
+  const approvedAt = new Date().toISOString();
+
+  let mergeCount = 0;
+  window.dsrDraftData.forEach(row => {
+    let existingRow = db.daily_ledger.find(r => r.date === row.date);
+    let oldNetP = 0;
+    let oldNetD = 0;
+
+    if (existingRow) {
+      try {
+        const oldCalc = computeLedgerRow(existingRow);
+        oldNetP = oldCalc.totals.net_24h.petrol || 0;
+        oldNetD = oldCalc.totals.net_24h.diesel || 0;
+      } catch(e) {}
+    }
+
+    const newRow = JSON.parse(JSON.stringify(row));
+    const actualColl = newRow.actual_collection !== undefined ? newRow.actual_collection : (calculateRowExpectedRev(newRow));
+    newRow.recon = {
+      cash: actualColl,
+      phonepe: 0,
+      credit: 0,
+      total_collection: actualColl,
+      remarks: 'OCR Digitized DSR'
+    };
+    delete newRow.actual_collection;
+
+    newRow._approved_by = approvedBy;
+    newRow._approved_at = approvedAt;
+    newRow._submitted_by = 'ocr';
+
+    try {
+      const newCalc = computeLedgerRow(newRow);
+      const newNetP = newCalc.totals.net_24h.petrol || 0;
+      const newNetD = newCalc.totals.net_24h.diesel || 0;
+
+      db.stock.petrol = Math.max(0, db.stock.petrol + oldNetP - newNetP);
+      db.stock.diesel = Math.max(0, db.stock.diesel + oldNetD - newNetD);
+    } catch(e) {}
+
+    if (existingRow) {
+      const idx = db.daily_ledger.indexOf(existingRow);
+      db.daily_ledger[idx] = newRow;
+    } else {
+      db.daily_ledger.push(newRow);
+    }
+    mergeCount++;
+  });
+
+  db.daily_ledger.sort((a, b) => b.date.localeCompare(a.date));
+  saveDB();
+  showNotification(`🎉 Successfully merged ${mergeCount} verified DSR entries to the production database.`, 'success');
+  localStorage.removeItem('octaneflow_dsr_draft_edits');
+  initApp();
+};
+
+window.renderDsrChecker = renderDsrChecker;

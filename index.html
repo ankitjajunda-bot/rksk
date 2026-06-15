@@ -901,6 +901,49 @@
                   <input type="number" id="purchase-price-diesel" step="0.01" min="0.1" placeholder="e.g. 82.20" required>
                 </div>
               </div>
+              <div id="petrol-astm-section" style="border-top: 1px solid var(--border); padding-top: 1rem; margin-top: 1rem; display: none;">
+                <h3 style="font-size: 0.9rem; font-weight: 700; color: var(--color-petrol); margin-bottom: 0.75rem;">Petrol (MS) Density Audit</h3>
+                <div class="form-row">
+                  <div class="form-group">
+                    <label for="petrol-invoice-density">Invoice Density (15°C)</label>
+                    <input type="number" id="petrol-invoice-density" step="0.1" placeholder="e.g. 750.0" value="750.0">
+                  </div>
+                  <div class="form-group">
+                    <label for="petrol-observed-density">Observed Density</label>
+                    <input type="number" id="petrol-observed-density" step="0.1" placeholder="e.g. 745.0" value="750.0">
+                  </div>
+                  <div class="form-group">
+                    <label for="petrol-observed-temp">Observed Temp (°C)</label>
+                    <input type="number" id="petrol-observed-temp" step="0.1" placeholder="e.g. 28.5" value="25.0">
+                  </div>
+                </div>
+                <div id="petrol-astm-status" style="margin-bottom: 1.25rem; font-size: 0.82rem; line-height: 1.5; color: var(--text-muted);">
+                  <!-- Live calculation results -->
+                </div>
+              </div>
+
+              <div id="diesel-astm-section" style="border-top: 1px solid var(--border); padding-top: 1rem; margin-top: 1rem; display: none;">
+                <h3 style="font-size: 0.9rem; font-weight: 700; color: var(--color-diesel); margin-bottom: 0.75rem;">Diesel (HSD) Density Audit</h3>
+                <div class="form-row">
+                  <div class="form-group">
+                    <label for="diesel-invoice-density">Invoice Density (15°C)</label>
+                    <input type="number" id="diesel-invoice-density" step="0.1" placeholder="e.g. 830.0" value="830.0">
+                  </div>
+                  <div class="form-group">
+                    <label for="diesel-observed-density">Observed Density</label>
+                    <input type="number" id="diesel-observed-density" step="0.1" placeholder="e.g. 825.0" value="830.0">
+                  </div>
+                  <div class="form-group">
+                    <label for="diesel-observed-temp">Observed Temp (°C)</label>
+                    <input type="number" id="diesel-observed-temp" step="0.1" placeholder="e.g. 28.5" value="25.0">
+                  </div>
+                </div>
+                <div id="diesel-astm-status" style="margin-bottom: 1.25rem; font-size: 0.82rem; line-height: 1.5; color: var(--text-muted);">
+                  <!-- Live calculation results -->
+                </div>
+              </div>
+
+
 
               <div class="alert-item info" style="margin-bottom: 1.5rem; padding: 0.8rem 1rem;">
                 <svg viewBox="0 0 24 24" width="20" height="20" style="margin-top: 2px;"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/></svg>
@@ -1709,6 +1752,102 @@
           </div>
           <div style="padding:1.25rem;" id="approvals-list">
             <div style="text-align:center;color:#64748b;padding:3rem;">No submissions yet.</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- DSR Data Checker & OCR Verifier View -->
+      <section id="view-dsr-checker" class="view-section">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; flex-wrap: wrap; gap: 1rem;">
+          <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;" id="dsr-month-tabs">
+            <button class="btn btn-secondary btn-sm active" id="dsr-tab-november" onclick="selectDsrMonth('november')">Nov 2025</button>
+            <button class="btn btn-secondary btn-sm" id="dsr-tab-december" onclick="selectDsrMonth('december')">Dec 2025</button>
+            <button class="btn btn-secondary btn-sm" id="dsr-tab-january" onclick="selectDsrMonth('january')">Jan 2026</button>
+            <button class="btn btn-secondary btn-sm" id="dsr-tab-February" onclick="selectDsrMonth('February')">Feb 2026</button>
+            <button class="btn btn-secondary btn-sm" id="dsr-tab-march" onclick="selectDsrMonth('march')">Mar 2026</button>
+            <button class="btn btn-secondary btn-sm" id="dsr-tab-april" onclick="selectDsrMonth('april')">Apr 2026</button>
+            <button class="btn btn-secondary btn-sm" id="dsr-tab-may" onclick="selectDsrMonth('may')">May 2026</button>
+            <button class="btn btn-secondary btn-sm" id="dsr-tab-june" onclick="selectDsrMonth('june')">Jun 2026</button>
+          </div>
+          <div style="display: flex; gap: 0.5rem;">
+            <button class="btn btn-secondary" onclick="exportDsrJSON()">💾 Export JSON</button>
+            <button class="btn btn-primary" onclick="approveAndMergeDsr()">Data Checked: Merge to Production</button>
+          </div>
+        </div>
+
+        <!-- Monthly Summary Cards -->
+        <div class="metrics-grid" style="grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); margin-bottom: 1.5rem;">
+          <div class="metric-card">
+            <span class="metric-label">Reviewing Month</span>
+            <span class="metric-value" id="dsr-summary-month-name">November 2025</span>
+            <span class="metric-footer" id="dsr-summary-total-days">0 days loaded</span>
+          </div>
+          <div class="metric-card">
+            <span class="metric-label">Petrol Sales (Month)</span>
+            <span class="metric-value" id="dsr-summary-petrol-sales">0 L</span>
+            <span class="metric-footer">From totalizer deltas</span>
+          </div>
+          <div class="metric-card">
+            <span class="metric-label">Diesel Sales (Month)</span>
+            <span class="metric-value" id="dsr-summary-diesel-sales">0 L</span>
+            <span class="metric-footer">From totalizer deltas</span>
+          </div>
+          <div class="metric-card">
+            <span class="metric-label">OCR Checker Status</span>
+            <span class="metric-value" id="dsr-summary-status-badge">
+              <span class="validation-badge success">All Clean</span>
+            </span>
+            <span class="metric-footer" id="dsr-summary-issue-count">0 issues detected</span>
+          </div>
+        </div>
+
+        <!-- Validation Error Message log -->
+        <div class="error-log" id="dsr-validation-error-log" style="background: rgba(239, 68, 68, 0.05); border: 1px solid rgba(239, 68, 68, 0.2); border-radius: 8px; padding: 1rem; margin-bottom: 1.5rem; display: none;">
+          <div class="error-log-title" style="font-weight: 700; color: #ef4444; font-size: 0.9rem; margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.35rem;">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/></svg>
+            Review Issues / Mathematical Discrepancies
+          </div>
+          <ul class="error-list" id="dsr-validation-error-list" style="margin: 0; padding-left: 1.25rem; font-size: 0.8rem; color: #fca5a5; line-height: 1.5;"></ul>
+        </div>
+
+        <!-- Spreadsheet Panel -->
+        <div class="panel">
+          <div class="panel-header" style="display: flex; justify-content: space-between; align-items: center;">
+            <h2 class="panel-title">✏️ Digitized DSR Spreadsheet (Click dashed cells to edit)</h2>
+            <div style="font-size: 0.72rem; color: var(--text-muted);">
+              Editing automatically propagates opening values to maintain continuous sequences.
+            </div>
+          </div>
+          <div style="overflow-x: auto; padding: 0.5rem;">
+            <table class="spreadsheet-table" style="min-width: 1400px; width: 100%; border-collapse: collapse;">
+              <thead>
+                <tr class="header-group" style="border-bottom: 1px solid var(--border); font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-muted); text-align: left;">
+                  <th rowspan="2" style="text-align: left; padding: 0.5rem;">Date</th>
+                  <th colspan="4" style="background: rgba(6, 182, 212, 0.08); border-bottom: 2px solid var(--color-petrol); padding: 0.5rem; text-align: center;">Petrol Dispensing Units (Totalizers)</th>
+                  <th rowspan="2" style="background: rgba(6, 182, 212, 0.04); padding: 0.5rem; text-align: right;">Petrol L</th>
+                  <th colspan="4" style="background: rgba(234, 179, 8, 0.08); border-bottom: 2px solid var(--color-diesel); padding: 0.5rem; text-align: center;">Diesel Dispensing Units (Totalizers)</th>
+                  <th rowspan="2" style="background: rgba(234, 179, 8, 0.04); padding: 0.5rem; text-align: right;">Diesel L</th>
+                  <th colspan="3" style="background: rgba(14, 165, 233, 0.08); border-bottom: 2px solid var(--primary); padding: 0.5rem; text-align: center;">Cash Variance Analysis</th>
+                  <th rowspan="2" style="padding: 0.5rem; text-align: center;">Math Check</th>
+                </tr>
+                <tr class="header-sub" style="border-bottom: 1px solid var(--border); font-size: 0.7rem; color: var(--text-dim); text-align: right;">
+                  <th style="background: rgba(6, 182, 212, 0.04); padding: 0.4rem; text-align: right;">DU1 Open</th>
+                  <th style="background: rgba(6, 182, 212, 0.04); padding: 0.4rem; text-align: right;">DU1 Close</th>
+                  <th style="background: rgba(6, 182, 212, 0.04); padding: 0.4rem; text-align: right;">DU2 Open</th>
+                  <th style="background: rgba(6, 182, 212, 0.04); padding: 0.4rem; text-align: right;">DU2 Close</th>
+                  <th style="background: rgba(234, 179, 8, 0.04); padding: 0.4rem; text-align: right;">DU1 Open</th>
+                  <th style="background: rgba(234, 179, 8, 0.04); padding: 0.4rem; text-align: right;">DU1 Close</th>
+                  <th style="background: rgba(234, 179, 8, 0.04); padding: 0.4rem; text-align: right;">DU2 Open</th>
+                  <th style="background: rgba(234, 179, 8, 0.04); padding: 0.4rem; text-align: right;">DU2 Close</th>
+                  <th style="background: rgba(14, 165, 233, 0.04); padding: 0.4rem; text-align: right;">Expected Rev</th>
+                  <th style="background: rgba(14, 165, 233, 0.04); padding: 0.4rem; text-align: right;">Actual Coll</th>
+                  <th style="background: rgba(14, 165, 233, 0.04); padding: 0.4rem; text-align: right;">Variance</th>
+                </tr>
+              </thead>
+              <tbody id="dsr-review-table-body">
+                <!-- Populated dynamically -->
+              </tbody>
+            </table>
           </div>
         </div>
       </section>
