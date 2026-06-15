@@ -1608,6 +1608,69 @@
 
         </div>
 
+        <!-- Diagnostics & System Activity logs -->
+        <div class="panel" style="border: 1px solid var(--border); margin-top: 1.5rem;">
+          <div class="panel-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem;">
+            <h2 class="panel-title" style="display: flex; align-items: center; gap: 0.5rem; margin: 0;">
+              <svg viewBox="0 0 24 24" width="20" height="20" fill="var(--color-diesel)"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-2 10H7v-2h10v2zm0-4H7V7h10v2zm0 8H7v-2h10v2z"/></svg>
+              Diagnostics &amp; Activity Logs
+            </h2>
+            <div style="display: flex; gap: 0.5rem;">
+              <button type="button" class="btn btn-secondary btn-sm" id="test-diag-error-btn" style="padding: 0.25rem 0.5rem; font-size: 0.75rem;">⚠️ Test Error</button>
+              <button type="button" class="btn btn-danger btn-sm" id="clear-diag-logs-btn" style="padding: 0.25rem 0.5rem; font-size: 0.75rem; background: rgba(239, 68, 68, 0.15); border-color: rgba(239, 68, 68, 0.3); color: #f87171;">🧹 Clear Logs</button>
+            </div>
+          </div>
+
+          <div style="padding: 1.25rem; display: flex; flex-direction: column; gap: 1.25rem;">
+            <!-- Real-time Diagnostic Grid -->
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem;">
+              
+              <!-- DB Status Card -->
+              <div style="background: rgba(255,255,255,0.02); border: 1px solid var(--border); border-radius: 8px; padding: 0.75rem; display: flex; flex-direction: column; gap: 0.35rem;">
+                <span style="font-size: 0.72rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em;">Local Storage DB</span>
+                <div style="display: flex; justify-content: space-between; align-items: baseline;">
+                  <strong style="font-size: 1.1rem; color: #fff;" id="diag-db-status">Available</strong>
+                  <span style="font-size: 0.75rem; color: var(--text-dim);" id="diag-db-size">0 KB</span>
+                </div>
+                <div style="width: 100%; height: 4px; background: rgba(255,255,255,0.05); border-radius: 2px; overflow: hidden; margin-top: 0.25rem;">
+                  <div id="diag-db-quota-bar" style="width: 0%; height: 100%; background: var(--primary); transition: width 0.3s ease;"></div>
+                </div>
+                <span style="font-size: 0.65rem; color: var(--text-dim);" id="diag-db-quota-text">0.0% of 5MB quota</span>
+              </div>
+
+              <!-- Records Status Card -->
+              <div style="background: rgba(255,255,255,0.02); border: 1px solid var(--border); border-radius: 8px; padding: 0.75rem; display: flex; flex-direction: column; gap: 0.35rem;">
+                <span style="font-size: 0.72rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em;">Database Records</span>
+                <div style="display: flex; justify-content: space-between; align-items: baseline;">
+                  <strong style="font-size: 1.1rem; color: #fff;" id="diag-db-records">0 Days</strong>
+                  <span style="font-size: 0.75rem; color: var(--text-dim);" id="diag-db-purchases">0 Purchases</span>
+                </div>
+                <span style="font-size: 0.65rem; color: var(--text-dim);" id="diag-db-pending">0 Pending Submissions</span>
+              </div>
+
+              <!-- Cloud Sync Status Card -->
+              <div style="background: rgba(255,255,255,0.02); border: 1px solid var(--border); border-radius: 8px; padding: 0.75rem; display: flex; flex-direction: column; gap: 0.35rem;">
+                <span style="font-size: 0.72rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em;">Gist Sync Connection</span>
+                <div style="display: flex; justify-content: space-between; align-items: baseline;">
+                  <strong style="font-size: 1.1rem; color: #fff;" id="diag-sync-status">Not Configured</strong>
+                  <span style="font-size: 0.75rem; color: var(--text-dim);" id="diag-sync-time">Never</span>
+                </div>
+                <span style="font-size: 0.65rem; color: var(--text-dim); text-overflow: ellipsis; overflow: hidden; white-space: nowrap;" id="diag-sync-gist-id">Gist ID: Not Configured</span>
+              </div>
+
+            </div>
+
+            <!-- Log Console View -->
+            <div style="display: flex; flex-direction: column; gap: 0.5rem;">
+              <span style="font-size: 0.8rem; font-weight: 600; color: var(--text-muted);">Real-Time Console Stream:</span>
+              <div id="diagnostic-logs-list" style="background: #0f172a; border: 1px solid var(--border); border-radius: 8px; padding: 0.75rem; font-family: monospace; font-size: 0.75rem; max-height: 250px; overflow-y: auto; display: flex; flex-direction: column; gap: 0.4rem; line-height: 1.4;">
+                <div style="color: var(--text-dim); text-align: center; padding: 1rem;">No activity logged yet. Perform some actions to see diagnostic data.</div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
         <!-- Seeding & Mock Data Area -->
         <div class="panel">
           <div class="panel-header">

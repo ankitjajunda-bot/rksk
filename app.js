@@ -49,7 +49,12 @@ function setSyncStatus(state) {
 // Pull latest data from GitHub Gist
 async function syncPull() {
   const cfg = getSyncCfg();
-  if (!cfg.gistId || !cfg.gistToken) { setSyncStatus('off'); return null; }
+  if (!cfg.gistId || !cfg.gistToken) {
+    setSyncStatus('off');
+    SystemLogger.warning('syncPull', 'Sync skipped: GitHub Gist credentials are not configured.');
+    return null;
+  }
+  SystemLogger.info('syncPull', 'Starting cloud pull from GitHub Gist...');
   try {
     setSyncStatus('syncing');
     const res = await fetch(`${GIST_API_BASE}/${cfg.gistId}`, {
@@ -58,15 +63,26 @@ async function syncPull() {
         'Accept': 'application/vnd.github+json'
       }
     });
-    if (!res.ok) { setSyncStatus('error'); return null; }
+    if (!res.ok) {
+      setSyncStatus('error');
+      SystemLogger.error('syncPull', `GitHub API returned error status: ${res.status} ${res.statusText}`);
+      return null;
+    }
     const gist   = await res.json();
     const file   = gist.files && gist.files[GIST_FILENAME];
-    if (!file)   { setSyncStatus('error'); return null; }
+    if (!file)   {
+      setSyncStatus('error');
+      SystemLogger.error('syncPull', `Gist does not contain files or target file '${GIST_FILENAME}' is missing.`);
+      return null;
+    }
     const record = JSON.parse(file.content);
     setSyncStatus('synced');
+    SystemLogger.success('syncPull', `Cloud pull succeeded. Retrieved database synced at ${record._synced_at || 'unknown'}`);
     return record;
-  } catch {
-    setSyncStatus(navigator.onLine ? 'error' : 'offline');
+  } catch (err) {
+    const isOnline = navigator.onLine;
+    setSyncStatus(isOnline ? 'error' : 'offline');
+    SystemLogger.error('syncPull', `Cloud pull failed due to network exception. Device is ${isOnline ? 'Online' : 'Offline'}.`, err);
     return null;
   }
 }
@@ -74,7 +90,11 @@ async function syncPull() {
 // Push current db to GitHub Gist
 async function syncPush() {
   const cfg = getSyncCfg();
-  if (!cfg.gistId || !cfg.gistToken) return;
+  if (!cfg.gistId || !cfg.gistToken) {
+    SystemLogger.warning('syncPush', 'Sync push skipped: GitHub Gist credentials are not configured.');
+    return;
+  }
+  SystemLogger.info('syncPush', 'Starting cloud push & synchronization...');
   try {
     setSyncStatus('syncing');
 
@@ -85,7 +105,7 @@ async function syncPush() {
       const localAt = cfg.last_push ? new Date(cfg.last_push) : new Date(0);
 
       if (cloudAt > localAt) {
-        console.log('[Sync] Cloud database is newer. Merging datasets before pushing...');
+        SystemLogger.info('syncPush', 'Cloud database is newer. Merging datasets before pushing...', { cloudAt, localAt });
 
         // 1. Merge pending/processed employee submissions
         const localPending = db.pending_entries || [];
@@ -128,6 +148,7 @@ async function syncPush() {
         db.users = mergedUsers;
 
         localStorage.setItem('octaneflow_db', JSON.stringify(db));
+        SystemLogger.info('syncPush', 'Merging complete. Saved merged database locally.');
       }
     }
 
@@ -147,20 +168,33 @@ async function syncPush() {
       const cfg2 = getSyncCfg();
       cfg2.last_push = new Date().toISOString();
       saveSyncCfg(cfg2);
+      setSyncStatus('synced');
+      SystemLogger.success('syncPush', 'Cloud push completed successfully. Cloud database updated.');
+    } else {
+      setSyncStatus('error');
+      SystemLogger.error('syncPush', `Cloud push failed: GitHub API returned status ${res.status} ${res.statusText}`);
     }
-    setSyncStatus(res.ok ? 'synced' : 'error');
   } catch (err) {
-    console.error('[Sync] Push failed:', err);
-    setSyncStatus(navigator.onLine ? 'error' : 'offline');
+    const isOnline = navigator.onLine;
+    setSyncStatus(isOnline ? 'error' : 'offline');
+    SystemLogger.error('syncPush', `Cloud push failed due to network exception. Device is ${isOnline ? 'Online' : 'Offline'}.`, err);
   }
 }
 
 // On app start — pull cloud data if it's newer than local
 async function initSync() {
   const cfg = getSyncCfg();
-  if (!cfg.gistId || !cfg.gistToken) { setSyncStatus('off'); return; }
+  if (!cfg.gistId || !cfg.gistToken) {
+    setSyncStatus('off');
+    SystemLogger.info('initSync', 'Auto-sync is disabled (no credentials).');
+    return;
+  }
+  SystemLogger.info('initSync', 'Initializing cloud sync checks on app start...');
   const cloudData = await syncPull();
-  if (!cloudData || !cloudData.daily_ledger) return;
+  if (!cloudData || !cloudData.daily_ledger) {
+    SystemLogger.warning('initSync', 'Could not sync cloud data on initialization.');
+    return;
+  }
 
   const cloudAt   = cloudData._synced_at ? new Date(cloudData._synced_at) : new Date(0);
   const localAt   = cfg.last_push        ? new Date(cfg.last_push)        : new Date(0);
@@ -173,9 +207,239 @@ async function initSync() {
     }
     cfg.last_push = cloudData._synced_at || new Date().toISOString();
     saveSyncCfg(cfg);
-    console.log('[Sync] Loaded cloud data — rows:', db.daily_ledger.length);
+    SystemLogger.success('initSync', `Loaded newer cloud database successfully (records: ${db.daily_ledger.length}).`);
   } else {
-    console.log('[Sync] Local is current — rows:', db.daily_ledger.length);
+    SystemLogger.success('initSync', `Local database is up to date (records: ${db.daily_ledger.length}).`);
+  }
+}
+
+
+// ============================================================
+// DIAGNOSTICS & SYSTEM ACTIVITY LOGGER
+// ============================================================
+const LOGS_STORAGE_KEY = 'octaneflow_system_logs';
+
+const SystemLogger = {
+  getLogs() {
+    try {
+      return JSON.parse(localStorage.getItem(LOGS_STORAGE_KEY) || '[]');
+    } catch {
+      return [];
+    }
+  },
+
+  saveLogs(logs) {
+    try {
+      localStorage.setItem(LOGS_STORAGE_KEY, JSON.stringify(logs));
+    } catch (e) {
+      console.error('Failed to save logs to localStorage:', e);
+    }
+  },
+
+  log(level, context, message, details = '') {
+    const timestamp = new Date().toISOString();
+    const newLog = {
+      timestamp,
+      level: level.toUpperCase(), // INFO, SUCCESS, WARNING, ERROR
+      context,
+      message,
+      details: typeof details === 'object' ? JSON.stringify(details) : String(details)
+    };
+
+    let logs = this.getLogs();
+    logs.unshift(newLog); // Newest first
+    if (logs.length > 100) {
+      logs = logs.slice(0, 100);
+    }
+    this.saveLogs(logs);
+
+    const consoleMsg = `[${newLog.level}] [${context}] ${message} ${details ? '| ' + details : ''}`;
+    if (newLog.level === 'ERROR') {
+      console.error(consoleMsg);
+    } else if (newLog.level === 'WARNING') {
+      console.warn(consoleMsg);
+    } else {
+      console.log(consoleMsg);
+    }
+
+    this.appendLogToUI(newLog);
+    
+    if (document.getElementById('view-settings')?.classList.contains('active')) {
+      renderDiagnostics();
+    }
+  },
+
+  info(context, message, details = '') { this.log('INFO', context, message, details); },
+  success(context, message, details = '') { this.log('SUCCESS', context, message, details); },
+  warning(context, message, details = '') { this.log('WARNING', context, message, details); },
+  error(context, message, details = '') { this.log('ERROR', context, message, details); },
+
+  clear() {
+    this.saveLogs([]);
+    const container = document.getElementById('diagnostic-logs-list');
+    if (container) {
+      container.innerHTML = `<div style="color: var(--text-dim); text-align: center; padding: 1rem;">Logs cleared.</div>`;
+    }
+    renderDiagnostics();
+  },
+
+  getLevelColor(level) {
+    switch (level) {
+      case 'SUCCESS': return '#22c55e';
+      case 'ERROR':   return '#ef4444';
+      case 'WARNING': return '#f59e0b';
+      case 'INFO':
+      default:        return '#3b82f6';
+    }
+  },
+
+  appendLogToUI(log) {
+    const container = document.getElementById('diagnostic-logs-list');
+    if (!container) return;
+
+    // Check if the placeholder "No activity logged yet" is present
+    if (container.children.length === 1 && container.children[0].textContent.includes('No activity logged yet')) {
+      container.innerHTML = '';
+    }
+
+    const logEl = document.createElement('div');
+    logEl.className = 'log-item';
+    logEl.style.borderBottom = '1px solid rgba(255,255,255,0.02)';
+    logEl.style.paddingBottom = '4px';
+    logEl.style.wordBreak = 'break-all';
+
+    const t = new Date(log.timestamp);
+    const timeStr = t.toLocaleTimeString([], { hour12: false }) + '.' + String(t.getMilliseconds()).padStart(3, '0');
+    const color = this.getLevelColor(log.level);
+
+    logEl.innerHTML = `
+      <span style="color: var(--text-dim); font-size: 0.7rem;">[${timeStr}]</span>
+      <span style="color: ${color}; font-weight: bold; font-size: 0.7rem;">[${log.level}]</span>
+      <span style="color: #cbd5e1; font-weight: 600;">[${log.context}]</span>
+      <span style="color: #f1f5f9;">${log.message}</span>
+      ${log.details ? `<span style="color: #64748b; font-size: 0.7rem; display: block; margin-left: 1.5rem; white-space: pre-wrap;">Details: ${log.details}</span>` : ''}
+    `;
+    container.appendChild(logEl);
+    container.scrollTop = container.scrollHeight;
+  },
+
+  renderAll() {
+    const container = document.getElementById('diagnostic-logs-list');
+    if (!container) return;
+
+    const logs = this.getLogs();
+    if (logs.length === 0) {
+      container.innerHTML = `<div style="color: var(--text-dim); text-align: center; padding: 1rem;">No activity logged yet. Perform some actions to see diagnostic data.</div>`;
+      return;
+    }
+
+    container.innerHTML = '';
+    const displayLogs = [...logs].reverse();
+    displayLogs.forEach(log => {
+      const logEl = document.createElement('div');
+      logEl.className = 'log-item';
+      logEl.style.borderBottom = '1px solid rgba(255,255,255,0.02)';
+      logEl.style.paddingBottom = '4px';
+      logEl.style.wordBreak = 'break-all';
+
+      const t = new Date(log.timestamp);
+      const timeStr = t.toLocaleTimeString([], { hour12: false }) + '.' + String(t.getMilliseconds()).padStart(3, '0');
+      const color = this.getLevelColor(log.level);
+
+      logEl.innerHTML = `
+        <span style="color: var(--text-dim); font-size: 0.7rem;">[${timeStr}]</span>
+        <span style="color: ${color}; font-weight: bold; font-size: 0.7rem;">[${log.level}]</span>
+        <span style="color: #cbd5e1; font-weight: 600;">[${log.context}]</span>
+        <span style="color: #f1f5f9;">${log.message}</span>
+        ${log.details ? `<span style="color: #64748b; font-size: 0.7rem; display: block; margin-left: 1.5rem; white-space: pre-wrap;">Details: ${log.details}</span>` : ''}
+      `;
+      container.appendChild(logEl);
+    });
+    container.scrollTop = container.scrollHeight;
+  }
+};
+
+function renderDiagnostics() {
+  let dbSizeStr = '0 KB';
+  let quotaPct = 0;
+  let isDbAvailable = false;
+  try {
+    const dbStr = localStorage.getItem('octaneflow_db') || '';
+    const bytes = new Blob([dbStr]).size;
+    isDbAvailable = true;
+    dbSizeStr = (bytes / 1024).toFixed(2) + ' KB';
+    quotaPct = Math.min((bytes / (5 * 1024 * 1024)) * 100, 100);
+  } catch (e) {
+    dbSizeStr = 'Unavailable';
+    isDbAvailable = false;
+  }
+
+  const dbStatusEl = document.getElementById('diag-db-status');
+  if (dbStatusEl) {
+    dbStatusEl.textContent = isDbAvailable ? 'Available' : 'Write Failed / Locked';
+    dbStatusEl.style.color = isDbAvailable ? '#22c55e' : '#ef4444';
+  }
+  const dbSizeEl = document.getElementById('diag-db-size');
+  if (dbSizeEl) dbSizeEl.textContent = dbSizeStr;
+  
+  const quotaBar = document.getElementById('diag-db-quota-bar');
+  if (quotaBar) {
+    quotaBar.style.width = quotaPct + '%';
+    quotaBar.style.background = quotaPct > 80 ? 'var(--danger)' : quotaPct > 50 ? 'var(--warning)' : 'var(--primary)';
+  }
+  const quotaText = document.getElementById('diag-db-quota-text');
+  if (quotaText) quotaText.textContent = `${quotaPct.toFixed(2)}% of 5MB browser quota`;
+
+  const ledgerCount = (db && db.daily_ledger) ? db.daily_ledger.length : 0;
+  const purchaseCount = (db && db.purchases) ? db.purchases.length : 0;
+  const pendingCount = (db && db.pending_entries) ? db.pending_entries.length : 0;
+
+  const dbRecordsEl = document.getElementById('diag-db-records');
+  if (dbRecordsEl) dbRecordsEl.textContent = `${ledgerCount} Ledger Days`;
+  const dbPurchasesEl = document.getElementById('diag-db-purchases');
+  if (dbPurchasesEl) dbPurchasesEl.textContent = `${purchaseCount} Purchases`;
+  const dbPendingEl = document.getElementById('diag-db-pending');
+  if (dbPendingEl) dbPendingEl.textContent = `${pendingCount} Pending Submissions`;
+
+  const cfg = getSyncCfg();
+  const syncStatusEl = document.getElementById('diag-sync-status');
+  const syncTimeEl = document.getElementById('diag-sync-time');
+  const syncGistIdEl = document.getElementById('diag-sync-gist-id');
+
+  if (cfg.gistId && cfg.gistToken) {
+    if (syncStatusEl) {
+      const activeStateEl = document.getElementById('sync-status-indicator');
+      const activeState = activeStateEl ? activeStateEl.textContent : '';
+      if (activeState.includes('Sync error') || activeState.includes('Offline')) {
+        syncStatusEl.textContent = 'Sync Failure';
+        syncStatusEl.style.color = '#ef4444';
+      } else if (activeState.includes('Syncing')) {
+        syncStatusEl.textContent = 'Syncing...';
+        syncStatusEl.style.color = '#f97316';
+      } else {
+        syncStatusEl.textContent = 'Connected';
+        syncStatusEl.style.color = '#22c55e';
+      }
+    }
+    if (syncTimeEl) {
+      if (cfg.last_push) {
+        const d = new Date(cfg.last_push);
+        syncTimeEl.textContent = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) + ' ' + d.toLocaleDateString([], { month: 'short', day: 'numeric' });
+      } else {
+        syncTimeEl.textContent = 'Never Synced';
+      }
+    }
+    if (syncGistIdEl) {
+      syncGistIdEl.textContent = `Gist ID: ...${cfg.gistId.slice(-8)}`;
+      syncGistIdEl.title = cfg.gistId;
+    }
+  } else {
+    if (syncStatusEl) {
+      syncStatusEl.textContent = 'Disabled';
+      syncStatusEl.style.color = 'var(--text-dim)';
+    }
+    if (syncTimeEl) syncTimeEl.textContent = 'N/A';
+    if (syncGistIdEl) syncGistIdEl.textContent = 'Gist ID: Not Configured';
   }
 }
 
@@ -1147,7 +1411,16 @@ function prunePendingEntries() {
 
 function saveDB() {
   prunePendingEntries();
-  localStorage.setItem('octaneflow_db', JSON.stringify(db));
+  try {
+    const dbStr = JSON.stringify(db);
+    localStorage.setItem('octaneflow_db', dbStr);
+    const bytes = new Blob([dbStr]).size;
+    const kb = (bytes / 1024).toFixed(2);
+    SystemLogger.success('saveDB', `Database saved locally successfully (${kb} KB).`);
+  } catch (e) {
+    SystemLogger.error('saveDB', 'Failed to save database locally. Storage quota may be exceeded!', e);
+    showNotification('⚠️ Database write failed! Storage may be full.', 'danger');
+  }
   // Auto-push to cloud on every save (debounced 2s to avoid hammering API)
   clearTimeout(saveDB._pushTimer);
   saveDB._pushTimer = setTimeout(() => syncPush(), 2000);
@@ -1158,6 +1431,7 @@ function resetDB() {
   try { db.users = JSON.parse(localStorage.getItem(AUTH_USERS_KEY) || '{}'); }
   catch { db.users = {}; }
   saveDB();
+  SystemLogger.success('resetDB', 'Database reset to factory default state.');
   showNotification("System data reset to default.", "info");
   initApp();
 }
@@ -1654,6 +1928,7 @@ function saveDailyReadings(data) {
     db.stock.diesel = Math.max(0, db.stock.diesel + oldNetD - newNetD);
 
     db.daily_ledger[existingIdx] = data;
+    SystemLogger.success('saveDailyReadings', `Reconciliation modified and saved for date ${formatDate(data.date)}. Net Sales: Petrol = ${newNetP.toFixed(2)} L, Diesel = ${newNetD.toFixed(2)} L.`, newCalc.totals);
     showNotification(`Reconciliation completed for ${formatDate(data.date)}.`, "success");
   } else {
     // New date log entry: directly subtract sales from stock
@@ -1661,6 +1936,7 @@ function saveDailyReadings(data) {
     db.stock.diesel = Math.max(0, db.stock.diesel - newNetD);
 
     db.daily_ledger.push(data);
+    SystemLogger.success('saveDailyReadings', `Daily readings logged and saved for date ${formatDate(data.date)}. Net Sales: Petrol = ${newNetP.toFixed(2)} L, Diesel = ${newNetD.toFixed(2)} L.`, newCalc.totals);
     showNotification(`Daily readings logged for ${formatDate(data.date)}.`, "success");
   }
 
@@ -1711,11 +1987,13 @@ function recordTanker(dateStr, timeStr, loadType, customP, customD, priceP, pric
   const totalVol = petrolQty + dieselQty;
   if (totalVol !== 12000) {
     showNotification(`Tanker load must equal exactly 12,000 Liters (currently ${totalVol} L)`, "danger");
+    SystemLogger.warning('recordTanker', `Tanker receipt rejected: volume must equal exactly 12,000 Liters (got ${totalVol} L)`);
     return;
   }
 
   if (petrolQty % 4000 !== 0 || dieselQty % 4000 !== 0) {
     showNotification("Illogical value rejected. Petrol and Diesel quantities must be multiples of 4,000 Liters (corresponding to 4kl compartments).", "danger");
+    SystemLogger.warning('recordTanker', `Tanker receipt rejected: quantities must be multiples of 4,000 L (Petrol: ${petrolQty} L, Diesel: ${dieselQty} L)`);
     return;
   }
 
@@ -1755,6 +2033,7 @@ function recordTanker(dateStr, timeStr, loadType, customP, customD, priceP, pric
 
   db.purchases.unshift(purchase);
   saveDB();
+  SystemLogger.success('recordTanker', `Recorded tanker delivery: Petrol = ${petrolQty} L @ ₹${priceP}/L, Diesel = ${dieselQty} L @ ₹${priceD}/L. Total Cost: ₹${purchase.total_cost.toFixed(2)}`, purchase);
   showNotification("Tanker purchase recorded. Stock levels increased.", "success");
 }
 
@@ -1768,6 +2047,7 @@ function updateSellingPrice(dateTimeStr, priceP, priceD) {
   db.prices.unshift(entry);
   db.prices.sort((a,b) => new Date(b.effective_date) - new Date(a.effective_date));
   saveDB();
+  SystemLogger.success('updateSellingPrice', `Selling prices updated: Petrol = ₹${entry.petrol.toFixed(2)}/L, Diesel = ₹${entry.diesel.toFixed(2)}/L (Effective: ${entry.effective_date})`, entry);
   showNotification("Selling prices updated.", "success");
 }
 
@@ -3425,6 +3705,10 @@ function renderSettings() {
   document.getElementById('cfg-phonepe-mid').value = db.settings.phonepe_mid || '';
   document.getElementById('cfg-phonepe-salt-key').value = db.settings.phonepe_salt_key || '';
   document.getElementById('cfg-phonepe-salt-index').value = db.settings.phonepe_salt_index || '1';
+
+  // Render Diagnostics & System logs
+  renderDiagnostics();
+  SystemLogger.renderAll();
 }
 
 // -------------------------------------------------------------
@@ -3849,6 +4133,7 @@ document.getElementById('phonepe-settings-form').addEventListener('submit', (e) 
 // Backups/restores
 document.getElementById('backup-db-btn').addEventListener('click', () => {
   const jsonStr = JSON.stringify(db, null, 2);
+  SystemLogger.info('backupDB', 'Database backup exported successfully.');
   triggerDownload(jsonStr, `octaneflow_backup_${new Date().toISOString().split('T')[0]}.json`, 'application/json');
 });
 
@@ -3872,12 +4157,18 @@ document.getElementById('restore-db-file').addEventListener('change', (e) => {
           delete db.shifts;
         }
         saveDB();
+        SystemLogger.success('restoreDB', 'Database restored successfully from backup file.', {
+          records: db.daily_ledger.length,
+          purchases: db.purchases.length
+        });
         showNotification("Database restored successfully!", "success");
         initApp();
       } else {
+        SystemLogger.error('restoreDB', 'Failed to restore backup: Invalid file schema or missing properties.');
         showNotification("Invalid file format. Verification failed.", "danger");
       }
     } catch (err) {
+      SystemLogger.error('restoreDB', 'Failed to parse backup JSON file.', err);
       showNotification("Error reading file. Confirm it is valid JSON.", "danger");
     }
   };
@@ -4082,6 +4373,7 @@ function seedDemoData() {
 
   db = seeded;
   saveDB();
+  SystemLogger.success('seedDemoData', 'Simulated demo database successfully seeded with 14 days of history.');
   showNotification("Excel simulation database successfully seeded!", "success");
   initApp();
 }
@@ -4118,6 +4410,27 @@ function initApp() {
     updatePriceInputRequirements();
   }).catch(() => setSyncStatus('error'));
 }
+
+// ── GLOBAL RUNTIME ERROR REPORTING ──────────────────────────
+// Intercept uncaught javascript errors
+window.addEventListener('error', (event) => {
+  const msg = event.message || 'Unknown runtime error';
+  const source = event.filename ? event.filename.split('/').pop() : 'unknown';
+  const lineno = event.lineno || 0;
+  const colno = event.colno || 0;
+  const stack = event.error ? event.error.stack : '';
+  
+  SystemLogger.error('RuntimeError', `${msg} (at ${source}:${lineno}:${colno})`, stack);
+});
+
+// Intercept unhandled promise rejections
+window.addEventListener('unhandledrejection', (event) => {
+  const reason = event.reason;
+  const msg = reason ? (reason.message || String(reason)) : 'Promise rejected without reason';
+  const stack = (reason && reason.stack) ? reason.stack : '';
+  
+  SystemLogger.error('UnhandledPromiseRejection', msg, stack);
+});
 
 window.addEventListener('DOMContentLoaded', () => {
   // 1. Check for configuration invite/setup link in URL hash
@@ -4180,6 +4493,29 @@ window.addEventListener('DOMContentLoaded', () => {
 
       // 3. Perform a full page reload from network
       window.location.reload(true);
+    });
+  }
+
+  // Wire up Diagnostics buttons
+  const testErrorBtn = document.getElementById('test-diag-error-btn');
+  if (testErrorBtn) {
+    testErrorBtn.addEventListener('click', () => {
+      try {
+        throw new Error("Simulated diagnostic exception. This is a test error to verify real-time log reporting!");
+      } catch (err) {
+        SystemLogger.error("SimulatedErrorTest", err.message, err.stack);
+        showNotification("Test error logged. See activity stream below.", "warning");
+      }
+    });
+  }
+
+  const clearLogsBtn = document.getElementById('clear-diag-logs-btn');
+  if (clearLogsBtn) {
+    clearLogsBtn.addEventListener('click', () => {
+      if (confirm("Are you sure you want to clear all diagnostics activity logs?")) {
+        SystemLogger.clear();
+        showNotification("Diagnostics logs cleared.", "info");
+      }
     });
   }
 
@@ -5998,6 +6334,12 @@ function postShiftRecon() {
 
   // Call general ledger save logic which also automatically updates stock
   saveDailyReadings(row);
+
+  SystemLogger.success('postShiftRecon', `Reconciliation posted successfully for ${shift === 'day' ? 'Day' : 'Night'} Shift on ${formatDate(dateStr)}. Expected Cash: ₹${shift_expected_cash.toFixed(2)}, Counted Cash: ₹${counted_cash.toFixed(2)}, Variance: ₹${shift_variance.toFixed(2)}`, {
+    date: dateStr,
+    shift,
+    variance: shift_variance
+  });
 
   showNotification(`Reconciliation saved and posted to ledger for ${shift === 'day' ? 'Day' : 'Night'} Shift on ${formatDate(dateStr)}.`, "success");
 
