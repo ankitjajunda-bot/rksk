@@ -2679,7 +2679,7 @@ function renderLedger() {
             Station Operations Inspector
           </h2>
           <span style="font-size:0.9rem; color:var(--text-muted);">
-            Reporting Date: <strong>${formatDate(selectedRow.date)}</strong> | Selling Rates: Petrol: <strong>₹${selectedRow.prices.petrol.toFixed(2)}</strong>, Diesel: <strong>₹${selectedRow.prices.diesel.toFixed(2)}</strong>
+            Reporting Date: <strong>${formatDate(selectedRow.date)}</strong> | Selling Rates: Petrol: <strong>₹${(selectedRow.prices?.petrol ?? 0).toFixed(2)}</strong>, Diesel: <strong>₹${(selectedRow.prices?.diesel ?? 0).toFixed(2)}</strong>
           </span>
         </div>
         <div style="display:flex; gap:0.5rem;">
@@ -2696,8 +2696,8 @@ function renderLedger() {
     `;
 
     if (analystTab === 'flow') {
-      const testsP = selectedRow.du1_p.tests_day + selectedRow.du2_p.tests_day;
-      const testsD = selectedRow.du1_d.tests_day + selectedRow.du2_d.tests_day;
+      const testsP = (selectedRow.du1_p?.tests_day ?? 0) + (selectedRow.du2_p?.tests_day ?? 0);
+      const testsD = (selectedRow.du1_d?.tests_day ?? 0) + (selectedRow.du2_d?.tests_day ?? 0);
 
       html += `
         <div class="station-flow-container">
@@ -2796,19 +2796,19 @@ function renderLedger() {
                     <span style="font-size:0.7rem; font-weight:500;">Nozzle 1</span>
                   </div>
                   <div class="flow-nozzle-formula">
-                    Open: ${selectedRow.du1_p.open.toFixed(1)}<br>
-                    Close: ${selectedRow.du1_p.close_night.toFixed(1)}
+                    Open: ${(selectedRow.du1_p?.open ?? 0).toFixed(1)}<br>
+                    Close: ${(selectedRow.du1_p?.close_night ?? 0).toFixed(1)}
                   </div>
                   <div style="display:flex; justify-content:space-between; align-items:center; margin-top:0.25rem;">
-                    <span class="flow-nozzle-sold">+${(selectedRow.du1_p.close_night - selectedRow.du1_p.open).toFixed(1)} L</span>
-                    ${selectedRow.du1_p.tests_day > 0 ? `
+                    <span class="flow-nozzle-sold">+${((selectedRow.du1_p?.close_night ?? 0) - (selectedRow.du1_p?.open ?? 0)).toFixed(1)} L</span>
+                    ${(selectedRow.du1_p?.tests_day ?? 0) > 0 ? `
                       <div class="flow-test-beaker" title="Calibration quality check tests recirculated back into tank.">
                         <svg viewBox="0 0 24 24" width="10" height="10"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/></svg>
-                        -${selectedRow.du1_p.tests_day * 5}L tests
+                        -${(selectedRow.du1_p?.tests_day ?? 0) * 5}L tests
                       </div>
                     ` : ''}
                   </div>
-                  <span style="font-size:0.65rem; color:var(--text-muted); margin-top:0.2rem;">Net: <strong>${(c.sales.du1_p.day + c.sales.du1_p.night).toFixed(1)} L</strong></span>
+                  <span style="font-size:0.65rem; color:var(--text-muted); margin-top:0.2rem;">Net: <strong>${((c.sales?.du1_p?.day ?? 0) + (c.sales?.du1_p?.night ?? 0)).toFixed(1)} L</strong></span>
                 </div>
 
                 <!-- Diesel Nozzle -->
@@ -2818,19 +2818,19 @@ function renderLedger() {
                     <span style="font-size:0.7rem; font-weight:500;">Nozzle 2</span>
                   </div>
                   <div class="flow-nozzle-formula">
-                    Open: ${selectedRow.du1_d.open.toFixed(1)}<br>
-                    Close: ${selectedRow.du1_d.close_night.toFixed(1)}
+                    Open: ${(selectedRow.du1_d?.open ?? 0).toFixed(1)}<br>
+                    Close: ${(selectedRow.du1_d?.close_night ?? 0).toFixed(1)}
                   </div>
                   <div style="display:flex; justify-content:space-between; align-items:center; margin-top:0.25rem;">
-                    <span class="flow-nozzle-sold">+${(selectedRow.du1_d.close_night - selectedRow.du1_d.open).toFixed(1)} L</span>
-                    ${selectedRow.du1_d.tests_day > 0 ? `
+                    <span class="flow-nozzle-sold">+${((selectedRow.du1_d?.close_night ?? 0) - (selectedRow.du1_d?.open ?? 0)).toFixed(1)} L</span>
+                    ${(selectedRow.du1_d?.tests_day ?? 0) > 0 ? `
                       <div class="flow-test-beaker" title="Calibration quality check tests recirculated back into tank.">
                         <svg viewBox="0 0 24 24" width="10" height="10"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/></svg>
-                        -${selectedRow.du1_d.tests_day * 5}L tests
+                        -${(selectedRow.du1_d?.tests_day ?? 0) * 5}L tests
                       </div>
                     ` : ''}
                   </div>
-                  <span style="font-size:0.65rem; color:var(--text-muted); margin-top:0.2rem;">Net: <strong>${(c.sales.du1_d.day + c.sales.du1_d.night).toFixed(1)} L</strong></span>
+                  <span style="font-size:0.65rem; color:var(--text-muted); margin-top:0.2rem;">Net: <strong>${((c.sales?.du1_d?.day ?? 0) + (c.sales?.du1_d?.night ?? 0)).toFixed(1)} L</strong></span>
                 </div>
               </div>
             </div>
@@ -2849,19 +2849,19 @@ function renderLedger() {
                     <span style="font-size:0.7rem; font-weight:500;">Nozzle 3</span>
                   </div>
                   <div class="flow-nozzle-formula">
-                    Open: ${selectedRow.du2_p.open.toFixed(1)}<br>
-                    Close: ${selectedRow.du2_p.close_night.toFixed(1)}
+                    Open: ${(selectedRow.du2_p?.open ?? 0).toFixed(1)}<br>
+                    Close: ${(selectedRow.du2_p?.close_night ?? 0).toFixed(1)}
                   </div>
                   <div style="display:flex; justify-content:space-between; align-items:center; margin-top:0.25rem;">
-                    <span class="flow-nozzle-sold">+${(selectedRow.du2_p.close_night - selectedRow.du2_p.open).toFixed(1)} L</span>
-                    ${selectedRow.du2_p.tests_day > 0 ? `
+                    <span class="flow-nozzle-sold">+${((selectedRow.du2_p?.close_night ?? 0) - (selectedRow.du2_p?.open ?? 0)).toFixed(1)} L</span>
+                    ${(selectedRow.du2_p?.tests_day ?? 0) > 0 ? `
                       <div class="flow-test-beaker" title="Calibration quality check tests recirculated back into tank.">
                         <svg viewBox="0 0 24 24" width="10" height="10"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/></svg>
-                        -${selectedRow.du2_p.tests_day * 5}L tests
+                        -${(selectedRow.du2_p?.tests_day ?? 0) * 5}L tests
                       </div>
                     ` : ''}
                   </div>
-                  <span style="font-size:0.65rem; color:var(--text-muted); margin-top:0.2rem;">Net: <strong>${(c.sales.du2_p.day + c.sales.du2_p.night).toFixed(1)} L</strong></span>
+                  <span style="font-size:0.65rem; color:var(--text-muted); margin-top:0.2rem;">Net: <strong>${((c.sales?.du2_p?.day ?? 0) + (c.sales?.du2_p?.night ?? 0)).toFixed(1)} L</strong></span>
                 </div>
 
                 <!-- Diesel Nozzle -->
@@ -2871,19 +2871,19 @@ function renderLedger() {
                     <span style="font-size:0.7rem; font-weight:500;">Nozzle 4</span>
                   </div>
                   <div class="flow-nozzle-formula">
-                    Open: ${selectedRow.du2_d.open.toFixed(1)}<br>
-                    Close: ${selectedRow.du2_d.close_night.toFixed(1)}
+                    Open: ${(selectedRow.du2_d?.open ?? 0).toFixed(1)}<br>
+                    Close: ${(selectedRow.du2_d?.close_night ?? 0).toFixed(1)}
                   </div>
                   <div style="display:flex; justify-content:space-between; align-items:center; margin-top:0.25rem;">
-                    <span class="flow-nozzle-sold">+${(selectedRow.du2_d.close_night - selectedRow.du2_d.open).toFixed(1)} L</span>
-                    ${selectedRow.du2_d.tests_day > 0 ? `
+                    <span class="flow-nozzle-sold">+${((selectedRow.du2_d?.close_night ?? 0) - (selectedRow.du2_d?.open ?? 0)).toFixed(1)} L</span>
+                    ${(selectedRow.du2_d?.tests_day ?? 0) > 0 ? `
                       <div class="flow-test-beaker" title="Calibration quality check tests recirculated back into tank.">
                         <svg viewBox="0 0 24 24" width="10" height="10"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/></svg>
-                        -${selectedRow.du2_d.tests_day * 5}L tests
+                        -${(selectedRow.du2_d?.tests_day ?? 0) * 5}L tests
                       </div>
                     ` : ''}
                   </div>
-                  <span style="font-size:0.65rem; color:var(--text-muted); margin-top:0.2rem;">Net: <strong>${(c.sales.du2_d.day + c.sales.du2_d.night).toFixed(1)} L</strong></span>
+                  <span style="font-size:0.65rem; color:var(--text-muted); margin-top:0.2rem;">Net: <strong>${((c.sales?.du2_d?.day ?? 0) + (c.sales?.du2_d?.night ?? 0)).toFixed(1)} L</strong></span>
                 </div>
               </div>
             </div>
@@ -2915,12 +2915,12 @@ function renderLedger() {
                 <span style="font-weight:600; color:#fff;">${formatCurrency(c.financials.total_revenue)}</span>
               </div>
               <div style="display:flex; justify-content:space-between; font-size:0.75rem; color:var(--text-dim); padding-left:0.5rem; border-left:1px solid var(--border);">
-                <span>P: ${c.totals.net_24h.petrol.toFixed(0)}L × ₹${selectedRow.prices.petrol.toFixed(2)}</span>
-                <span>${formatCurrency(c.financials.rev_petrol)}</span>
+                <span>P: ${(c.totals?.net_24h?.petrol ?? 0).toFixed(0)}L × ₹${(selectedRow.prices?.petrol ?? 0).toFixed(2)}</span>
+                <span>${formatCurrency(c.financials?.rev_petrol ?? 0)}</span>
               </div>
               <div style="display:flex; justify-content:space-between; font-size:0.75rem; color:var(--text-dim); padding-left:0.5rem; border-left:1px solid var(--border); margin-bottom:0.25rem;">
-                <span>D: ${c.totals.net_24h.diesel.toFixed(0)}L × ₹${selectedRow.prices.diesel.toFixed(2)}</span>
-                <span>${formatCurrency(c.financials.rev_diesel)}</span>
+                <span>D: ${(c.totals?.net_24h?.diesel ?? 0).toFixed(0)}L × ₹${(selectedRow.prices?.diesel ?? 0).toFixed(2)}</span>
+                <span>${formatCurrency(c.financials?.rev_diesel ?? 0)}</span>
               </div>
 
               <div style="display:flex; justify-content:space-between; border-top:1px dashed var(--border); padding-top:0.5rem; margin-top:0.25rem;">
@@ -2928,12 +2928,12 @@ function renderLedger() {
                 <span style="font-weight:600; color:#fff;">${formatCurrency(c.financials.total_cost)}</span>
               </div>
               <div style="display:flex; justify-content:space-between; font-size:0.75rem; color:var(--text-dim); padding-left:0.5rem; border-left:1px solid var(--border);">
-                <span>P WAC Cost (₹${db.stock.petrol_cost_wac.toFixed(2)}):</span>
-                <span>${formatCurrency(c.totals.net_24h.petrol * db.stock.petrol_cost_wac)}</span>
+                <span>P WAC Cost (₹${(db.stock?.petrol_cost_wac ?? 0).toFixed(2)}):</span>
+                <span>${formatCurrency((c.totals?.net_24h?.petrol ?? 0) * (db.stock?.petrol_cost_wac ?? 0))}</span>
               </div>
               <div style="display:flex; justify-content:space-between; font-size:0.75rem; color:var(--text-dim); padding-left:0.5rem; border-left:1px solid var(--border);">
-                <span>D WAC Cost (₹${db.stock.diesel_cost_wac.toFixed(2)}):</span>
-                <span>${formatCurrency(c.totals.net_24h.diesel * db.stock.diesel_cost_wac)}</span>
+                <span>D WAC Cost (₹${(db.stock?.diesel_cost_wac ?? 0).toFixed(2)}):</span>
+                <span>${formatCurrency((c.totals?.net_24h?.diesel ?? 0) * (db.stock?.diesel_cost_wac ?? 0))}</span>
               </div>
             </div>
 
@@ -2948,8 +2948,8 @@ function renderLedger() {
         </div>
       `;
     } else if (analystTab === 'comparison') {
-      const dayRev = (c.totals.day.petrol * selectedRow.prices.petrol) + (c.totals.day.diesel * selectedRow.prices.diesel);
-      const nightRev = (c.totals.night.petrol * selectedRow.prices.petrol) + (c.totals.night.diesel * selectedRow.prices.diesel);
+      const dayRev = ((c.totals?.day?.petrol ?? 0) * (selectedRow.prices?.petrol ?? 0)) + ((c.totals?.day?.diesel ?? 0) * (selectedRow.prices?.diesel ?? 0));
+      const nightRev = ((c.totals?.night?.petrol ?? 0) * (selectedRow.prices?.petrol ?? 0)) + ((c.totals?.night?.diesel ?? 0) * (selectedRow.prices?.diesel ?? 0));
       const totalRev = dayRev + nightRev || 1;
 
       const dayShare = (dayRev / totalRev) * 100;
@@ -2964,8 +2964,8 @@ function renderLedger() {
       const dayDiePct = (c.totals.day.diesel / maxDiesel) * 100;
       const nightDiePct = (c.totals.night.diesel / maxDiesel) * 100;
 
-      const dayTestsP = selectedRow.du1_p.tests_day + selectedRow.du2_p.tests_day;
-      const dayTestsD = selectedRow.du1_d.tests_day + selectedRow.du2_d.tests_day;
+      const dayTestsP = (selectedRow.du1_p?.tests_day ?? 0) + (selectedRow.du2_p?.tests_day ?? 0);
+      const dayTestsD = (selectedRow.du1_d?.tests_day ?? 0) + (selectedRow.du2_d?.tests_day ?? 0);
 
       html += `
         <div class="comparison-grid">
@@ -4002,18 +4002,29 @@ function seedDemoData() {
 // -------------------------------------------------------------
 // APP INITIALIZATION
 // -------------------------------------------------------------
+function renderCurrentView() {
+  const activeItem = document.querySelector('.nav-item.active');
+  if (!activeItem) return;
+  const activeTab = activeItem.dataset.view;
+  if (activeTab === 'dashboard') {
+    renderActiveView('dashboard');
+  } else {
+    const activeSub = currentSubviews[activeTab] || activeTab;
+    renderActiveView(activeSub);
+  }
+}
+
 function initApp() {
   loadDB();
   document.getElementById('current-date-span').textContent = formatDate(new Date().toISOString().split('T')[0]);
 
   // Read current active tab and render it
-  const activeTab = document.querySelector('.nav-item.active').dataset.view;
-  renderActiveView(activeTab);
+  renderCurrentView();
 
   // Start cloud sync check (async — won't block render)
   initSync().then(() => {
     // Re-render after sync in case cloud had newer data
-    renderActiveView(document.querySelector('.nav-item.active').dataset.view);
+    renderCurrentView();
   }).catch(() => setSyncStatus('error'));
 }
 
@@ -4076,8 +4087,7 @@ window.addEventListener('DOMContentLoaded', () => {
     if (currentCfg.gistId && currentCfg.gistToken && session && document.visibilityState === 'visible') {
       initSync().then(() => {
         if (session.role === 'owner') {
-          const activeItem = document.querySelector('.nav-item.active');
-          if (activeItem) renderActiveView(activeItem.dataset.view);
+          renderCurrentView();
         } else {
           renderEmployeeView(session);
         }
@@ -6437,11 +6447,11 @@ function buildWACTimeline() {
 
   // Sort purchases oldest first
   const purch = [...db.purchases]
-    .filter(p => p.petrol_liters > 0 || p.diesel_liters > 0)
-    .sort((a, b) => a.date.localeCompare(b.date));
+    .filter(p => p && (p.petrol_liters > 0 || p.diesel_liters > 0))
+    .sort((a, b) => (a.date || '').localeCompare(b.date || ''));
 
   // All unique dates in ledger, sorted oldest first
-  const ledgerDates = [...new Set(db.daily_ledger.map(r => r.date))].sort();
+  const ledgerDates = [...new Set(db.daily_ledger.filter(r => r && r.date).map(r => r.date))].sort();
 
   // Initial stock / WAC seeds (reasonable starting point before our data)
   let msStock  = 8000;
@@ -6460,7 +6470,7 @@ function buildWACTimeline() {
 
   for (const date of ledgerDates) {
     // Apply all purchases on or before this date
-    while (pi < purch.length && purch[pi].date.split('T')[0] <= date) {
+    while (pi < purch.length && (purch[pi].date || '').split('T')[0] <= date) {
       const p  = purch[pi];
       const pMs  = p.petrol_liters  || 0;
       const pHsd = p.diesel_liters  || 0;
@@ -6508,9 +6518,9 @@ function buildExpenseDateMap() {
 // ---- Find selling price applicable on a given date ----
 function getSellingPrice(dateStr) {
   if (!db.prices || db.prices.length === 0) return { petrol: 105.58, diesel: 90.98 };
-  const sorted = [...db.prices].sort((a, b) => b.effective_date.localeCompare(a.effective_date));
+  const sorted = [...db.prices].sort((a, b) => (b.effective_date || '').localeCompare(a.effective_date || ''));
   for (const p of sorted) {
-    if (p.effective_date.split('T')[0] <= dateStr) return p;
+    if ((p.effective_date || '').split('T')[0] <= dateStr) return p;
   }
   // Fallback: earliest known price
   return sorted[sorted.length - 1] || { petrol: 105.58, diesel: 90.98 };
