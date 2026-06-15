@@ -19,12 +19,12 @@
   <meta name="application-name" content="OctaneFlow">
   <meta name="description" content="Fuel station operations dashboard — sales, stock, P&amp;L, tanker forecast">
 
-  
+
   <!-- Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  
+
   <!-- Stylesheets -->
   <link rel="stylesheet" href="styles.css">
 </head>
@@ -100,7 +100,7 @@
           </div>
           <!-- Nozzle Readings -->
           <div style="display:flex;flex-direction:column;gap:1rem;">
-            
+
             <!-- Petrol Nozzle 1 (DU1-P) -->
             <div style="background:rgba(255,255,255,0.02);border:1px solid #334155;border-radius:0.75rem;padding:1rem;">
               <div style="font-weight:700;color:#f8fafc;font-size:0.85rem;margin-bottom:0.75rem;display:flex;align-items:center;gap:0.5rem;">
@@ -168,7 +168,7 @@
 
   <div id="app-container-shell" class="app-container">
 
-    
+
     <!-- Sidebar Navigation -->
     <aside class="sidebar">
       <div class="logo-container">
@@ -179,7 +179,7 @@
         </div>
         <span class="logo-text">OctaneFlow</span>
       </div>
-      
+
       <ul class="nav-links">
         <li class="nav-item active" data-view="dashboard">
           <button>
@@ -187,53 +187,29 @@
             Dashboard
           </button>
         </li>
-        <li class="nav-item" data-view="ledger">
-          <button>
+        <li class="nav-item" data-view="operations">
+          <button style="position:relative;">
             <svg viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-4 6H5V7h10v2zm0 4H5v-2h10v2zm4 4H5v-2h14v2zm0-4h-2v-2h2v2zm0-4h-2V7h2v2z"/></svg>
-            Sales Cumulative
+            Operations
+            <span id="approvals-badge" style="display:none;position:absolute;top:6px;right:6px;background:#ef4444;color:#fff;border-radius:9999px;width:18px;height:18px;font-size:0.65rem;font-weight:800;display:flex;align-items:center;justify-content:center;">0</span>
           </button>
         </li>
-        <li class="nav-item" data-view="shift-recon">
-          <button>
-            <svg viewBox="0 0 24 24"><path d="M19 14V6c0-1.1-.9-2-2-2H3c-1.1 0-2 .9-2 2v8c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zm-2 0H3V6h14v8zm-2-3c0-1.1-.9-2-2-2s-2 .9-2 2 .9 2 2 2 2-.9 2-2zM9 17h10c1.1 0 2-.9 2-2v-6h-2v6H9v2z"/></svg>
-            Shift Reconciliation
-          </button>
-        </li>
-        <li class="nav-item" data-view="purchases">
+        <li class="nav-item" data-view="logistics">
           <button>
             <svg viewBox="0 0 24 24"><path d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm-5 12H4v-4h11v4zm5 0h-4v-4h4v4zm0-6H4V6h16v4z"/></svg>
-            Tankers & Credit
+            Logistics
           </button>
         </li>
-        <li class="nav-item" data-view="pricing">
-          <button>
-            <svg viewBox="0 0 24 24"><path d="M21.41 11.58l-9-9C12.05 2.22 11.55 2 11 2H4c-1.1 0-2 .9-2 2v7c0 .55.22 1.05.59 1.42l9 9c.36.36.86.58 1.41.58.55 0 1.05-.22 1.41-.59l7-7c.37-.36.59-.86.59-1.41 0-.55-.23-1.06-.59-1.42zM5.5 8c-.83 0-1.5-.67-1.5-1.5S4.67 5 5.5 5 7 5.67 7 6.5 6.33 8 5.5 8z"/></svg>
-            Selling Prices
-          </button>
-        </li>
-        <li class="nav-item" data-view="cashflow">
+        <li class="nav-item" data-view="financials">
           <button>
             <svg viewBox="0 0 24 24"><path d="M21 18v1c0 1.1-.9 2-2 2H5c-1.11 0-2-.9-2-2V5c0-1.1.89-2 2-2h14c1.1 0 2 .9 2 2v1h-9c-1.11 0-2 .9-2 2v8c0 1.1.89 2 2 2h9zm-9-2h10V8H12v8zm4-2.5c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5z"/></svg>
-            Cash Flow & Orders
-          </button>
-        </li>
-        <li class="nav-item" data-view="expenses">
-          <button>
-            <svg viewBox="0 0 24 24"><path d="M11.8 10.9c-2.27-.59-3-1.2-3-2.15 0-1.09 1.01-1.85 2.7-1.85 1.78 0 2.44.85 2.5 2.1h2.21c-.07-1.72-1.12-3.3-3.21-3.81V3h-3v2.16c-1.94.42-3.5 1.68-3.5 3.61 0 2.31 1.91 3.46 4.7 4.13 2.5.6 3 1.48 3 2.41 0 .69-.49 1.79-2.7 1.79-2.06 0-2.87-.92-2.98-2.1h-2.2c.12 2.19 1.76 3.42 3.68 3.83V21h3v-2.15c1.95-.37 3.5-1.5 3.5-3.55 0-2.84-2.43-3.81-4.7-4.4z"/></svg>
-            Expense Ledger
+            Financials
           </button>
         </li>
         <li class="nav-item" data-view="settings">
           <button>
             <svg viewBox="0 0 24 24"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>
-            System Settings
-          </button>
-        </li>
-        <li class="nav-item" data-view="approvals" id="nav-approvals" style="position:relative;">
-          <button>
-            <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
-            Approvals
-            <span id="approvals-badge" style="display:none;position:absolute;top:6px;right:6px;background:#ef4444;color:#fff;border-radius:9999px;width:18px;height:18px;font-size:0.65rem;font-weight:800;align-items:center;justify-content:center;">0</span>
+            Settings
           </button>
         </li>
       </ul>
@@ -244,14 +220,15 @@
         OctaneFlow v1.0.0<br>Local-First Platform
       </div>
     </aside>
-    
+
     <!-- Main Window Content -->
     <main class="main-content">
-      
+
       <!-- Top header bar -->
       <header>
         <div>
           <h1 id="view-title">Dashboard Overview</h1>
+          <div class="subtab-bar" id="header-subtabs" style="display: none;"></div>
         </div>
         <div class="current-time-box" style="display: flex; gap: 0.75rem; align-items: center;">
           <button class="btn btn-secondary btn-sm" id="take-tour-btn" style="background: rgba(99, 102, 241, 0.15); border: 1px solid rgba(99, 102, 241, 0.4); color: #fff; display: flex; align-items: center; gap: 0.35rem; font-weight: 600; padding: 0.35rem 0.75rem;">
@@ -268,7 +245,7 @@
 
       <!-- View 1: Dashboard -->
       <section id="view-dashboard" class="view-section active">
-        
+
         <!-- Metrics Grid -->
         <div class="metrics-grid">
           <div class="metric-card">
@@ -276,25 +253,25 @@
             <span class="metric-value" id="dash-net-sales-volume">0 L</span>
             <span class="metric-footer" id="dash-net-sales-split">Petrol: 0 L | Diesel: 0 L</span>
           </div>
-          
+
           <div class="metric-card">
             <span class="metric-label">Calculated Profit (Today)</span>
             <span class="metric-value text-success" id="dash-shift-revenue">₹ 0.00</span>
             <span class="metric-footer" id="dash-shift-active-indicator">Based on 24hr sales & cost</span>
           </div>
-          
+
           <div class="metric-card">
             <span class="metric-label">Outstanding Tanker Credit</span>
             <span class="metric-value text-warning" id="dash-outstanding-credit">₹ 0.00</span>
             <span class="metric-footer" id="dash-unpaid-tankers">0 pending tankers</span>
           </div>
-          
+
           <div class="metric-card">
             <span class="metric-label">Current Selling Prices</span>
             <span class="metric-value" style="font-size:1.45rem;" id="dash-selling-prices">P: 0.00 | D: 0.00</span>
             <span class="metric-footer" id="dash-prices-last-updated">Last update: N/A</span>
           </div>
-          
+
           <div class="metric-card" id="dash-capital-card">
             <span class="metric-label">Inventory Capital Assets</span>
             <span class="metric-value text-success" id="dash-active-assets">₹ 0.00</span>
@@ -303,7 +280,7 @@
         </div>
 
         <div class="grid-dashboard-main">
-          
+
           <!-- Underground Storage Tanks -->
           <div class="panel">
             <div class="panel-header">
@@ -313,7 +290,7 @@
               </h2>
               <button class="btn btn-secondary btn-sm" id="dash-trigger-purchase-btn">Record Purchase</button>
             </div>
-            
+
             <div class="tanks-container">
               <!-- Petrol Tank -->
               <div class="fuel-tank-wrapper">
@@ -341,7 +318,7 @@
                   <button class="btn btn-secondary btn-sm" style="margin-top: 0.6rem; width: 100%;" onclick="openDipCalculator('petrol')">Measure Dip</button>
                 </div>
               </div>
-              
+
               <!-- Diesel Tank -->
               <div class="fuel-tank-wrapper">
                 <div class="fuel-tank-label diesel">Diesel Tank</div>
@@ -370,7 +347,7 @@
               </div>
             </div>
           </div>
-          
+
           <!-- Order Warnings & Bank Alerts -->
           <div class="panel">
             <div class="panel-header">
@@ -379,18 +356,18 @@
                 Action & Planning Center
               </h2>
             </div>
-            
+
             <div class="alerts-list" id="dashboard-alerts-list">
               <!-- Alerts dynamically populated by JS -->
             </div>
           </div>
-          
+
         </div>
       </section>
 
       <!-- View 2: Sales Cumulative Sheet (Ledger) -->
       <section id="view-ledger" class="view-section">
-        
+
         <div class="panel">
           <div class="panel-header">
             <h2 class="panel-title">
@@ -493,10 +470,10 @@
       <!-- View: Shift Reconciliation & Cash Count -->
       <section id="view-shift-recon" class="view-section">
         <div class="grid-2">
-          
+
           <!-- Left Column: Input Form & WhatsApp Parser -->
           <div style="display: flex; flex-direction: column; gap: 1.5rem;">
-            
+
             <!-- WhatsApp Parser Panel -->
             <div class="panel">
               <div class="panel-header">
@@ -505,7 +482,7 @@
                   WhatsApp Report Quick-Entry
                 </h2>
               </div>
-              
+
               <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 0.5rem; margin-bottom: 0.75rem;">
                 <p style="font-size: 0.75rem; color: var(--text-dim); margin: 0;">
                   Method of shift data capture:
@@ -515,7 +492,7 @@
                   <button id="btn-recon-mode-sync" class="btn btn-secondary btn-sm" style="padding: 0.15rem 0.5rem; font-size: 0.65rem; border-radius: 3px; border:none;" onclick="switchReconInputMode('sync')">Live Sync</button>
                 </div>
               </div>
-              
+
               <!-- Manual Section -->
               <div id="recon-section-manual">
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; margin-bottom: 0.75rem;">
@@ -551,7 +528,7 @@
                     Manage Staff
                   </button>
                 </div>
-                
+
                 <h4 style="font-size:0.75rem; color:var(--text-dim); margin-top:0.75rem; margin-bottom:0.4rem; font-weight:600;">Incoming WhatsApp Reports</h4>
                 <div id="recon-sync-messages" style="display:flex; flex-direction:column; gap:0.5rem; max-height:160px; overflow-y:auto; padding-right:2px;">
                   <!-- incoming messages populated dynamically -->
@@ -571,7 +548,7 @@
                   <div class="scanner-laser" id="scanner-laser-line" style="display: none;"></div>
                 </div>
               </div>
-              
+
               <!-- Verification Results -->
               <div id="paper-verify-report" style="display: none; margin-top: 1rem; background: rgba(255,255,255,0.02); border: 1px solid var(--border); border-radius: 6px; padding: 0.75rem;">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 0.25rem;">
@@ -586,7 +563,7 @@
                 </button>
               </div>
             </div>
-            
+
             <!-- Shift Details & Readings Form -->
             <div class="panel">
               <div class="panel-header">
@@ -595,7 +572,7 @@
                   Shift Setup & Readings
                 </h2>
               </div>
-              
+
               <div class="form-row">
                 <div class="form-group">
                   <label for="recon-date">Operating Date</label>
@@ -612,7 +589,7 @@
 
               <!-- Petrol (MS) Readings Section -->
               <h3 style="font-size:0.95rem; color: var(--color-petrol); margin-top: 1.25rem; border-bottom: 1px solid rgba(6, 182, 212, 0.15); padding-bottom: 0.25rem; font-weight:600;">Petrol Nozzle Readings (MS)</h3>
-              
+
               <div class="form-row" style="margin-top: 0.5rem;">
                 <div class="form-group">
                   <label>DU1 Petrol Open</label>
@@ -623,7 +600,7 @@
                   <input type="number" id="recon-du1-p-close" step="0.01" required placeholder="0.00" oninput="calculateLiveSales()">
                 </div>
               </div>
-              
+
               <div class="form-row">
                 <div class="form-group">
                   <label>DU2 Petrol Open</label>
@@ -642,7 +619,7 @@
 
               <!-- Diesel (HSD) Readings Section -->
               <h3 style="font-size:0.95rem; color: var(--color-diesel); margin-top: 1.25rem; border-bottom: 1px solid rgba(245, 158, 11, 0.15); padding-bottom: 0.25rem; font-weight:600;">Diesel Nozzle Readings (HSD)</h3>
-              
+
               <div class="form-row" style="margin-top: 0.5rem;">
                 <div class="form-group">
                   <label>DU1 Diesel Open</label>
@@ -653,7 +630,7 @@
                   <input type="number" id="recon-du1-d-close" step="0.01" required placeholder="0.00" oninput="calculateLiveSales()">
                 </div>
               </div>
-              
+
               <div class="form-row">
                 <div class="form-group">
                   <label>DU2 Diesel Open</label>
@@ -669,13 +646,13 @@
                 <label for="recon-d-tests">Diesel Test Fuel (Auto: 5L per active nozzle)</label>
                 <input type="text" id="recon-d-tests" value="0" readonly style="background: var(--bg-card); border-color: var(--border); color: var(--text-dim); cursor: not-allowed;">
               </div>
-              
+
             </div>
           </div>
-          
+
           <!-- Right Column: Cash & PhonePe Settlement, Expenses, Denominations -->
           <div style="display: flex; flex-direction: column; gap: 1.5rem;">
-            
+
             <!-- Cash & PhonePe Reconciliation Card -->
             <div class="panel">
               <div class="panel-header">
@@ -684,7 +661,7 @@
                   PhonePe & Cash Collections
                 </h2>
               </div>
-              
+
               <!-- PhonePe Settlement -->
               <h3 style="font-size:0.85rem; color:#fff; border-bottom: 1px solid var(--border); padding-bottom: 0.25rem; margin-bottom: 0.5rem; font-weight:600;">PhonePe Settlement</h3>
               <div class="form-row">
@@ -711,17 +688,17 @@
                 <span>Expenses paid from Cash</span>
                 <button class="btn btn-secondary btn-sm" onclick="addExpenseRow()" style="padding: 0.15rem 0.4rem; font-size: 0.7rem; border-radius:4px;">+ Add Expense</button>
               </h3>
-              
+
               <div id="expenses-container" style="display:flex; flex-direction:column; gap:0.5rem; max-height:150px; overflow-y:auto; margin-bottom: 0.5rem;">
                 <!-- expense rows dynamically populated -->
               </div>
               <div style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 1rem;">
                 Total Expenses: <strong id="recon-expenses-total-label" style="color: var(--danger);">₹ 0.00</strong>
               </div>
-              
+
               <!-- Denomination Calculator -->
               <h3 style="font-size:0.85rem; color:#fff; border-bottom: 1px solid var(--border); padding-bottom: 0.25rem; margin-bottom: 0.5rem; font-weight:600;">Cash Denominations</h3>
-              
+
               <div class="denomination-grid" style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.5rem;">
                 <div class="denom-input-group" style="display: flex; align-items: center; gap: 0.35rem; font-size: 0.8rem;">
                   <span style="width: 50px; color: var(--text-dim);">₹500 x</span>
@@ -767,14 +744,14 @@
               <div style="font-size: 0.95rem; color: #fff; margin-top: 0.75rem; font-weight: 600;">
                 Total Counted Cash: <strong id="recon-cash-total-label" style="color: var(--success);">₹ 0.00</strong>
               </div>
-              
+
             </div>
-            
+
             <!-- Live Visual Animation Card -->
             <div class="panel" style="display: flex; flex-direction: column; align-items: center; justify-content: center; position: relative; overflow: hidden; min-height: 180px;">
               <h3 style="font-size: 0.75rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 0.5rem; text-align: center; width: 100%; font-weight:600;">Live Recirculation Flow</h3>
               <div style="display: flex; gap: 1.5rem; align-items: center; width: 100%; justify-content: space-around;">
-                
+
                 <!-- Petrol Tank -->
                 <div style="display: flex; flex-direction: column; align-items: center;">
                   <div class="flow-tank-cylinder" style="width: 100px; height: 60px; border-radius: 30px;">
@@ -785,7 +762,7 @@
                   <span id="recon-visual-val-p" style="font-size: 0.8rem; color: #fff; font-weight: 700;">- L</span>
                   <span id="recon-visual-badge-p" class="badge badge-success" style="display:none; font-size: 0.65rem; margin-top: 0.15rem;">+0 L</span>
                 </div>
-                
+
                 <!-- Diesel Tank -->
                 <div style="display: flex; flex-direction: column; align-items: center;">
                   <div class="flow-tank-cylinder" style="width: 100px; height: 60px; border-radius: 30px;">
@@ -796,10 +773,10 @@
                   <span id="recon-visual-val-d" style="font-size: 0.8rem; color: #fff; font-weight: 700;">- L</span>
                   <span id="recon-visual-badge-d" class="badge badge-success" style="display:none; font-size: 0.65rem; margin-top: 0.15rem;">+0 L</span>
                 </div>
-                
+
               </div>
             </div>
-            
+
           </div>
         </div>
 
@@ -811,7 +788,7 @@
               Shift Reconciliation Board
             </h2>
           </div>
-          
+
           <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 1rem; text-align: center; margin-bottom: 1.5rem;">
             <div style="background: rgba(255,255,255,0.02); border: 1px solid var(--border); border-radius: 8px; padding: 0.75rem;">
               <div style="font-size: 0.75rem; color: var(--text-dim); text-transform: uppercase;">Total Fuel Sold</div>
@@ -838,7 +815,7 @@
               <span id="board-variance-status" style="font-size: 0.75rem; font-weight: 700; border-radius:4px; padding: 0.05rem 0.35rem; display: inline-block; margin-top: 0.15rem;">-</span>
             </div>
           </div>
-          
+
           <button class="btn btn-primary" style="width: 100%; padding: 0.75rem; font-size: 1.05rem; font-weight: 700;" onclick="postShiftRecon()">Save & Post Shift Reconciliation</button>
         </div>
 
@@ -846,15 +823,15 @@
 
       <!-- View 3: Tankers & Credit -->
       <section id="view-purchases" class="view-section">
-        
+
         <div class="grid-2">
-          
+
           <!-- Record Tanker Form -->
           <div class="panel">
             <div class="panel-header">
               <h2 class="panel-title">Record Tanker Delivery (12 KL)</h2>
             </div>
-            
+
             <form id="tanker-purchase-form">
               <div class="form-row">
                 <div class="form-group">
@@ -923,11 +900,11 @@
             <div class="panel-header">
               <h2 class="panel-title">Credit & RTGS Planner</h2>
             </div>
-            
+
             <div class="alerts-list" id="credit-planner-alerts">
               <!-- Dynamic lists of RTGS warnings/deadlines -->
             </div>
-            
+
             <div style="margin-top: 1.5rem; padding-top: 1.5rem; border-top: 1px solid var(--border);">
               <h3 style="font-size: 1rem; margin-bottom: 0.75rem; color: #fff;">Credit Terms Summary</h3>
               <p style="font-size: 0.85rem; color: var(--text-muted); line-height: 1.5;">
@@ -935,7 +912,7 @@
               </p>
             </div>
           </div>
-          
+
         </div>
 
         <!-- Purchase logs table -->
@@ -944,7 +921,7 @@
             <h2 class="panel-title">Tanker Purchase History</h2>
             <button class="btn btn-secondary btn-sm" id="export-purchases-csv-btn">Export Purchases CSV</button>
           </div>
-          
+
           <div style="overflow-x: auto;">
             <table>
               <thead>
@@ -970,15 +947,15 @@
 
       <!-- View 4: Selling Prices -->
       <section id="view-pricing" class="view-section">
-        
+
         <div class="grid-2">
-          
+
           <!-- Price Change Form -->
           <div class="panel">
             <div class="panel-header">
               <h2 class="panel-title">Update Selling Prices</h2>
             </div>
-            
+
             <form id="price-change-form">
               <div class="form-group">
                 <label for="price-effective-date">Effective Date & Time</label>
@@ -1003,7 +980,7 @@
           <!-- Active Price Card -->
           <div class="panel" style="display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center;">
             <h2 style="font-size: 1.25rem; color: var(--text-muted); margin-bottom: 1.5rem;">Current Selling Prices</h2>
-            
+
             <div style="display: flex; gap: 3rem; margin-bottom: 2rem;">
               <div>
                 <span style="font-size: 0.9rem; color: var(--color-petrol); font-weight: 600; text-transform: uppercase;">Petrol (E2)</span>
@@ -1020,7 +997,7 @@
               Effective from: N/A
             </div>
           </div>
-          
+
         </div>
 
         <!-- Historical Price Logs -->
@@ -1028,7 +1005,7 @@
           <div class="panel-header">
             <h2 class="panel-title">Price Change History</h2>
           </div>
-          
+
           <div style="overflow-x: auto;">
             <table>
               <thead>
@@ -1048,7 +1025,55 @@
       </section>
 
       <!-- View 5: Bank Holidays -->
-      <section id="view-holidays" class="view-section" style="display:none;"></section>
+      <section id="view-holidays" class="view-section" style="display:none;">
+        <div class="panel" style="padding:1.5rem; max-width:800px; margin:0 auto;">
+          <h3 style="font-size:1.1rem; font-weight:700; margin-bottom:1rem; color:#fff;">Bank Holiday Calendar &amp; Weekend Closures</h3>
+          <p style="font-size:0.78rem; color:var(--text-dim); margin-bottom:1.5rem;">
+            Configure CBI bank closures and weekend policies. The tanker cash-flow forecast system automatically offsets order deadlines to avoid weekend or bank holiday RTGS delays.
+          </p>
+
+          <!-- Weekend Policy -->
+          <div style="display:flex; gap:1.5rem; margin-bottom:1.5rem; background:rgba(255,255,255,0.02); border:1px solid var(--border); border-radius:8px; padding:1rem;">
+            <label style="display:flex; align-items:center; gap:0.5rem; font-size:0.85rem; font-weight:600; cursor:pointer;">
+              <input type="checkbox" id="cfg-sundays-closed" style="width:16px; height:16px;">
+              Sundays Closed (RTGS Offline)
+            </label>
+            <label style="display:flex; align-items:center; gap:0.5rem; font-size:0.85rem; font-weight:600; cursor:pointer;">
+              <input type="checkbox" id="cfg-sats-closed" style="width:16px; height:16px;">
+              Saturdays Closed (RTGS Offline)
+            </label>
+          </div>
+
+          <!-- Add Holiday Form -->
+          <form id="add-holiday-form" style="display:flex; gap:0.75rem; margin-bottom:1.5rem; align-items:flex-end; flex-wrap:wrap;">
+            <div class="form-group" style="margin:0; min-width:150px; flex:1;">
+              <label style="font-size:0.7rem; color:var(--text-muted); margin-bottom:0.25rem;">Holiday Date</label>
+              <input type="date" id="holiday-date" class="form-control" required style="padding:0.5rem; font-size:0.85rem;">
+            </div>
+            <div class="form-group" style="margin:0; min-width:200px; flex:2;">
+              <label style="font-size:0.7rem; color:var(--text-muted); margin-bottom:0.25rem;">Holiday Description</label>
+              <input type="text" id="holiday-name" class="form-control" placeholder="e.g. Diwali, Independence Day" required style="padding:0.5rem; font-size:0.85rem;">
+            </div>
+            <button type="submit" class="btn btn-primary" style="padding:0.5rem 1rem; font-size:0.85rem;">Add Holiday</button>
+          </form>
+
+          <!-- Table -->
+          <div class="table-responsive" style="margin-top:1rem; border:1px solid var(--border); border-radius:8px; background:rgba(0,0,0,0.15);">
+            <table class="table" style="margin:0;">
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Holiday Name</th>
+                  <th style="width:100px; text-align:right;">Actions</th>
+                </tr>
+              </thead>
+              <tbody id="holidays-table-body">
+                <!-- Dynamically populated -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
 
       <section id="view-cashflow" class="view-section">
 
@@ -1319,7 +1344,7 @@
               </div>
               <button id="add-employee-btn" class="btn btn-primary" style="margin-top:0.5rem;">➕ Add Employee</button>
             </div>
-            
+
             <div style="border-top:1px solid #334155;padding-top:1rem;margin-top:0.5rem;">
               <div style="font-weight:700;color:#f8fafc;margin-bottom:0.4rem;font-size:0.85rem;">Device Setup for Employees</div>
               <p style="color:#64748b;font-size:0.75rem;margin:0 0 0.75rem 0;line-height:1.3;">To link an employee's phone/tablet, click the button below to copy the setup link, then send it to them. They must open this link on their device once to configure sync and load the user accounts.</p>
@@ -1387,13 +1412,13 @@
         </div>
 
         <div class="grid-2">
-          
+
           <!-- Storage Configurations -->
           <div class="panel">
             <div class="panel-header">
               <h2 class="panel-title">Underground Tanks & System Setup</h2>
             </div>
-            
+
             <form id="system-settings-form">
               <div class="form-row">
                 <div class="form-group">
@@ -1416,7 +1441,7 @@
                   <input type="text" id="cfg-currency-symbol" placeholder="e.g. ₹, $, €" required>
                 </div>
               </div>
-              
+
               <div class="form-group">
                 <label for="cfg-ads-days">Averaging Window (Days for prediction)</label>
                 <input type="number" id="cfg-ads-days" min="3" max="60" required>
@@ -1424,7 +1449,7 @@
 
               <div style="border-top: 1px dashed var(--border); padding-top: 1rem; margin-top: 1rem; margin-bottom: 1.25rem;">
                 <h3 style="font-size: 0.95rem; color: #fff; margin-bottom: 0.75rem;">Horizontal Tank Geometry & Dead Stock</h3>
-                
+
                 <!-- Petrol Tank -->
                 <div style="margin-bottom: 1.25rem;">
                   <span style="font-size: 0.8rem; font-weight: 700; color: var(--color-petrol); display: block; margin-bottom: 0.5rem;">Petrol Tank Dimensions & Suction Limit</span>
@@ -1477,7 +1502,7 @@
               <p style="font-size: 0.85rem; color: var(--text-muted); line-height: 1.5;">
                 Due to physical suction limit thresholds, a certain volume of fuel is permanently trapped below the suction pipes, representing **Locked Dead Capital**.
               </p>
-              
+
               <div style="background: rgba(255,255,255,0.02); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; display: flex; flex-direction: column; gap: 0.75rem;">
                 <div style="display: flex; justify-content: space-between; font-size: 0.85rem;">
                   <span style="color: var(--text-muted);">Petrol WAC Rate:</span>
@@ -1487,9 +1512,9 @@
                   <span style="color: var(--text-muted);">Diesel WAC Rate:</span>
                   <span style="color: #fff;" id="cfg-capital-wac-diesel">₹ 0.00 / L</span>
                 </div>
-                
+
                 <hr style="border: 0; border-top: 1px dashed var(--border); margin: 0.25rem 0;">
-                
+
                 <div style="display: flex; justify-content: space-between; font-size: 0.9rem;">
                   <span style="color: var(--color-petrol); font-weight: 600;">Petrol Locked Capital:</span>
                   <strong style="color: #fff;" id="cfg-capital-locked-petrol">₹ 0.00</strong>
@@ -1498,9 +1523,9 @@
                   <span style="color: var(--color-diesel); font-weight: 600;">Diesel Locked Capital:</span>
                   <strong style="color: #fff;" id="cfg-capital-locked-diesel">₹ 0.00</strong>
                 </div>
-                
+
                 <hr style="border: 0; border-top: 1px dashed var(--border); margin: 0.25rem 0;">
-                
+
                 <div style="display: flex; justify-content: space-between; font-size: 0.95rem;">
                   <span style="color: #fff; font-weight: 700;">Total Locked Capital:</span>
                   <strong style="color: var(--danger);" id="cfg-capital-locked-total">₹ 0.00</strong>
@@ -1517,12 +1542,12 @@
                 PhonePe API Integration
               </h2>
             </div>
-            
+
             <div style="display: flex; flex-direction: column; gap: 1rem;">
               <p style="font-size: 0.85rem; color: var(--text-muted); line-height: 1.5; margin: 0;">
                 Configure your PhonePe Merchant credentials (generated in your PhonePe Business portal using your registered phone number) to automatically fetch shift settlement totals.
               </p>
-              
+
               <form id="phonepe-settings-form">
                 <div class="form-group">
                   <label for="cfg-phonepe-mid">Merchant ID (MID)</label>
@@ -1548,18 +1573,18 @@
             <div class="panel-header">
               <h2 class="panel-title">Data Safety & Portability</h2>
             </div>
-            
+
             <div style="display: flex; flex-direction: column; gap: 1.5rem;">
               <p style="font-size: 0.85rem; color: var(--text-muted); line-height: 1.5;">
                 This app runs entirely in your browser. Regularly download backups to prevent data loss due to browser cleaning or clearing site cookies.
               </p>
-              
+
               <div style="display: flex; gap: 1rem; flex-wrap: wrap;">
                 <button class="btn btn-secondary" id="backup-db-btn" style="flex: 1;">
                   <svg viewBox="0 0 24 24" width="18" height="18"><path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM17 13l-5 5-5-5h3V9h4v4h3z"/></svg>
                   Export Backup (JSON)
                 </button>
-                
+
                 <label class="btn btn-secondary" style="flex: 1; text-align: center; margin: 0; cursor: pointer;">
                   <svg viewBox="0 0 24 24" width="18" height="18" style="vertical-align: middle; margin-right: 4px;"><path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM14 13v4h-4v-4H7l5-5 5 5h-3z"/></svg>
                   Import Backup
@@ -1576,7 +1601,7 @@
               </div>
             </div>
           </div>
-          
+
         </div>
 
         <!-- Seeding & Mock Data Area -->
@@ -1632,11 +1657,11 @@
         </p>
 
         <div class="modal-ledger-grid">
-          
+
           <!-- Dispensing Unit 1 -->
           <div class="modal-ledger-card">
             <h3>Dispensing Unit 1 (DU 1)</h3>
-            
+
             <!-- Petrol/MS -->
             <div style="margin-bottom: 1rem;">
               <span style="font-size:0.8rem; font-weight:600; color:var(--color-petrol);">Petrol (MS) Nozzle</span>
@@ -1692,7 +1717,7 @@
           <!-- Dispensing Unit 2 -->
           <div class="modal-ledger-card">
             <h3>Dispensing Unit 2 (DU 2)</h3>
-            
+
             <!-- Petrol/MS -->
             <div style="margin-bottom: 1rem;">
               <span style="font-size:0.8rem; font-weight:600; color:var(--color-petrol);">Petrol (MS) Nozzle</span>
@@ -1764,7 +1789,7 @@
       </div>
       <form id="dip-calculator-form">
         <input type="hidden" id="dip-tank-type" value="petrol">
-        
+
         <div class="form-group">
           <label id="dip-tank-label" style="font-weight: 700; font-size: 1rem; margin-bottom: 0.25rem; display: block;"></label>
           <div style="font-size: 0.8rem; color: var(--text-dim); margin-bottom: 1rem;" id="dip-tank-dims">
@@ -1789,12 +1814,12 @@
         <!-- Live Calculation Preview -->
         <div class="dip-results-box" style="background: rgba(255,255,255,0.03); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; margin: 1.25rem 0;">
           <h4 style="font-size: 0.85rem; color: #fff; margin-bottom: 0.75rem; text-transform: uppercase; letter-spacing: 0.5px;">Live Calculation Results</h4>
-          
+
           <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem; font-size: 0.9rem;">
             <span style="color: var(--text-muted);">Total Physical Volume:</span>
             <strong id="dip-result-total" style="color: #fff;">0.00 L</strong>
           </div>
-          
+
           <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem; font-size: 0.9rem;">
             <span style="color: var(--text-muted);">Unsellable Dead Stock:</span>
             <span id="dip-result-dead" style="color: var(--danger);">0.00 L</span>
@@ -1804,7 +1829,7 @@
             <span style="font-weight: 600; color: #fff;">Usable (Sellable) Stock:</span>
             <strong id="dip-result-usable" style="color: var(--success);">0.00 L</strong>
           </div>
-          
+
           <div id="dip-warning" style="display: none; font-size: 0.75rem; color: var(--danger); margin-top: 0.5rem; line-height: 1.2;">
             Warning: Dip height exceeds tank diameter!
           </div>
@@ -1825,7 +1850,7 @@
         <h2>Manage Station Employees</h2>
         <button class="modal-close" onclick="closeModal('manage-employees-modal')">&times;</button>
       </div>
-      
+
       <!-- Add Employee Form -->
       <form id="add-employee-form" onsubmit="addEmployee(event)" style="border-bottom: 1px solid var(--border); padding-bottom: 1.25rem; margin-bottom: 1.25rem;">
         <h3 style="font-size:0.9rem; color:#fff; margin-bottom:0.75rem; font-weight:600;">Add New Authorized Employee</h3>
@@ -1871,7 +1896,7 @@
           </tbody>
         </table>
       </div>
-      
+
       <div class="modal-footer" style="display: flex; justify-content: flex-end; margin-top: 1.5rem;">
         <button type="button" class="btn btn-secondary" onclick="closeModal('manage-employees-modal')">Close</button>
       </div>

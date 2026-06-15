@@ -86,12 +86,12 @@ async function syncPush() {
 
       if (cloudAt > localAt) {
         console.log('[Sync] Cloud database is newer. Merging datasets before pushing...');
-        
+
         // 1. Merge pending/processed employee submissions
         const localPending = db.pending_entries || [];
         const cloudPending = cloudData.pending_entries || [];
         const mergedPending = [...cloudPending];
-        
+
         localPending.forEach(lp => {
           if (!mergedPending.some(cp => cp.id === lp.id)) {
             mergedPending.push(lp);
@@ -208,18 +208,18 @@ function sha256_js(ascii) {
   function rightRotate(value, amount) {
     return (value >>> amount) | (value << (32 - amount));
   }
-  
+
   const mathPow = Math.pow;
   const maxWord = mathPow(2, 32);
   let result = '';
-  
+
   const words = [];
   const asciiLength = ascii.length * 8;
-  
+
   let hash = [], k = [];
   let primeCounter = 0;
   const isPrime = {};
-  
+
   for (let candidate = 2; primeCounter < 64; candidate++) {
     if (!isPrime[candidate]) {
       for (let i = 0; i < 313; i += candidate) {
@@ -229,22 +229,22 @@ function sha256_js(ascii) {
       k[primeCounter++] = (mathPow(candidate, 1 / 3) * maxWord) | 0;
     }
   }
-  
+
   ascii += '\x80';
   while (ascii.length % 64 - 56) ascii += '\x00';
-  
+
   for (let i = 0; i < ascii.length; i++) {
     const j = ascii.charCodeAt(i);
     words[i >> 2] |= j << ((3 - i) % 4) * 8;
   }
-  
+
   words[words.length] = ((asciiLength / maxWord) | 0);
   words[words.length] = (asciiLength | 0);
-  
+
   for (let j = 0; j < words.length;) {
     const w = words.slice(j, j += 16);
     const oldHash = hash.slice(0);
-    
+
     for (let i = 0; i < 64; i++) {
       let wItem = w[i];
       if (i >= 16) {
@@ -252,31 +252,31 @@ function sha256_js(ascii) {
         const s1 = rightRotate(w[i - 2], 17) ^ rightRotate(w[i - 2], 19) ^ (w[i - 2] >>> 10);
         wItem = w[i] = (w[i - 16] + s0 + w[i - 7] + s1) | 0;
       }
-      
+
       const ch = (hash[4] & hash[5]) ^ (~hash[4] & hash[6]);
       const maj = (hash[0] & hash[1]) ^ (hash[0] & hash[2]) ^ (hash[1] & hash[2]);
       const s0_h = rightRotate(hash[0], 2) ^ rightRotate(hash[0], 13) ^ rightRotate(hash[0], 22);
       const s1_h = rightRotate(hash[4], 6) ^ rightRotate(hash[4], 11) ^ rightRotate(hash[4], 25);
-      
+
       const temp1 = (hash[7] + s1_h + ch + k[i] + wItem) | 0;
       const temp2 = (s0_h + maj) | 0;
-      
+
       hash = [(temp1 + temp2) | 0].concat(hash);
       hash[4] = (hash[4] + temp1) | 0;
     }
-    
+
     for (let i = 0; i < 8; i++) {
       hash[i] = (hash[i] + oldHash[i]) | 0;
     }
   }
-  
+
   for (let i = 0; i < 8; i++) {
     for (let j = 3; j + 1; j--) {
       const b = (hash[i] >> (j * 8)) & 255;
       result += (b < 16 ? '0' : '') + b.toString(16);
     }
   }
-  
+
   return result;
 }
 
@@ -452,9 +452,15 @@ function initLoginForm() {
 function updateApprovalsBadge() {
   const pending = (db.pending_entries || []).filter(e => e.status === 'pending').length;
   const badge   = document.getElementById('approvals-badge');
-  if (!badge) return;
-  badge.textContent    = pending || '';
-  badge.style.display  = pending > 0 ? 'inline-flex' : 'none';
+  if (badge) {
+    badge.textContent    = pending || '';
+    badge.style.display  = pending > 0 ? 'inline-flex' : 'none';
+  }
+  const subBadge = document.getElementById('approvals-badge-sub');
+  if (subBadge) {
+    subBadge.textContent   = pending || '';
+    subBadge.style.display = pending > 0 ? 'inline-flex' : 'none';
+  }
 }
 
 // ── Employee: Rolling Date Picker Helper ───────────────────
@@ -546,6 +552,92 @@ async function submitEmployeeReading(session) {
 
   const date = `${yearStr}-${monthStr.padStart(2, '0')}-${dayStr.padStart(2, '0')}`;
   const shift = document.getElementById('emp-shift')?.value || 'day';
+
+  // 1. Math Validations (Strict Errors)
+  const checkNozzle = (prefix, label) => {
+    const open = val(`${prefix}-open`);
+    const close = val(`${prefix}-close`);
+    const tests = val(`${prefix}-tests`);
+    if (open < 0 || close < 0 || tests < 0) {
+      return `${label} readings cannot be negative.`;
+    }
+    if (close < open) {
+      return `${label} closing reading (${close}) is less than opening reading (${open}).`;
+    }
+    if ((close - open) < tests) {
+      return `${label} tests (${tests} L) cannot be greater than the totalizer difference (${(close - open).toFixed(2)} L).`;
+    }
+    return null;
+  };
+
+  const err1 = checkNozzle('emp-du1p', 'DU1 Petrol');
+  const err2 = checkNozzle('emp-du2p', 'DU2 Petrol');
+  const err3 = checkNozzle('emp-du1d', 'DU1 Diesel');
+  const err4 = checkNozzle('emp-du2d', 'DU2 Diesel');
+
+  const err = err1 || err2 || err3 || err4;
+  if (err) {
+    showNotification(`⚠️ Validation Error: ${err}`, 'danger');
+    return;
+  }
+
+  // Calculate volume totals for warning analysis
+  const getNozzleLiters = (prefix) => {
+    const open = val(`${prefix}-open`);
+    const close = val(`${prefix}-close`);
+    const tests = val(`${prefix}-tests`);
+    return Math.max(0, close - open - tests);
+  };
+
+  const du1_p_liters = getNozzleLiters('emp-du1p');
+  const du2_p_liters = getNozzleLiters('emp-du2p');
+  const du1_d_liters = getNozzleLiters('emp-du1d');
+  const du2_d_liters = getNozzleLiters('emp-du2d');
+
+  const totalPetrolLiters = du1_p_liters + du2_p_liters;
+  const totalDieselLiters = du1_d_liters + du2_d_liters;
+  const totalLiters = totalPetrolLiters + totalDieselLiters;
+
+  // Compile Warnings (Confirmations)
+  const warnings = [];
+  if (totalLiters === 0) {
+    warnings.push("Total shift sales volume is 0 Liters.");
+  }
+  if (du1_p_liters > 5000) warnings.push(`DU1 Petrol sales volume (${du1_p_liters.toFixed(2)} L) is abnormally high (exceeds 5,000 L).`);
+  if (du2_p_liters > 5000) warnings.push(`DU2 Petrol sales volume (${du2_p_liters.toFixed(2)} L) is abnormally high (exceeds 5,000 L).`);
+  if (du1_d_liters > 5000) warnings.push(`DU1 Diesel sales volume (${du1_d_liters.toFixed(2)} L) is abnormally high (exceeds 5,000 L).`);
+  if (du2_d_liters > 5000) warnings.push(`DU2 Diesel sales volume (${du2_d_liters.toFixed(2)} L) is abnormally high (exceeds 5,000 L).`);
+
+  const prices = getPricesAt(date);
+  const estimatedRevenue = (totalPetrolLiters * prices.petrol) + (totalDieselLiters * prices.diesel);
+  const cashEntered = val('emp-cash');
+  const cardEntered = val('emp-card');
+  const totalCollections = cashEntered + cardEntered;
+
+  if (estimatedRevenue > 0) {
+    const discrepancy = totalCollections - estimatedRevenue;
+    const absDiscrepancy = Math.abs(discrepancy);
+    const ratio = totalCollections / estimatedRevenue;
+
+    if (ratio > 1.5 && absDiscrepancy > 15000) {
+      warnings.push(`Collections (${formatCurrency(totalCollections)}) are more than 1.5x of estimated revenue (${formatCurrency(estimatedRevenue)}). Discrepancy is +${formatCurrency(absDiscrepancy)}.`);
+    } else if (ratio < 0.1 && estimatedRevenue > 1000) {
+      warnings.push(`Collections (${formatCurrency(totalCollections)}) are less than 10% of estimated revenue (${formatCurrency(estimatedRevenue)}). Discrepancy is -${formatCurrency(absDiscrepancy)}.`);
+    } else if (absDiscrepancy > 15000) {
+      warnings.push(`There is a significant difference of ${formatCurrency(discrepancy)} between collections (${formatCurrency(totalCollections)}) and estimated fuel revenue (${formatCurrency(estimatedRevenue)}).`);
+    }
+  } else if (totalCollections > 0) {
+    warnings.push(`Collections entered (${formatCurrency(totalCollections)}) but estimated revenue is 0 (0 Liters sold).`);
+  }
+
+  if (warnings.length > 0) {
+    const msg = "⚠️ Warning: Potential errors detected in your entry:\n\n" +
+                warnings.map(w => "• " + w).join("\n") +
+                "\n\nAre you sure you want to submit this data?";
+    if (!confirm(msg)) {
+      return;
+    }
+  }
 
   const mkNozzle = (prefix, s) => ({
     open:        val(`${prefix}-open`),
@@ -857,7 +949,7 @@ function copyEmployeeSetupLink() {
   }
   const token = btoa(`${cfg.gistId}|${cfg.gistToken}`);
   const url = `${location.origin}${location.pathname}#setup=${token}`;
-  
+
   navigator.clipboard.writeText(url)
     .then(() => showNotification('📋 Setup link copied to clipboard! Send this to employees.', 'success'))
     .catch(() => {
@@ -951,7 +1043,7 @@ function loadDB() {
       db.settings = { ...DEFAULT_DB.settings, ...db.settings };
       db.stock = { ...DEFAULT_DB.stock, ...db.stock };
       db.cashflow = { ...DEFAULT_DB.cashflow, ...db.cashflow };
-      
+
       // Migrate users to DB if not present
       if (!db.users) {
         try {
@@ -960,36 +1052,36 @@ function loadDB() {
           db.users = {};
         }
       }
-      
+
       // Sanitize fields against NaN / corrupt inputs
       db.stock.petrol = Number(db.stock.petrol);
       if (isNaN(db.stock.petrol)) db.stock.petrol = DEFAULT_DB.stock.petrol;
-      
+
       db.stock.diesel = Number(db.stock.diesel);
       if (isNaN(db.stock.diesel)) db.stock.diesel = DEFAULT_DB.stock.diesel;
-      
+
       db.stock.petrol_cost_wac = Number(db.stock.petrol_cost_wac);
       if (isNaN(db.stock.petrol_cost_wac)) db.stock.petrol_cost_wac = DEFAULT_DB.stock.petrol_cost_wac;
-      
+
       db.stock.diesel_cost_wac = Number(db.stock.diesel_cost_wac);
       if (isNaN(db.stock.diesel_cost_wac)) db.stock.diesel_cost_wac = DEFAULT_DB.stock.diesel_cost_wac;
 
       db.cashflow.bank_balance = Number(db.cashflow.bank_balance);
       if (isNaN(db.cashflow.bank_balance)) db.cashflow.bank_balance = DEFAULT_DB.cashflow.bank_balance;
-      
+
       db.cashflow.phonepe_balance = Number(db.cashflow.phonepe_balance);
       if (isNaN(db.cashflow.phonepe_balance)) db.cashflow.phonepe_balance = DEFAULT_DB.cashflow.phonepe_balance;
-      
+
       db.cashflow.cash_drawer = Number(db.cashflow.cash_drawer);
       if (isNaN(db.cashflow.cash_drawer)) db.cashflow.cash_drawer = DEFAULT_DB.cashflow.cash_drawer;
-      
+
       db.cashflow.iocl_cushion = Number(db.cashflow.iocl_cushion);
       if (isNaN(db.cashflow.iocl_cushion)) db.cashflow.iocl_cushion = DEFAULT_DB.cashflow.iocl_cushion;
 
       if (!db.prices) db.prices = [...DEFAULT_DB.prices];
       if (!db.holidays) db.holidays = [...DEFAULT_DB.holidays];
       if (!db.daily_ledger) db.daily_ledger = [];
-      
+
       let dbModified = false;
       db.daily_ledger.forEach(row => {
         row.recon = row.recon || {};
@@ -1088,7 +1180,7 @@ function formatDate(dateStr) {
 
 function formatDateTime(dateTimeStr) {
   const date = new Date(dateTimeStr);
-  return date.toLocaleDateString(undefined, { day: '2-digit', month: 'short', year: 'numeric' }) + " " + 
+  return date.toLocaleDateString(undefined, { day: '2-digit', month: 'short', year: 'numeric' }) + " " +
          date.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
 }
 
@@ -1098,18 +1190,18 @@ function calculateHorizontalTankVolume(radius, length, dipVal, unit) {
   if (unit === 'mm') {
     h = h / 10; // Convert mm to cm
   }
-  
+
   const R = parseFloat(radius);
   const L = parseFloat(length);
-  
+
   if (h <= 0) return 0;
   if (h >= 2 * R) return (Math.PI * R * R * L) / 1000;
-  
+
   const term1 = R * R * Math.acos((R - h) / R);
   const term2 = (R - h) * Math.sqrt((2 * R * h) - (h * h));
   const area = term1 - term2;
   const volumeCm3 = area * L;
-  
+
   return volumeCm3 / 1000; // Convert cm3 to Liters
 }
 
@@ -1117,7 +1209,7 @@ function calculateHorizontalTankVolume(radius, length, dipVal, unit) {
 function getPricesAt(dateStr) {
   const targetTime = new Date(dateStr + "T12:00:00").getTime();
   const sorted = [...db.prices].sort((a, b) => new Date(b.effective_date).getTime() - new Date(a.effective_date).getTime());
-  
+
   for (let price of sorted) {
     if (new Date(price.effective_date).getTime() <= targetTime) {
       return price;
@@ -1175,10 +1267,10 @@ function calculateDeadlineAndRTGS(purchaseDateStr) {
   while (isHoliday(rtgsDate) && safetyLimit++ < 14) {
     rtgsDate = addDays(rtgsDate, -1);
   }
-  
+
   const daysDiff = Math.ceil((new Date(rtgsDate) - new Date(purchaseDateStr)) / (1000 * 60 * 60 * 24));
   const isHighRisk = daysDiff <= 0;
-  
+
   return { deadlineDate, rtgsDate, isHighRisk, filingDaysFromPurchase: daysDiff };
 }
 
@@ -1186,28 +1278,51 @@ function calculateDeadlineAndRTGS(purchaseDateStr) {
 // SPREADSHEET ROW MATH ENGINE
 // -------------------------------------------------------------
 function computeLedgerRow(row, wacMap) {
+  if (!row) {
+    return {
+      sales: {
+        du1_p: { day: 0, night: 0 },
+        du1_d: { day: 0, night: 0 },
+        du2_p: { day: 0, night: 0 },
+        du2_d: { day: 0, night: 0 }
+      },
+      totals: {
+        day: { petrol: 0, diesel: 0 },
+        night: { petrol: 0, diesel: 0 },
+        net_24h: { petrol: 0, diesel: 0 }
+      },
+      financials: {
+        rev_petrol: 0,
+        rev_diesel: 0,
+        total_revenue: 0,
+        total_cost: 0,
+        profit: 0
+      }
+    };
+  }
+
   // FIX: Read tests as local variables — NEVER mutate the stored row object.
   // tests_day = 1 if the day shift actually ran (close_day > open), else 0.
-  const t1p_day   = (row.du1_p && row.du1_p.close_day > row.du1_p.open)   ? (row.du1_p.tests_day   || 1) : 0;
-  const t1p_night = (row.du1_p && row.du1_p.close_night > row.du1_p.close_day) ? (row.du1_p.tests_night || 0) : 0;
-  const t1d_day   = (row.du1_d && row.du1_d.close_day > row.du1_d.open)   ? (row.du1_d.tests_day   || 1) : 0;
-  const t1d_night = (row.du1_d && row.du1_d.close_night > row.du1_d.close_day) ? (row.du1_d.tests_night || 0) : 0;
-  const t2p_day   = (row.du2_p && row.du2_p.close_day > row.du2_p.open)   ? (row.du2_p.tests_day   || 1) : 0;
-  const t2p_night = (row.du2_p && row.du2_p.close_night > row.du2_p.close_day) ? (row.du2_p.tests_night || 0) : 0;
-  const t2d_day   = (row.du2_d && row.du2_d.close_day > row.du2_d.open)   ? (row.du2_d.tests_day   || 1) : 0;
-  const t2d_night = (row.du2_d && row.du2_d.close_night > row.du2_d.close_day) ? (row.du2_d.tests_night || 0) : 0;
+  const t1p_day   = (row.du1_p && (row.du1_p.close_day ?? 0) > (row.du1_p.open ?? 0))   ? (row.du1_p.tests_day   ?? 1) : 0;
+  const t1p_night = (row.du1_p && (row.du1_p.close_night ?? 0) > (row.du1_p.close_day ?? 0)) ? (row.du1_p.tests_night ?? 0) : 0;
+  const t1d_day   = (row.du1_d && (row.du1_d.close_day ?? 0) > (row.du1_d.open ?? 0))   ? (row.du1_d.tests_day   ?? 1) : 0;
+  const t1d_night = (row.du1_d && (row.du1_d.close_night ?? 0) > (row.du1_d.close_day ?? 0)) ? (row.du1_d.tests_night ?? 0) : 0;
+  const t2p_day   = (row.du2_p && (row.du2_p.close_day ?? 0) > (row.du2_p.open ?? 0))   ? (row.du2_p.tests_day   ?? 1) : 0;
+  const t2p_night = (row.du2_p && (row.du2_p.close_night ?? 0) > (row.du2_p.close_day ?? 0)) ? (row.du2_p.tests_night ?? 0) : 0;
+  const t2d_day   = (row.du2_d && (row.du2_d.close_day ?? 0) > (row.du2_d.open ?? 0))   ? (row.du2_d.tests_day   ?? 1) : 0;
+  const t2d_night = (row.du2_d && (row.du2_d.close_night ?? 0) > (row.du2_d.close_day ?? 0)) ? (row.du2_d.tests_night ?? 0) : 0;
 
   // 1. Day Sales Qty: Close Day - Open - (Tests Day * 5L per test)
-  const d1_p_day = Math.max(0, (row.du1_p.close_day   || 0) - (row.du1_p.open || 0) - (t1p_day   * 5));
-  const d1_d_day = Math.max(0, (row.du1_d.close_day   || 0) - (row.du1_d.open || 0) - (t1d_day   * 5));
-  const d2_p_day = Math.max(0, (row.du2_p.close_day   || 0) - (row.du2_p.open || 0) - (t2p_day   * 5));
-  const d2_d_day = Math.max(0, (row.du2_d.close_day   || 0) - (row.du2_d.open || 0) - (t2d_day   * 5));
+  const d1_p_day = Math.max(0, (row.du1_p?.close_day   || 0) - (row.du1_p?.open || 0) - (t1p_day   * 5));
+  const d1_d_day = Math.max(0, (row.du1_d?.close_day   || 0) - (row.du1_d?.open || 0) - (t1d_day   * 5));
+  const d2_p_day = Math.max(0, (row.du2_p?.close_day   || 0) - (row.du2_p?.open || 0) - (t2p_day   * 5));
+  const d2_d_day = Math.max(0, (row.du2_d?.close_day   || 0) - (row.du2_d?.open || 0) - (t2d_day   * 5));
 
   // 2. Night Sales Qty: Close Night - Close Day - (Tests Night * 5L per test)
-  const d1_p_night = Math.max(0, (row.du1_p.close_night || 0) - (row.du1_p.close_day || 0) - (t1p_night * 5));
-  const d1_d_night = Math.max(0, (row.du1_d.close_night || 0) - (row.du1_d.close_day || 0) - (t1d_night * 5));
-  const d2_p_night = Math.max(0, (row.du2_p.close_night || 0) - (row.du2_p.close_day || 0) - (t2p_night * 5));
-  const d2_d_night = Math.max(0, (row.du2_d.close_night || 0) - (row.du2_d.close_day || 0) - (t2d_night * 5));
+  const d1_p_night = Math.max(0, (row.du1_p?.close_night || 0) - (row.du1_p?.close_day || 0) - (t1p_night * 5));
+  const d1_d_night = Math.max(0, (row.du1_d?.close_night || 0) - (row.du1_d?.close_day || 0) - (t1d_night * 5));
+  const d2_p_night = Math.max(0, (row.du2_p?.close_night || 0) - (row.du2_p?.close_day || 0) - (t2p_night * 5));
+  const d2_d_night = Math.max(0, (row.du2_d?.close_night || 0) - (row.du2_d?.close_day || 0) - (t2d_night * 5));
 
   // 3. Totals
   const day_petrol = d1_p_day + d2_p_day;
@@ -1219,15 +1334,15 @@ function computeLedgerRow(row, wacMap) {
   const net_diesel_24h = day_diesel + night_diesel;
 
   // 4. Financials
-  const rev_petrol = net_petrol_24h * row.prices.petrol;
-  const rev_diesel = net_diesel_24h * row.prices.diesel;
+  const rev_petrol = net_petrol_24h * (row.prices?.petrol || 0);
+  const rev_diesel = net_diesel_24h * (row.prices?.diesel || 0);
   const total_revenue = rev_petrol + rev_diesel;
 
   // Determine WAC rates to use (look up from wacMap if available, else use current)
-  const dateWac = (wacMap && wacMap[row.date]) || { ms: db.stock.petrol_cost_wac, hsd: db.stock.diesel_cost_wac };
+  const dateWac = (wacMap && wacMap[row.date]) || { ms: db.stock?.petrol_cost_wac ?? 0, hsd: db.stock?.diesel_cost_wac ?? 0 };
 
-  const cost_petrol = net_petrol_24h * dateWac.ms;
-  const cost_diesel = net_diesel_24h * dateWac.hsd;
+  const cost_petrol = net_petrol_24h * (dateWac.ms ?? 0);
+  const cost_diesel = net_diesel_24h * (dateWac.hsd ?? 0);
   const total_cost = cost_petrol + cost_diesel;
 
   const profit = total_revenue - total_cost;
@@ -1296,13 +1411,13 @@ function getStockHistoryFor(dateStr) {
   // Walk backwards day-by-day from maxDateStr to dateStr
   let currentDate = maxDateStr;
   let loopLimit = 500; // Safety limit: max 500 days of history walk-back
-  
+
   let petrolSupplyMissing = false;
   let dieselSupplyMissing = false;
 
   while (currentDate >= dateStr && loopLimit > 0) {
     loopLimit--;
-    
+
     // 1. Find if there is a daily ledger row for currentDate
     const row = db.daily_ledger.find(r => r.date === currentDate);
     let salesP = 0;
@@ -1466,55 +1581,55 @@ function predictNextOrder() {
 
   const usableP = Math.max(0, currentP - deadP);
   const usableD = Math.max(0, currentD - deadD);
-  
+
   const daysToOrderP = (usableP - safety) / ads.petrol;
   const daysToOrderD = (usableD - safety) / ads.diesel;
-  
+
   const daysToTrigger = Math.max(0, Math.min(daysToOrderP, daysToOrderD));
-  
+
   const todayStr = new Date().toISOString().split('T')[0];
   const predictedPurchaseDate = addDays(todayStr, Math.ceil(daysToTrigger));
-  
+
   const expectedPStock = Math.max(0, currentP - (daysToTrigger * ads.petrol));
   const expectedDStock = Math.max(0, currentD - (daysToTrigger * ads.diesel));
-  
+
   const availPSpace = Math.max(0, db.settings.petrol_capacity - expectedPStock);
   const availDSpace = Math.max(0, db.settings.diesel_capacity - expectedDStock);
-  
+
   const candidates = [
     { type: "full-diesel", label: "Full Diesel (12kl)", d: 12000, p: 0 },
     { type: "full-petrol", label: "Full Petrol (12kl)", d: 0, p: 12000 },
     { type: "mixed-8d-4p", label: "Mixed (8kl Diesel + 4kl Petrol)", d: 8000, p: 4000 },
     { type: "mixed-8p-4d", label: "Mixed (8kl Petrol + 4kl Diesel)", d: 4000, p: 8000 }
   ];
-  
+
   let bestCandidate = null;
   let bestScore = -Infinity;
-  
+
   candidates.forEach(cand => {
     if (cand.p <= availPSpace && cand.d <= availDSpace) {
       const postPStock = expectedPStock + cand.p;
       const postDStock = expectedDStock + cand.d;
-      
+
       const deficitP = db.settings.petrol_capacity - postPStock;
       const deficitD = db.settings.diesel_capacity - postDStock;
-      
+
       const maxDeficit = Math.max(deficitP, deficitD);
       const score = -maxDeficit;
-      
+
       if (score > bestScore) {
         bestScore = score;
         bestCandidate = cand;
       }
     }
   });
-  
+
   if (!bestCandidate) {
     bestCandidate = candidates[2]; // fallback 8D + 4P
   }
-  
+
   const creditDetails = calculateDeadlineAndRTGS(predictedPurchaseDate);
-  
+
   return { ads, daysToTrigger, predictedPurchaseDate, recommendedLoad: bestCandidate, creditDetails };
 }
 
@@ -1524,7 +1639,7 @@ function predictNextOrder() {
 function saveDailyReadings(data) {
   // If editing an existing date entry, reconcile stock adjustments first
   const existingIdx = db.daily_ledger.findIndex(row => row.date === data.date);
-  
+
   const newCalc = computeLedgerRow(data);
   const newNetP = newCalc.totals.net_24h.petrol;
   const newNetD = newCalc.totals.net_24h.diesel;
@@ -1533,18 +1648,18 @@ function saveDailyReadings(data) {
     const oldCalc = computeLedgerRow(db.daily_ledger[existingIdx]);
     const oldNetP = oldCalc.totals.net_24h.petrol;
     const oldNetD = oldCalc.totals.net_24h.diesel;
-    
+
     // Adjust stock back (add old sales, subtract new sales)
     db.stock.petrol = Math.max(0, db.stock.petrol + oldNetP - newNetP);
     db.stock.diesel = Math.max(0, db.stock.diesel + oldNetD - newNetD);
-    
+
     db.daily_ledger[existingIdx] = data;
     showNotification(`Reconciliation completed for ${formatDate(data.date)}.`, "success");
   } else {
     // New date log entry: directly subtract sales from stock
     db.stock.petrol = Math.max(0, db.stock.petrol - newNetP);
     db.stock.diesel = Math.max(0, db.stock.diesel - newNetD);
-    
+
     db.daily_ledger.push(data);
     showNotification(`Daily readings logged for ${formatDate(data.date)}.`, "success");
   }
@@ -1649,7 +1764,7 @@ function updateSellingPrice(dateTimeStr, priceP, priceD) {
     petrol: parseFloat(priceP),
     diesel: parseFloat(priceD)
   };
-  
+
   db.prices.unshift(entry);
   db.prices.sort((a,b) => new Date(b.effective_date) - new Date(a.effective_date));
   saveDB();
@@ -1677,13 +1792,19 @@ function togglePayment(purchaseId) {
   const p = db.purchases.find(item => item.id === purchaseId);
   if (!p) return;
 
+  const currentStatus = p.payment_status;
+  const newStatusText = currentStatus === 'unpaid' ? 'Mark as PAID' : 'Mark as UNPAID';
+  if (!confirm(`Are you sure you want to change this tanker's payment status to: ${newStatusText}?`)) {
+    return;
+  }
+
   if (p.payment_status === 'unpaid') {
     p.payment_status = 'paid';
     p.paid_date = new Date().toISOString().split('T')[0];
-    
+
     const deadline = new Date(p.deadline_date);
     const paid = new Date(p.paid_date);
-    
+
     if (paid > deadline) {
       const diffTime = Math.abs(paid - deadline);
       const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
@@ -1711,7 +1832,7 @@ function togglePayment(purchaseId) {
 function getCSVExport(type) {
   let headers = [];
   let rows = [];
-  
+
   if (type === 'ledger') {
     headers = [
       "Date", "Selling Price Petrol", "Selling Price Diesel",
@@ -1724,7 +1845,7 @@ function getCSVExport(type) {
       "Day Tests Petrol", "Day Tests Diesel",
       "24h Net Petrol", "24h Net Diesel", "Revenue Petrol", "Revenue Diesel", "Total Revenue", "WAC Cost", "Profit"
     ];
-    
+
     rows = db.daily_ledger.map(row => {
       const c = computeLedgerRow(row);
       return [
@@ -1784,7 +1905,7 @@ function showNotification(msg, type = 'info') {
   toast.style.fontSize = '0.9rem';
   toast.style.fontWeight = '600';
   toast.textContent = msg;
-  
+
   document.body.appendChild(toast);
   setTimeout(() => {
     toast.style.transition = 'opacity 0.5s ease';
@@ -1794,31 +1915,120 @@ function showNotification(msg, type = 'info') {
 }
 
 // Tab Switching Routing
+const SUB_TABS = {
+  operations: [
+    { id: 'shift-recon', label: 'Shift Recon' },
+    { id: 'ledger',      label: 'Sales Ledger' },
+    { id: 'approvals',   label: 'Pending Approvals', badge: 'approvals-badge' }
+  ],
+  logistics: [
+    { id: 'purchases',   label: 'Tanker Purchases' },
+    { id: 'pricing',     label: 'Selling Prices' }
+  ],
+  financials: [
+    { id: 'cashflow',    label: 'Cash Flow Forecast' },
+    { id: 'expenses',    label: 'Expense Ledger' }
+  ],
+  settings: [
+    { id: 'settings',    label: 'System Settings' },
+    { id: 'holidays',    label: 'Bank Holidays' }
+  ]
+};
+
+const currentSubviews = {
+  operations: 'shift-recon',
+  logistics: 'purchases',
+  financials: 'cashflow',
+  settings: 'settings'
+};
+
+const titles = {
+  dashboard: "Dashboard Overview",
+  ledger: "Sales Cumulative Ledger",
+  purchases: "Tankers & Credit Operations",
+  pricing: "Fuel Selling Prices",
+  holidays: "Bank Holiday Calendar",
+  settings: "System Settings & Utilities",
+  cashflow: "Cash Flow & Orders Solver",
+  'shift-recon': "Shift Reconciliation & Cash Count",
+  expenses: "Expense Ledger",
+  approvals: "Shift Approvals"
+};
+
+function switchSubview(mainView, subviewId) {
+  currentSubviews[mainView] = subviewId;
+
+  // Update view visibility
+  document.querySelectorAll('.view-section').forEach(v => v.classList.remove('active'));
+  const targetEl = document.getElementById(`view-${subviewId}`);
+  if (targetEl) targetEl.classList.add('active');
+
+  // Render subtabs bar
+  renderSubtabsBar(mainView);
+
+  // Set header title
+  const headerTitle = document.getElementById('view-title');
+  if (headerTitle) headerTitle.textContent = titles[subviewId] || "OctaneFlow";
+
+  // Render content
+  renderActiveView(subviewId);
+}
+
+function renderSubtabsBar(mainView) {
+  const bar = document.getElementById('header-subtabs');
+  if (!bar) return;
+
+  const subtabs = SUB_TABS[mainView];
+  if (!subtabs) {
+    bar.style.display = 'none';
+    bar.innerHTML = '';
+    return;
+  }
+
+  bar.style.display = 'flex';
+  const activeSub = currentSubviews[mainView];
+
+  bar.innerHTML = subtabs.map(tab => {
+    const isActive = tab.id === activeSub;
+    const badgeHtml = tab.badge ? `<span class="badge" id="${tab.badge}-sub" style="margin-left:0.4rem;background:#ef4444;color:#fff;border-radius:9999px;padding:0.1rem 0.4rem;font-size:0.65rem;font-weight:800;display:none;">0</span>` : '';
+    return `
+      <button class="subtab-item ${isActive ? 'active' : ''}" data-subview="${tab.id}">
+        ${tab.label}${badgeHtml}
+      </button>
+    `;
+  }).join('');
+
+  // Wire events
+  bar.querySelectorAll('.subtab-item').forEach(btn => {
+    btn.addEventListener('click', () => {
+      switchSubview(mainView, btn.dataset.subview);
+    });
+  });
+
+  // Update badges immediately
+  updateApprovalsBadge();
+}
+
 document.querySelectorAll('.nav-item').forEach(item => {
   item.addEventListener('click', () => {
     const targetView = item.dataset.view;
-    
-    document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
-    document.querySelectorAll('.view-section').forEach(v => v.classList.remove('active'));
-    
-    item.classList.add('active');
-    document.getElementById(`view-${targetView}`).classList.add('active');
-    
-    const headerTitle = document.getElementById('view-title');
-    const titles = {
-      dashboard: "Dashboard Overview",
-      ledger: "Sales Cumulative Ledger",
-      purchases: "Tankers & Credit Operations",
-      pricing: "Fuel Selling Prices",
-      holidays: "Bank Holiday Calendar",
-      settings: "System Settings & Utilities",
-      cashflow: "Cash Flow & Orders Solver",
-      'shift-recon': "Shift Reconciliation & Cash Count",
-      expenses: "Expense Ledger"
-    };
-    headerTitle.textContent = titles[targetView] || "OctaneFlow";
 
-    renderActiveView(targetView);
+    document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
+    item.classList.add('active');
+
+    if (targetView === 'dashboard') {
+      document.querySelectorAll('.view-section').forEach(v => v.classList.remove('active'));
+      const dbView = document.getElementById('view-dashboard');
+      if (dbView) dbView.classList.add('active');
+      const bar = document.getElementById('header-subtabs');
+      if (bar) bar.style.display = 'none';
+      const headerTitle = document.getElementById('view-title');
+      if (headerTitle) headerTitle.textContent = titles.dashboard;
+      renderActiveView('dashboard');
+    } else {
+      const activeSub = currentSubviews[targetView] || targetView;
+      switchSubview(targetView, activeSub);
+    }
   });
 });
 
@@ -1840,12 +2050,12 @@ function renderActiveView(viewName) {
 // -------------------------------------------------------------
 function renderDashboard() {
   const activePrice = db.prices[0] || { petrol: 103.50, diesel: 90.80 };
-  
+
   document.getElementById('current-date-span').textContent = formatDate(new Date().toISOString().split('T')[0]);
 
-  document.getElementById('dash-selling-prices').textContent = 
+  document.getElementById('dash-selling-prices').textContent =
     `P: ${formatCurrency(activePrice.petrol)} | D: ${formatCurrency(activePrice.diesel)}`;
-  document.getElementById('dash-prices-last-updated').textContent = 
+  document.getElementById('dash-prices-last-updated').textContent =
     activePrice.effective_date ? `Effective: ${formatDateTime(activePrice.effective_date)}` : "No price logged";
 
   // Today's summary: try actual today first, fall back to most recently logged date
@@ -1853,13 +2063,13 @@ function renderDashboard() {
   const todayEntry = db.daily_ledger.find(r => r.date === todayStr2) || db.daily_ledger[0];
   const revCard = document.getElementById('dash-shift-revenue');
   const activeInd = document.getElementById('dash-shift-active-indicator');
-  
+
   if (todayEntry) {
     const c = computeLedgerRow(todayEntry);
     revCard.textContent = formatCurrency(c.financials.profit);
     revCard.className = c.financials.profit >= 0 ? "metric-value text-success" : "metric-value text-danger";
     activeInd.textContent = `For operating date: ${formatDate(todayEntry.date)}`;
-    
+
     const totalTodaySales = c.totals.net_24h.petrol + c.totals.net_24h.diesel;
     document.getElementById('dash-net-sales-volume').textContent = formatVol(totalTodaySales);
     document.getElementById('dash-net-sales-split').textContent = `Petrol: ${formatVol(c.totals.net_24h.petrol)} | Diesel: ${formatVol(c.totals.net_24h.diesel)}`;
@@ -1882,7 +2092,7 @@ function renderDashboard() {
   const dieselVol = db.stock.diesel;
   const maxPetrol = db.settings.petrol_capacity;
   const maxDiesel = db.settings.diesel_capacity;
-  
+
   const deadPStock = db.settings.petrol_dead_stock || 0;
   const deadDStock = db.settings.diesel_dead_stock || 0;
 
@@ -1905,7 +2115,7 @@ function renderDashboard() {
 
   const liquidP = document.getElementById('tank-liquid-petrol');
   const liquidD = document.getElementById('tank-liquid-diesel');
-  
+
   if (liquidP) liquidP.style.height = `${petrolPct}%`;
   if (liquidD) liquidD.style.height = `${dieselPct}%`;
 
@@ -1951,12 +2161,12 @@ function renderDashboard() {
   alertsList.innerHTML = '';
 
   const prediction = predictNextOrder();
-  
+
   if (usableP < db.settings.safety_stock || usableD < db.settings.safety_stock) {
     const critFuel = [];
     if (usableP < db.settings.safety_stock) critFuel.push("PETROL");
     if (usableD < db.settings.safety_stock) critFuel.push("DIESEL");
-    
+
     const div = document.createElement('div');
     div.className = "alert-item danger";
     div.innerHTML = `
@@ -1994,7 +2204,7 @@ function renderDashboard() {
       </div>
     `;
     alertsList.appendChild(div);
-    
+
     if (prediction.creditDetails.isHighRisk) {
       const bankDiv = document.createElement('div');
       bankDiv.className = "alert-item danger";
@@ -2072,19 +2282,34 @@ function renderLedger() {
     let rowsHtml = '';
 
     const getAnomalyStats = (row, index) => {
+      if (!row) {
+        return {
+          isPriceChange: false,
+          isNoSalePetrol: true,
+          isNoSaleDiesel: true,
+          isNoTesting: true,
+          isNegativeProfit: false,
+          hasVariance: false,
+          badgesHtml: '',
+          testsP: 0,
+          testsD: 0,
+          c: computeLedgerRow(null, wacMap)
+        };
+      }
       const prevRow = index + 1 < db.daily_ledger.length ? db.daily_ledger[index + 1] : null;
-      const isPriceChange = prevRow && (row.prices.petrol !== prevRow.prices.petrol || row.prices.diesel !== prevRow.prices.diesel);
-      
+      const isPriceChange = prevRow && row.prices && prevRow.prices &&
+        ((row.prices.petrol || 0) !== (prevRow.prices.petrol || 0) || (row.prices.diesel || 0) !== (prevRow.prices.diesel || 0));
+
       const c = computeLedgerRow(row, wacMap);
-      const isNoSalePetrol = c.totals.net_24h.petrol <= 0;
-      const isNoSaleDiesel = c.totals.net_24h.diesel <= 0;
-      
-      const testsP = row.du1_p.tests_day + row.du2_p.tests_day;
-      const testsD = row.du1_d.tests_day + row.du2_d.tests_day;
+      const isNoSalePetrol = (c.totals?.net_24h?.petrol || 0) <= 0;
+      const isNoSaleDiesel = (c.totals?.net_24h?.diesel || 0) <= 0;
+
+      const testsP = (row.du1_p?.tests_day || 0) + (row.du2_p?.tests_day || 0);
+      const testsD = (row.du1_d?.tests_day || 0) + (row.du2_d?.tests_day || 0);
       const isNoTesting = testsP === 0 && testsD === 0;
-      
+
       const isNegativeProfit = c.financials.profit < 0;
-      
+
       let dayVariance = 0;
       let nightVariance = 0;
       if (row.recon) {
@@ -2092,7 +2317,7 @@ function renderLedger() {
         if (row.recon.night && typeof row.recon.night.variance === 'number') nightVariance = row.recon.night.variance;
       }
       const hasVariance = dayVariance !== 0 || nightVariance !== 0;
-      
+
       let badgesHtml = '';
       if (isPriceChange) badgesHtml += `<span class="anomaly-badge anomaly-badge-price" title="Selling price changed on this day">Rate Switch</span>`;
       if (isNoSalePetrol || isNoSaleDiesel) badgesHtml += `<span class="anomaly-badge anomaly-badge-nosale" title="No fuel sales recorded on this day">No Sale</span>`;
@@ -2102,7 +2327,7 @@ function renderLedger() {
         const v = dayVariance + nightVariance;
         badgesHtml += `<span class="anomaly-badge anomaly-badge-variance" title="Reconciliation Cash counted variance: ${v > 0 ? '+' : ''}${v.toFixed(2)}">Var: ${v > 0 ? '+' : ''}${v.toFixed(0)}</span>`;
       }
-      
+
       return {
         isPriceChange,
         isNoSalePetrol,
@@ -2136,12 +2361,12 @@ function renderLedger() {
           <tr class="header-cols">
             <th class="col-petrol">Petrol</th>
             <th class="col-diesel">Diesel</th>
-            
+
             <th class="bg-petrol-group">MS Open (8 AM Today)</th>
             <th class="bg-petrol-group">MS Close (8 AM Tomorrow)</th>
             <th class="bg-diesel-group">HSD Open (8 AM Today)</th>
             <th class="bg-diesel-group">HSD Close (8 AM Tomorrow)</th>
-            
+
             <th class="bg-petrol-group">MS Open (8 AM Today)</th>
             <th class="bg-petrol-group">MS Close (8 AM Tomorrow)</th>
             <th class="bg-diesel-group">HSD Open (8 AM Today)</th>
@@ -2169,38 +2394,38 @@ function renderLedger() {
         rowsHtml += `
           <tr>
             <td class="sticky-col-left"><strong>${formatDate(row.date)}</strong>${anomaly.badgesHtml}</td>
-            <td class="col-petrol ${anomaly.isPriceChange ? 'cell-anomaly-price-change' : ''}" style="font-weight: 500;">${row.prices.petrol.toFixed(2)}</td>
-            <td class="col-diesel ${anomaly.isPriceChange ? 'cell-anomaly-price-change' : ''}" style="font-weight: 500;">${row.prices.diesel.toFixed(2)}</td>
-            
+            <td class="col-petrol ${anomaly.isPriceChange ? 'cell-anomaly-price-change' : ''}" style="font-weight: 500;">${(row.prices?.petrol ?? 0).toFixed(2)}</td>
+            <td class="col-diesel ${anomaly.isPriceChange ? 'cell-anomaly-price-change' : ''}" style="font-weight: 500;">${(row.prices?.diesel ?? 0).toFixed(2)}</td>
+
             <!-- DU 1 24Hr -->
-            <td class="bg-petrol-group">${row.du1_p.open.toFixed(1)}</td>
-            <td class="bg-petrol-group">${row.du1_p.close_night.toFixed(1)}</td>
-            <td class="bg-diesel-group">${row.du1_d.open.toFixed(1)}</td>
-            <td class="bg-diesel-group">${row.du1_d.close_night.toFixed(1)}</td>
-            
+            <td class="bg-petrol-group">${(row.du1_p?.open ?? 0).toFixed(1)}</td>
+            <td class="bg-petrol-group">${(row.du1_p?.close_night ?? 0).toFixed(1)}</td>
+            <td class="bg-diesel-group">${(row.du1_d?.open ?? 0).toFixed(1)}</td>
+            <td class="bg-diesel-group">${(row.du1_d?.close_night ?? 0).toFixed(1)}</td>
+
             <!-- DU 2 24Hr -->
-            <td class="bg-petrol-group">${row.du2_p.open.toFixed(1)}</td>
-            <td class="bg-petrol-group">${row.du2_p.close_night.toFixed(1)}</td>
-            <td class="bg-diesel-group">${row.du2_d.open.toFixed(1)}</td>
-            <td class="bg-diesel-group">${row.du2_d.close_night.toFixed(1)}</td>
+            <td class="bg-petrol-group">${(row.du2_p?.open ?? 0).toFixed(1)}</td>
+            <td class="bg-petrol-group">${(row.du2_p?.close_night ?? 0).toFixed(1)}</td>
+            <td class="bg-diesel-group">${(row.du2_d?.open ?? 0).toFixed(1)}</td>
+            <td class="bg-diesel-group">${(row.du2_d?.close_night ?? 0).toFixed(1)}</td>
 
             <!-- 24hr Net Liters -->
-            <td class="col-petrol bg-petrol-group ${anomaly.isNoSalePetrol ? 'cell-anomaly-no-sale' : ''}" style="font-weight:600;">${c.totals.net_24h.petrol.toFixed(1)}</td>
-            <td class="col-diesel bg-diesel-group ${anomaly.isNoSaleDiesel ? 'cell-anomaly-no-sale' : ''}" style="font-weight:600;">${c.totals.net_24h.diesel.toFixed(1)}</td>
+            <td class="col-petrol bg-petrol-group ${anomaly.isNoSalePetrol ? 'cell-anomaly-no-sale' : ''}" style="font-weight:600;">${(c.totals?.net_24h?.petrol ?? 0).toFixed(1)}</td>
+            <td class="col-diesel bg-diesel-group ${anomaly.isNoSaleDiesel ? 'cell-anomaly-no-sale' : ''}" style="font-weight:600;">${(c.totals?.net_24h?.diesel ?? 0).toFixed(1)}</td>
 
             <!-- 24hr Tests -->
             <td class="col-petrol bg-petrol-group ${testsP === 0 ? 'cell-anomaly-no-test' : ''}">${testsP * 5} L</td>
             <td class="col-diesel bg-diesel-group ${testsD === 0 ? 'cell-anomaly-no-test' : ''}">${testsD * 5} L</td>
 
             <!-- Revenue -->
-            <td class="col-petrol">${formatCurrency(c.financials.rev_petrol)}</td>
-            <td class="col-diesel">${formatCurrency(c.financials.rev_diesel)}</td>
-            <td style="font-weight:600;">${formatCurrency(c.financials.total_revenue)}</td>
-            
+            <td class="col-petrol">${formatCurrency(c.financials?.rev_petrol ?? 0)}</td>
+            <td class="col-diesel">${formatCurrency(c.financials?.rev_diesel ?? 0)}</td>
+            <td style="font-weight:600;">${formatCurrency(c.financials?.total_revenue ?? 0)}</td>
+
             <!-- Cost & Profit -->
-            <td>${formatCurrency(c.financials.total_cost)}</td>
-            <td class="${c.financials.profit >= 0 ? 'text-success' : 'text-danger'} ${anomaly.isNegativeProfit ? 'cell-anomaly-negative-profit' : ''}" style="font-weight: 600;">
-              ${formatCurrency(c.financials.profit)}
+            <td>${formatCurrency(c.financials?.total_cost ?? 0)}</td>
+            <td class="${(c.financials?.profit ?? 0) >= 0 ? 'text-success' : 'text-danger'} ${anomaly.isNegativeProfit ? 'cell-anomaly-negative-profit' : ''}" style="font-weight: 600;">
+              ${formatCurrency(c.financials?.profit ?? 0)}
             </td>
 
             <!-- Action -->
@@ -2234,22 +2459,22 @@ function renderLedger() {
           <tr class="header-cols">
             <th class="col-petrol">Petrol</th>
             <th class="col-diesel">Diesel</th>
-            
+
             <th class="bg-petrol-group">MS Open</th>
             <th class="bg-petrol-group">MS Close</th>
             <th class="bg-diesel-group">HSD Open</th>
             <th class="bg-diesel-group">HSD Close</th>
-            
+
             <th class="bg-petrol-group">MS Open</th>
             <th class="bg-petrol-group">MS Close</th>
             <th class="bg-diesel-group">HSD Open</th>
             <th class="bg-diesel-group">HSD Close</th>
-            
+
             <th class="bg-petrol-group">MS Open</th>
             <th class="bg-petrol-group">MS Close</th>
             <th class="bg-diesel-group">HSD Open</th>
             <th class="bg-diesel-group">HSD Close</th>
-            
+
             <th class="bg-petrol-group">MS Open</th>
             <th class="bg-petrol-group">MS Close</th>
             <th class="bg-diesel-group">HSD Open</th>
@@ -2259,7 +2484,7 @@ function renderLedger() {
             <th class="col-diesel bg-diesel-group">DU1 HSD</th>
             <th class="col-petrol bg-petrol-group">DU2 MS</th>
             <th class="col-diesel bg-diesel-group">DU2 HSD</th>
-            
+
             <th class="col-petrol bg-petrol-group">DU1 MS</th>
             <th class="col-diesel bg-diesel-group">DU1 HSD</th>
             <th class="col-petrol bg-petrol-group">DU2 MS</th>
@@ -2286,62 +2511,62 @@ function renderLedger() {
         rowsHtml += `
           <tr>
             <td class="sticky-col-left"><strong>${formatDate(row.date)}</strong>${anomaly.badgesHtml}</td>
-            <td class="col-petrol ${anomaly.isPriceChange ? 'cell-anomaly-price-change' : ''}" style="font-weight: 500;">${row.prices.petrol.toFixed(2)}</td>
-            <td class="col-diesel ${anomaly.isPriceChange ? 'cell-anomaly-price-change' : ''}" style="font-weight: 500;">${row.prices.diesel.toFixed(2)}</td>
-            
+            <td class="col-petrol ${anomaly.isPriceChange ? 'cell-anomaly-price-change' : ''}" style="font-weight: 500;">${(row.prices?.petrol ?? 0).toFixed(2)}</td>
+            <td class="col-diesel ${anomaly.isPriceChange ? 'cell-anomaly-price-change' : ''}" style="font-weight: 500;">${(row.prices?.diesel ?? 0).toFixed(2)}</td>
+
             <!-- DU1 Day -->
-            <td class="bg-petrol-group">${row.du1_p.open.toFixed(1)}</td>
-            <td class="bg-petrol-group">${row.du1_p.close_day.toFixed(1)}</td>
-            <td class="bg-diesel-group">${row.du1_d.open.toFixed(1)}</td>
-            <td class="bg-diesel-group">${row.du1_d.close_day.toFixed(1)}</td>
-            
+            <td class="bg-petrol-group">${(row.du1_p?.open ?? 0).toFixed(1)}</td>
+            <td class="bg-petrol-group">${(row.du1_p?.close_day ?? 0).toFixed(1)}</td>
+            <td class="bg-diesel-group">${(row.du1_d?.open ?? 0).toFixed(1)}</td>
+            <td class="bg-diesel-group">${(row.du1_d?.close_day ?? 0).toFixed(1)}</td>
+
             <!-- DU2 Day -->
-            <td class="bg-petrol-group">${row.du2_p.open.toFixed(1)}</td>
-            <td class="bg-petrol-group">${row.du2_p.close_day.toFixed(1)}</td>
-            <td class="bg-diesel-group">${row.du2_d.open.toFixed(1)}</td>
-            <td class="bg-diesel-group">${row.du2_d.close_day.toFixed(1)}</td>
+            <td class="bg-petrol-group">${(row.du2_p?.open ?? 0).toFixed(1)}</td>
+            <td class="bg-petrol-group">${(row.du2_p?.close_day ?? 0).toFixed(1)}</td>
+            <td class="bg-diesel-group">${(row.du2_d?.open ?? 0).toFixed(1)}</td>
+            <td class="bg-diesel-group">${(row.du2_d?.close_day ?? 0).toFixed(1)}</td>
 
             <!-- DU1 Night -->
-            <td class="bg-petrol-group">${row.du1_p.close_day.toFixed(1)}</td>
-            <td class="bg-petrol-group">${row.du1_p.close_night.toFixed(1)}</td>
-            <td class="bg-diesel-group">${row.du1_d.close_day.toFixed(1)}</td>
-            <td class="bg-diesel-group">${row.du1_d.close_night.toFixed(1)}</td>
-            
+            <td class="bg-petrol-group">${(row.du1_p?.close_day ?? 0).toFixed(1)}</td>
+            <td class="bg-petrol-group">${(row.du1_p?.close_night ?? 0).toFixed(1)}</td>
+            <td class="bg-diesel-group">${(row.du1_d?.close_day ?? 0).toFixed(1)}</td>
+            <td class="bg-diesel-group">${(row.du1_d?.close_night ?? 0).toFixed(1)}</td>
+
             <!-- DU2 Night -->
-            <td class="bg-petrol-group">${row.du2_p.close_day.toFixed(1)}</td>
-            <td class="bg-petrol-group">${row.du2_p.close_night.toFixed(1)}</td>
-            <td class="bg-diesel-group">${row.du2_d.close_day.toFixed(1)}</td>
-            <td class="bg-diesel-group">${row.du2_d.close_night.toFixed(1)}</td>
+            <td class="bg-petrol-group">${(row.du2_p?.close_day ?? 0).toFixed(1)}</td>
+            <td class="bg-petrol-group">${(row.du2_p?.close_night ?? 0).toFixed(1)}</td>
+            <td class="bg-diesel-group">${(row.du2_d?.close_day ?? 0).toFixed(1)}</td>
+            <td class="bg-diesel-group">${(row.du2_d?.close_night ?? 0).toFixed(1)}</td>
 
             <!-- Day Sales Net -->
-            <td class="col-petrol bg-petrol-group">${c.sales.du1_p.day.toFixed(1)}</td>
-            <td class="col-diesel bg-diesel-group">${c.sales.du1_d.day.toFixed(1)}</td>
-            <td class="col-petrol bg-petrol-group">${c.sales.du2_p.day.toFixed(1)}</td>
-            <td class="col-diesel bg-diesel-group">${c.sales.du2_d.day.toFixed(1)}</td>
+            <td class="col-petrol bg-petrol-group">${(c.sales?.du1_p?.day ?? 0).toFixed(1)}</td>
+            <td class="col-diesel bg-diesel-group">${(c.sales?.du1_d?.day ?? 0).toFixed(1)}</td>
+            <td class="col-petrol bg-petrol-group">${(c.sales?.du2_p?.day ?? 0).toFixed(1)}</td>
+            <td class="col-diesel bg-diesel-group">${(c.sales?.du2_d?.day ?? 0).toFixed(1)}</td>
 
             <!-- Night Sales Net -->
-            <td class="col-petrol bg-petrol-group">${c.sales.du1_p.night.toFixed(1)}</td>
-            <td class="col-diesel bg-diesel-group">${c.sales.du1_d.night.toFixed(1)}</td>
-            <td class="col-petrol bg-petrol-group">${c.sales.du2_p.night.toFixed(1)}</td>
-            <td class="col-diesel bg-diesel-group">${c.sales.du2_d.night.toFixed(1)}</td>
+            <td class="col-petrol bg-petrol-group">${(c.sales?.du1_p?.night ?? 0).toFixed(1)}</td>
+            <td class="col-diesel bg-diesel-group">${(c.sales?.du1_d?.night ?? 0).toFixed(1)}</td>
+            <td class="col-petrol bg-petrol-group">${(c.sales?.du2_p?.night ?? 0).toFixed(1)}</td>
+            <td class="col-diesel bg-diesel-group">${(c.sales?.du2_d?.night ?? 0).toFixed(1)}</td>
 
             <!-- Day Tests -->
-            <td class="col-petrol bg-petrol-group">${(row.du1_p.tests_day + row.du2_p.tests_day) * 5} L</td>
-            <td class="col-diesel bg-diesel-group">${(row.du1_d.tests_day + row.du2_d.tests_day) * 5} L</td>
+            <td class="col-petrol bg-petrol-group">${((row.du1_p?.tests_day || 0) + (row.du2_p?.tests_day || 0)) * 5} L</td>
+            <td class="col-diesel bg-diesel-group">${((row.du1_d?.tests_day || 0) + (row.du2_d?.tests_day || 0)) * 5} L</td>
 
             <!-- 24hr Net Liters -->
-            <td class="col-petrol bg-petrol-group ${anomaly.isNoSalePetrol ? 'cell-anomaly-no-sale' : ''}" style="font-weight:600;">${c.totals.net_24h.petrol.toFixed(1)}</td>
-            <td class="col-diesel bg-diesel-group ${anomaly.isNoSaleDiesel ? 'cell-anomaly-no-sale' : ''}" style="font-weight:600;">${c.totals.net_24h.diesel.toFixed(1)}</td>
+            <td class="col-petrol bg-petrol-group ${anomaly.isNoSalePetrol ? 'cell-anomaly-no-sale' : ''}" style="font-weight:600;">${(c.totals?.net_24h?.petrol ?? 0).toFixed(1)}</td>
+            <td class="col-diesel bg-diesel-group ${anomaly.isNoSaleDiesel ? 'cell-anomaly-no-sale' : ''}" style="font-weight:600;">${(c.totals?.net_24h?.diesel ?? 0).toFixed(1)}</td>
 
             <!-- Revenue -->
-            <td class="col-petrol">${formatCurrency(c.financials.rev_petrol)}</td>
-            <td class="col-diesel">${formatCurrency(c.financials.rev_diesel)}</td>
-            <td style="font-weight:600;">${formatCurrency(c.financials.total_revenue)}</td>
-            
+            <td class="col-petrol">${formatCurrency(c.financials?.rev_petrol ?? 0)}</td>
+            <td class="col-diesel">${formatCurrency(c.financials?.rev_diesel ?? 0)}</td>
+            <td style="font-weight:600;">${formatCurrency(c.financials?.total_revenue ?? 0)}</td>
+
             <!-- Cost & Profit -->
-            <td>${formatCurrency(c.financials.total_cost)}</td>
-            <td class="${c.financials.profit >= 0 ? 'text-success' : 'text-danger'} ${anomaly.isNegativeProfit ? 'cell-anomaly-negative-profit' : ''}" style="font-weight: 600;">
-              ${formatCurrency(c.financials.profit)}
+            <td>${formatCurrency(c.financials?.total_cost ?? 0)}</td>
+            <td class="${(c.financials?.profit ?? 0) >= 0 ? 'text-success' : 'text-danger'} ${anomaly.isNegativeProfit ? 'cell-anomaly-negative-profit' : ''}" style="font-weight: 600;">
+              ${formatCurrency(c.financials?.profit ?? 0)}
             </td>
 
             <!-- Action -->
@@ -2355,7 +2580,7 @@ function renderLedger() {
     }
 
     table.innerHTML = headerHtml + '<tbody>' + rowsHtml + '</tbody>';
-    
+
     // Calculate and apply dynamic header group height for sticky offsets
     setTimeout(() => {
       const headerGroup = table.querySelector('tr.header-group');
@@ -2400,9 +2625,9 @@ function renderLedger() {
       const isActive = row.date === selectedLedgerDate;
       const card = document.createElement('div');
       card.className = `carousel-card ${isActive ? 'active' : ''}`;
-      
+
       const totalVolume = c.totals.net_24h.petrol + c.totals.net_24h.diesel;
-      
+
       card.innerHTML = `
         <div class="card-date">${formatDate(row.date)}</div>
         <div class="card-val">${totalVolume.toFixed(0)} L Sold</div>
@@ -2410,7 +2635,7 @@ function renderLedger() {
           ${c.financials.profit >= 0 ? '+' : ''}${formatCurrency(c.financials.profit)}
         </div>
       `;
-      
+
       card.addEventListener('click', () => {
         selectedLedgerDate = row.date;
         renderLedger();
@@ -2421,7 +2646,7 @@ function renderLedger() {
     // 3. Render visual analyst panel
     const selectedRow = db.daily_ledger.find(row => row.date === selectedLedgerDate);
     const panel = document.getElementById('ledger-analyst-panel');
-    
+
     if (!selectedRow) {
       panel.innerHTML = '<div style="color:var(--text-dim); text-align:center; padding: 2rem;">Select a date from the carousel to view operations report.</div>';
       return;
@@ -2431,18 +2656,18 @@ function renderLedger() {
 
     const petCapacity = db.settings.petrol_capacity || 20000;
     const dieCapacity = db.settings.diesel_capacity || 20000;
-    
+
     const stockHistory = getStockHistoryFor(selectedRow.date);
-    
+
     let petStart = stockHistory.petStart;
     let petEnd = stockHistory.petEnd;
-    
+
     let dieStart = stockHistory.dieStart;
     let dieEnd = stockHistory.dieEnd;
-    
+
     const petStartPct = Math.min(100, Math.max(0, (petStart / petCapacity) * 100));
     const petEndPct = Math.min(100, Math.max(0, (petEnd / petCapacity) * 100));
-    
+
     const dieStartPct = Math.min(100, Math.max(0, (dieStart / dieCapacity) * 100));
     const dieEndPct = Math.min(100, Math.max(0, (dieEnd / dieCapacity) * 100));
 
@@ -2473,13 +2698,13 @@ function renderLedger() {
     if (analystTab === 'flow') {
       const testsP = selectedRow.du1_p.tests_day + selectedRow.du2_p.tests_day;
       const testsD = selectedRow.du1_d.tests_day + selectedRow.du2_d.tests_day;
-      
+
       html += `
         <div class="station-flow-container">
           <!-- Column 1: Underground Storage Tanks (USTs) -->
           <div class="flow-tanks-panel">
             <h3 style="font-size:0.85rem; color:#fff; text-align:center; border-bottom: 1px solid var(--border); padding-bottom:0.5rem; margin-bottom:0.75rem;">UST Storage</h3>
-            
+
             <!-- Petrol Tank -->
             <div class="flow-tank-card">
               <div class="flow-tank-cylinder">
@@ -2492,7 +2717,7 @@ function renderLedger() {
                 `}
               </div>
               <div class="flow-tank-label petrol">Petrol Tank (MS)</div>
-              
+
               <div class="tank-flow-details" style="width: 130px; margin-top: 0.2rem;">
                 <div class="flow-row">
                   <span>Start:</span>
@@ -2516,7 +2741,7 @@ function renderLedger() {
                 </div>
               </div>
             </div>
-            
+
             <!-- Diesel Tank -->
             <div class="flow-tank-card" style="margin-top: 0.5rem;">
               <div class="flow-tank-cylinder">
@@ -2529,7 +2754,7 @@ function renderLedger() {
                 `}
               </div>
               <div class="flow-tank-label diesel">Diesel Tank (HSD)</div>
-              
+
               <div class="tank-flow-details" style="width: 130px; margin-top: 0.2rem;">
                 <div class="flow-row">
                   <span>Start:</span>
@@ -2554,7 +2779,7 @@ function renderLedger() {
               </div>
             </div>
           </div>
-          
+
           <!-- Column 2: Dispensing Units (DU1 & DU2) -->
           <div class="flow-pumps-panel">
             <!-- DU 1 Card -->
@@ -2585,7 +2810,7 @@ function renderLedger() {
                   </div>
                   <span style="font-size:0.65rem; color:var(--text-muted); margin-top:0.2rem;">Net: <strong>${(c.sales.du1_p.day + c.sales.du1_p.night).toFixed(1)} L</strong></span>
                 </div>
-                
+
                 <!-- Diesel Nozzle -->
                 <div class="flow-nozzle-section diesel">
                   <div class="flow-nozzle-label" style="color:var(--color-diesel);">
@@ -2609,7 +2834,7 @@ function renderLedger() {
                 </div>
               </div>
             </div>
-            
+
             <!-- DU 2 Card -->
             <div class="flow-pump-card">
               <div class="flow-pump-header">
@@ -2638,7 +2863,7 @@ function renderLedger() {
                   </div>
                   <span style="font-size:0.65rem; color:var(--text-muted); margin-top:0.2rem;">Net: <strong>${(c.sales.du2_p.day + c.sales.du2_p.night).toFixed(1)} L</strong></span>
                 </div>
-                
+
                 <!-- Diesel Nozzle -->
                 <div class="flow-nozzle-section diesel">
                   <div class="flow-nozzle-label" style="color:var(--color-diesel);">
@@ -2663,12 +2888,12 @@ function renderLedger() {
               </div>
             </div>
           </div>
-          
+
           <!-- Column 3: Operations Outcome / Checkout -->
           <div class="flow-financials-panel">
             <div class="financials-glass-card">
               <h4 style="font-size:0.85rem; color:#fff; border-bottom:1px solid var(--border); padding-bottom:0.4rem; margin-bottom:0.5rem;">24Hr Volume Outflow</h4>
-              
+
               <div style="display:flex; justify-content:space-between; font-size:0.8rem; margin-top:0.25rem;">
                 <span style="color:var(--color-petrol); font-weight:600;">Petrol MS Net:</span>
                 <span style="color:#fff; font-weight:700;">${c.totals.net_24h.petrol.toFixed(1)} L</span>
@@ -2682,7 +2907,7 @@ function renderLedger() {
                 <span style="color:#fff;">P: ${testsP} (${testsP * 5}L) | D: ${testsD} (${testsD * 5}L)</span>
               </div>
             </div>
-            
+
             <div class="financials-glass-card" style="font-size:0.8rem;">
               <h4 style="font-size:0.85rem; color:#fff; border-bottom:1px solid var(--border); padding-bottom:0.4rem; margin-bottom:0.5rem;">Financial Formula</h4>
               <div style="display:flex; justify-content:space-between;">
@@ -2697,7 +2922,7 @@ function renderLedger() {
                 <span>D: ${c.totals.net_24h.diesel.toFixed(0)}L × ₹${selectedRow.prices.diesel.toFixed(2)}</span>
                 <span>${formatCurrency(c.financials.rev_diesel)}</span>
               </div>
-              
+
               <div style="display:flex; justify-content:space-between; border-top:1px dashed var(--border); padding-top:0.5rem; margin-top:0.25rem;">
                 <span style="color:var(--text-muted);">WAC Purchase Cost:</span>
                 <span style="font-weight:600; color:#fff;">${formatCurrency(c.financials.total_cost)}</span>
@@ -2711,7 +2936,7 @@ function renderLedger() {
                 <span>${formatCurrency(c.totals.net_24h.diesel * db.stock.diesel_cost_wac)}</span>
               </div>
             </div>
-            
+
             <div class="profit-gradient-box ${c.financials.profit >= 0 ? '' : 'negative'}">
               <span style="font-size:0.7rem; color:#fff; font-weight:700; text-transform:uppercase; letter-spacing:0.5px;">Estimated Profit Margin</span>
               <div style="font-size:1.55rem; font-weight:800; color:#fff; margin:0.25rem 0;">${formatCurrency(c.financials.profit)}</div>
@@ -2726,22 +2951,22 @@ function renderLedger() {
       const dayRev = (c.totals.day.petrol * selectedRow.prices.petrol) + (c.totals.day.diesel * selectedRow.prices.diesel);
       const nightRev = (c.totals.night.petrol * selectedRow.prices.petrol) + (c.totals.night.diesel * selectedRow.prices.diesel);
       const totalRev = dayRev + nightRev || 1;
-      
+
       const dayShare = (dayRev / totalRev) * 100;
       const nightShare = (nightRev / totalRev) * 100;
-      
+
       const maxPetrol = Math.max(c.totals.day.petrol, c.totals.night.petrol) || 1;
       const maxDiesel = Math.max(c.totals.day.diesel, c.totals.night.diesel) || 1;
-      
+
       const dayPetPct = (c.totals.day.petrol / maxPetrol) * 100;
       const nightPetPct = (c.totals.night.petrol / maxPetrol) * 100;
-      
+
       const dayDiePct = (c.totals.day.diesel / maxDiesel) * 100;
       const nightDiePct = (c.totals.night.diesel / maxDiesel) * 100;
-      
+
       const dayTestsP = selectedRow.du1_p.tests_day + selectedRow.du2_p.tests_day;
       const dayTestsD = selectedRow.du1_d.tests_day + selectedRow.du2_d.tests_day;
-      
+
       html += `
         <div class="comparison-grid">
           <!-- Left: Day Shift (8:00 AM - 8:00 PM) -->
@@ -2750,7 +2975,7 @@ function renderLedger() {
               <span style="font-size:0.95rem; font-weight:700; color:var(--warning);">Day Shift (8 AM - 8 PM)</span>
               <span class="badge" style="background:rgba(251,191,36,0.15); color:var(--warning); font-size:0.7rem; border:1px solid rgba(251,191,36,0.25);">Active</span>
             </div>
-            
+
             <div class="comparison-row">
               <span style="color:var(--text-muted);">Petrol MS Net:</span>
               <span style="font-weight:700; color:#fff;">${c.totals.day.petrol.toFixed(1)} L</span>
@@ -2767,7 +2992,7 @@ function renderLedger() {
               <span style="color:var(--text-muted); font-weight:600;">Shift Revenue:</span>
               <span style="font-weight:700; color:#fff; font-size:1.1rem;">${formatCurrency(dayRev)}</span>
             </div>
-            
+
             <div class="comparison-progress-container">
               <div class="comparison-progress-bar-label">
                 <span>Petrol Sales Volume</span>
@@ -2776,7 +3001,7 @@ function renderLedger() {
               <div class="comparison-progress-track">
                 <div class="comparison-progress-fill petrol" style="width: ${dayPetPct.toFixed(0)}%;"></div>
               </div>
-              
+
               <div class="comparison-progress-bar-label" style="margin-top:0.4rem;">
                 <span>Diesel Sales Volume</span>
                 <span>${c.totals.day.diesel.toFixed(0)} L</span>
@@ -2785,19 +3010,19 @@ function renderLedger() {
                 <div class="comparison-progress-fill diesel" style="width: ${dayDiePct.toFixed(0)}%;"></div>
               </div>
             </div>
-            
+
             <div style="background:rgba(255,255,255,0.01); border:1px solid var(--border); padding:0.75rem; border-radius:var(--radius-sm); text-align:center; font-size:0.75rem; color:var(--text-muted); margin-top:0.5rem;">
               Revenue Contribution: <strong>${dayShare.toFixed(1)}%</strong> of 24hr sales
             </div>
           </div>
-          
+
           <!-- Right: Night Shift (8:00 PM - 8:00 AM) -->
           <div class="comparison-shift-card night">
             <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--border); padding-bottom:0.5rem;">
               <span style="font-size:0.95rem; font-weight:700; color:var(--info);">Night Shift (8 PM - 8 AM)</span>
               <span class="badge" style="background:rgba(59,130,246,0.15); color:var(--info); font-size:0.7rem; border:1px solid rgba(59,130,246,0.25);">Active</span>
             </div>
-            
+
             <div class="comparison-row">
               <span style="color:var(--text-muted);">Petrol MS Net:</span>
               <span style="font-weight:700; color:#fff;">${c.totals.night.petrol.toFixed(1)} L</span>
@@ -2814,7 +3039,7 @@ function renderLedger() {
               <span style="color:var(--text-muted); font-weight:600;">Shift Revenue:</span>
               <span style="font-weight:700; color:#fff; font-size:1.1rem;">${formatCurrency(nightRev)}</span>
             </div>
-            
+
             <div class="comparison-progress-container">
               <div class="comparison-progress-bar-label">
                 <span>Petrol Sales Volume</span>
@@ -2823,7 +3048,7 @@ function renderLedger() {
               <div class="comparison-progress-track">
                 <div class="comparison-progress-fill petrol" style="width: ${nightPetPct.toFixed(0)}%;"></div>
               </div>
-              
+
               <div class="comparison-progress-bar-label" style="margin-top:0.4rem;">
                 <span>Diesel Sales Volume</span>
                 <span>${c.totals.night.diesel.toFixed(0)} L</span>
@@ -2832,7 +3057,7 @@ function renderLedger() {
                 <div class="comparison-progress-fill diesel" style="width: ${nightDiePct.toFixed(0)}%;"></div>
               </div>
             </div>
-            
+
             <div style="background:rgba(255,255,255,0.01); border:1px solid var(--border); padding:0.75rem; border-radius:var(--radius-sm); text-align:center; font-size:0.75rem; color:var(--text-muted); margin-top:0.5rem;">
               Revenue Contribution: <strong>${nightShare.toFixed(1)}%</strong> of 24hr sales
             </div>
@@ -2854,7 +3079,7 @@ window.switchAnalystTab = function(tabName) {
 function renderPurchases() {
   const tableBody = document.getElementById('purchases-log-table-body');
   const creditPlannerAlerts = document.getElementById('credit-planner-alerts');
-  
+
   tableBody.innerHTML = '';
   creditPlannerAlerts.innerHTML = '';
 
@@ -2876,10 +3101,10 @@ function renderPurchases() {
       const div = document.createElement('div');
       const isOverdue = p.deadline_date < todayStr;
       const requiresImmediateFiling = p.rtgs_filing_date <= todayStr;
-      
+
       let alertClass = "info";
       let alertIcon = `<svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/></svg>`;
-      
+
       if (isOverdue) {
         alertClass = "danger";
         alertIcon = `<svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/></svg>`;
@@ -2895,7 +3120,7 @@ function renderPurchases() {
           <span class="alert-title">${isOverdue ? 'Overdue - Interest Charging' : requiresImmediateFiling ? 'Action Required: File RTGS Today' : 'Upcoming Payment'}</span>
           Tanker Cost: <strong>${formatCurrency(p.total_cost)}</strong> (Delivered ${formatDate(p.date.split('T')[0])})<br>
           Interest-Free Limit: <strong>${formatDate(p.deadline_date)}</strong><br>
-          <strong>File RTGS at Bank by: ${formatDate(p.rtgs_filing_date)}</strong> 
+          <strong>File RTGS at Bank by: ${formatDate(p.rtgs_filing_date)}</strong>
           ${isOverdue ? '<br><span style="text-decoration:underline;">Interest is accumulating daily!</span>' : ''}
         </div>
       `;
@@ -2910,7 +3135,7 @@ function renderPurchases() {
 
   db.purchases.forEach(p => {
     const tr = document.createElement('tr');
-    
+
     let badgeClass = "badge-success";
     let statusText = "Paid";
     if (p.payment_status === 'unpaid') {
@@ -2924,7 +3149,7 @@ function renderPurchases() {
     }
 
     const payActionText = p.payment_status === 'paid' ? 'Reset Status' : 'Mark Paid';
-    
+
     tr.innerHTML = `
       <td>
         <strong>${formatDate(p.date.split('T')[0])}</strong><br>
@@ -2962,7 +3187,7 @@ function renderPricing() {
   tableBody.innerHTML = '';
 
   const active = db.prices[0] || { petrol: 103.50, diesel: 90.80, effective_date: null };
-  
+
   document.getElementById('active-price-petrol-val').textContent = active.petrol.toFixed(2);
   document.getElementById('active-price-diesel-val').textContent = active.diesel.toFixed(2);
   document.getElementById('active-prices-date').textContent = active.effective_date ? `Effective from: ${formatDateTime(active.effective_date)}` : "No prices active";
@@ -3024,8 +3249,10 @@ function renderHolidays() {
 }
 
 function deleteHoliday(dateStr) {
-  removeHoliday(dateStr);
-  renderHolidays();
+  if (confirm(`Are you sure you want to remove the bank holiday on ${formatDate(dateStr)}?`)) {
+    removeHoliday(dateStr);
+    renderHolidays();
+  }
 }
 
 function renderSettings() {
@@ -3160,7 +3387,7 @@ function renderSettings() {
   document.getElementById('cfg-safety-stock').value = db.settings.safety_stock;
   document.getElementById('cfg-currency-symbol').value = db.settings.currency;
   document.getElementById('cfg-ads-days').value = db.settings.ads_days || 14;
-  
+
   const petrolDia = db.settings.petrol_tank_dia || 200;
   const petrolLen = db.settings.petrol_tank_len || 636.6;
   const petrolDead = db.settings.petrol_dead_stock || 600;
@@ -3206,11 +3433,11 @@ function openLogReadingsModal() {
   // Set date field to today
   document.getElementById('ledger-date').value = new Date().toISOString().split('T')[0];
   document.getElementById('log-readings-modal-title').textContent = "Log Daily Totalizer Readings";
-  
+
   // Clear form fields
   document.getElementById('log-readings-form').reset();
   document.getElementById('ledger-date').value = new Date().toISOString().split('T')[0];
-  
+
   // Dynamic pre-fill helper
   applyLedgerPrefill();
   updateModalTests();
@@ -3223,7 +3450,7 @@ function editLedgerEntry(index) {
 
   document.getElementById('log-readings-modal-title').textContent = `Edit Readings for ${formatDate(row.date)}`;
   document.getElementById('ledger-date').value = row.date;
-  
+
   // Populate form
   const populate = (prefix, nozzle) => {
     document.getElementById(`${prefix}_open`).value = nozzle.open.toFixed(2);
@@ -3255,7 +3482,7 @@ function applyLedgerPrefill() {
       openVal = yesterdayRow[prefix].close_night;
     }
     document.getElementById(`${prefix}_open`).value = openVal.toFixed(2);
-    
+
     // Also bind event triggers to carry Evening Close to Night Open (close_day -> open_night)
     const closeDayInput = document.getElementById(`${prefix}_close_day`);
     closeDayInput.placeholder = `Open: ${openVal.toFixed(2)}`;
@@ -3310,7 +3537,7 @@ tankerLoadSelect.addEventListener('change', (e) => {
 function updateCustomLoadTotals() {
   const p = parseInt(customPInput.value);
   const d = parseInt(customDInput.value);
-  
+
   customPLabel.textContent = p.toLocaleString();
   customDLabel.textContent = d.toLocaleString();
 
@@ -3371,7 +3598,7 @@ function updateModalTests() {
 // Form submits
 document.getElementById('log-readings-form').addEventListener('submit', (e) => {
   e.preventDefault();
-  
+
   const date = document.getElementById('ledger-date').value;
   const prices = getPricesAt(date);
 
@@ -3402,15 +3629,19 @@ document.getElementById('log-readings-form').addEventListener('submit', (e) => {
     return true;
   };
 
-  if (!validateNozzle("DU1 Petrol", du1_p) || 
-      !validateNozzle("DU1 Diesel", du1_d) || 
-      !validateNozzle("DU2 Petrol", du2_p) || 
+  if (!validateNozzle("DU1 Petrol", du1_p) ||
+      !validateNozzle("DU1 Diesel", du1_d) ||
+      !validateNozzle("DU2 Petrol", du2_p) ||
       !validateNozzle("DU2 Diesel", du2_d)) {
     return;
   }
 
+  if (!confirm(`Are you sure you want to save manual ledger readings for operating date: ${formatDate(date)}?`)) {
+    return;
+  }
+
   const ledgerEntry = { date, prices: { petrol: prices.petrol, diesel: prices.diesel }, du1_p, du1_d, du2_p, du2_d };
-  
+
   saveDailyReadings(ledgerEntry);
   closeModal('log-readings-modal');
   initApp();
@@ -3418,15 +3649,19 @@ document.getElementById('log-readings-form').addEventListener('submit', (e) => {
 
 document.getElementById('tanker-purchase-form').addEventListener('submit', (e) => {
   e.preventDefault();
-  
+
   const date = document.getElementById('purchase-date').value;
   const time = document.getElementById('purchase-time').value;
   const loadType = tankerLoadSelect.value;
   const priceP = parseFloat(document.getElementById('purchase-price-petrol').value);
   const priceD = parseFloat(document.getElementById('purchase-price-diesel').value);
-  
-  const customP = parseInt(customPInput.value);
-  const customD = parseInt(customDInput.value);
+
+  const customP = parseInt(customPInput.value) || 0;
+  const customD = parseInt(customDInput.value) || 0;
+
+  if (!confirm(`Are you sure you want to record this tanker receipt?\n\nDate: ${formatDate(date)}\nLoad Type: ${loadType}\nPetrol Rate: ₹${priceP.toFixed(2)}/L\nDiesel Rate: ₹${priceD.toFixed(2)}/L`)) {
+    return;
+  }
 
   recordTanker(date, time, loadType, customP, customD, priceP, priceD);
   initApp();
@@ -3436,7 +3671,7 @@ document.getElementById('purchase-date').addEventListener('change', (e) => {
   if (e.target.value) {
     const details = calculateDeadlineAndRTGS(e.target.value);
     document.getElementById('purchase-deadline-preview').textContent = formatDate(details.deadlineDate);
-    document.getElementById('purchase-rtgs-preview').textContent = formatDate(details.rtgsDate) + 
+    document.getElementById('purchase-rtgs-preview').textContent = formatDate(details.rtgsDate) +
       (details.isHighRisk ? " (High Risk! Settle immediately)" : "");
   }
 });
@@ -3446,6 +3681,10 @@ document.getElementById('price-change-form').addEventListener('submit', (e) => {
   const effTime = document.getElementById('price-effective-date').value;
   const p = parseFloat(document.getElementById('price-petrol').value);
   const d = parseFloat(document.getElementById('price-diesel').value);
+
+  if (!confirm(`Are you sure you want to update selling prices?\n\nPetrol: ₹${p.toFixed(2)}/L\nDiesel: ₹${d.toFixed(2)}/L\nEffective: ${effTime.replace('T', ' ')}`)) {
+    return;
+  }
 
   updateSellingPrice(effTime, p, d);
   initApp();
@@ -3489,6 +3728,9 @@ if (_satEl) {
 
 document.getElementById('system-settings-form').addEventListener('submit', (e) => {
   e.preventDefault();
+  if (!confirm("Are you sure you want to update the system capacity and settings?")) {
+    return;
+  }
   db.settings.petrol_capacity = parseInt(document.getElementById('cfg-petrol-capacity').value);
   db.settings.diesel_capacity = parseInt(document.getElementById('cfg-diesel-capacity').value);
   db.settings.safety_stock = parseInt(document.getElementById('cfg-safety-stock').value);
@@ -3509,10 +3751,13 @@ document.getElementById('system-settings-form').addEventListener('submit', (e) =
 
 document.getElementById('phonepe-settings-form').addEventListener('submit', (e) => {
   e.preventDefault();
+  if (!confirm("Are you sure you want to update PhonePe API merchant keys?")) {
+    return;
+  }
   db.settings.phonepe_mid = document.getElementById('cfg-phonepe-mid').value.trim();
   db.settings.phonepe_salt_key = document.getElementById('cfg-phonepe-salt-key').value.trim();
   db.settings.phonepe_salt_index = document.getElementById('cfg-phonepe-salt-index').value.trim();
-  
+
   saveDB();
   showNotification("PhonePe API settings saved successfully.", "success");
   initApp();
@@ -3527,6 +3772,11 @@ document.getElementById('backup-db-btn').addEventListener('click', () => {
 document.getElementById('restore-db-file').addEventListener('change', (e) => {
   const file = e.target.files[0];
   if (!file) return;
+
+  if (!confirm("Are you sure you want to restore the database from this backup file? All current shift histories, tanker receipts, and rates will be permanently overwritten!")) {
+    e.target.value = '';
+    return;
+  }
 
   const reader = new FileReader();
   reader.onload = (event) => {
@@ -3623,7 +3873,7 @@ document.getElementById('seed-mock-data-btn').addEventListener('click', () => {
 
 function seedDemoData() {
   const seeded = JSON.parse(JSON.stringify(DEFAULT_DB));
-  
+
   seeded.settings.currency = "₹";
   seeded.settings.petrol_capacity = 20000;
   seeded.settings.diesel_capacity = 20000;
@@ -3651,7 +3901,7 @@ function seedDemoData() {
   // Generate 14 continuous days of ledger entries
   for (let i = 0; i < 14; i++) {
     const dayStr = addDays(baseDate.toISOString().split('T')[0], i);
-    
+
     // Day Shift increment (8 AM to 8 PM)
     const du1_p_day_sales = 180 + Math.random() * 80;
     const du1_d_day_sales = 300 + Math.random() * 120;
@@ -3953,7 +4203,7 @@ function startTour() {
 
 function showTourStep(index) {
   if (index < 0 || index >= tourSteps.length) return;
-  
+
   // Clean up previous highlight
   if (activeHighlightElement) {
     activeHighlightElement.classList.remove('tour-highlight');
@@ -3980,7 +4230,7 @@ function showTourStep(index) {
     setTimeout(() => {
       const rect = targetEl.getBoundingClientRect();
       const bubbleRect = bubble.getBoundingClientRect();
-      
+
       let top = 0;
       let left = 0;
 
@@ -4064,12 +4314,12 @@ function prevTourStep() {
 function endTour() {
   document.getElementById('tour-overlay').style.display = 'none';
   document.getElementById('tour-bubble').style.display = 'none';
-  
+
   if (activeHighlightElement) {
     activeHighlightElement.classList.remove('tour-highlight');
     activeHighlightElement = null;
   }
-  
+
   // Re-render ledger to restore defaults
   renderLedger();
 }
@@ -4081,18 +4331,18 @@ function openDipCalculator(tankType) {
   const dia = tankType === 'petrol' ? db.settings.petrol_tank_dia : db.settings.diesel_tank_dia;
   const len = tankType === 'petrol' ? db.settings.petrol_tank_len : db.settings.diesel_tank_len;
   const cap = tankType === 'petrol' ? db.settings.petrol_capacity : db.settings.diesel_capacity;
-  
+
   document.getElementById('dip-tank-type').value = tankType;
   document.getElementById('dip-tank-label').textContent = tankType === 'petrol' ? 'Petrol (E2) Storage Tank' : 'Diesel (HSD) Storage Tank';
   document.getElementById('dip-tank-dims').textContent = `Diameter: ${dia} cm | Length: ${len} cm | Capacity: ${cap} L`;
-  
+
   // Reset fields
   document.getElementById('dip-value').value = '';
   document.getElementById('dip-result-total').textContent = '0.00 L';
   document.getElementById('dip-result-dead').textContent = formatVol(tankType === 'petrol' ? db.settings.petrol_dead_stock : db.settings.diesel_dead_stock);
   document.getElementById('dip-result-usable').textContent = '0.00 L';
   document.getElementById('dip-warning').style.display = 'none';
-  
+
   openModal('dip-calculator-modal');
 }
 
@@ -4100,17 +4350,17 @@ function updateDipCalculation() {
   const tankType = document.getElementById('dip-tank-type').value;
   const dipValStr = document.getElementById('dip-value').value;
   const unit = document.getElementById('dip-unit').value;
-  
+
   const dia = tankType === 'petrol' ? db.settings.petrol_tank_dia : db.settings.diesel_tank_dia;
   const len = tankType === 'petrol' ? db.settings.petrol_tank_len : db.settings.diesel_tank_len;
   const dead = tankType === 'petrol' ? db.settings.petrol_dead_stock : db.settings.diesel_dead_stock;
-  
+
   let dipVal = parseFloat(dipValStr) || 0;
   let maxDip = dia;
   if (unit === 'mm') {
     maxDip = dia * 10;
   }
-  
+
   const warningEl = document.getElementById('dip-warning');
   if (dipVal > maxDip) {
     warningEl.textContent = `Warning: Dip height exceeds tank diameter (${maxDip} ${unit})!`;
@@ -4118,10 +4368,10 @@ function updateDipCalculation() {
   } else {
     warningEl.style.display = 'none';
   }
-  
+
   const totalVol = calculateHorizontalTankVolume(dia / 2, len, dipVal, unit);
   const usableVol = Math.max(0, totalVol - dead);
-  
+
   document.getElementById('dip-result-total').textContent = formatVol(totalVol);
   document.getElementById('dip-result-dead').textContent = formatVol(dead);
   document.getElementById('dip-result-usable').textContent = formatVol(usableVol);
@@ -4136,20 +4386,20 @@ document.getElementById('dip-calculator-form').addEventListener('submit', (e) =>
   const tankType = document.getElementById('dip-tank-type').value;
   const dipValStr = document.getElementById('dip-value').value;
   const unit = document.getElementById('dip-unit').value;
-  
+
   const dia = tankType === 'petrol' ? db.settings.petrol_tank_dia : db.settings.diesel_tank_dia;
   const len = tankType === 'petrol' ? db.settings.petrol_tank_len : db.settings.diesel_tank_len;
-  
+
   const dipVal = parseFloat(dipValStr) || 0;
   const totalVol = calculateHorizontalTankVolume(dia / 2, len, dipVal, unit);
-  
+
   // Apply to stock
   if (tankType === 'petrol') {
     db.stock.petrol = Math.round(totalVol);
   } else {
     db.stock.diesel = Math.round(totalVol);
   }
-  
+
   saveDB();
   closeModal('dip-calculator-modal');
   showNotification(`${tankType === 'petrol' ? 'Petrol' : 'Diesel'} stock updated to ${formatVol(totalVol)} based on dip reading.`, "success");
@@ -4506,7 +4756,7 @@ window.testFuelTimers = {};
 function renderShiftRecon() {
   const today = new Date();
   const currentHour = today.getHours();
-  
+
   const getLocalDateStr = (dateObj) => {
     const y = dateObj.getFullYear();
     const m = String(dateObj.getMonth() + 1).padStart(2, '0');
@@ -4516,7 +4766,7 @@ function renderShiftRecon() {
 
   let defaultDateStr = getLocalDateStr(today);
   let defaultShift = 'day';
-  
+
   if (currentHour < 15) { // Before 3 PM: Night shift of yesterday
     defaultShift = 'night';
     const yesterday = new Date();
@@ -4525,28 +4775,28 @@ function renderShiftRecon() {
   } else { // After 3 PM: Day shift of today
     defaultShift = 'day';
   }
-  
+
   document.getElementById('recon-date').value = defaultDateStr;
   document.getElementById('recon-shift').value = defaultShift;
-  
+
   window.reconExpensesList = [];
   window.ocrExtractedValues = null;
-  
+
   // Load authorized contacts filter from settings
   const authInput = document.getElementById('recon-authorized-contacts');
   if (authInput) {
     authInput.value = db.settings.authorized_contacts || "Anil Operator, Ramesh Supervisor, +91 98765 43210";
   }
-  
+
   // Reset input mode to manual by default
   switchReconInputMode('manual');
-  
+
   // Reset image preview & scan reports
   document.getElementById('paper-verify-report').style.display = 'none';
   document.getElementById('upload-preview-container').style.display = 'none';
   document.getElementById('upload-prompt').style.display = 'block';
   document.getElementById('paper-slip-file').value = '';
-  
+
   resetDenominations();
   onReconShiftChange();
 }
@@ -4554,32 +4804,32 @@ function renderShiftRecon() {
 function onReconShiftChange() {
   const dateStr = document.getElementById('recon-date').value;
   const shift = document.getElementById('recon-shift').value;
-  
+
   if (!dateStr) return;
-  
+
   // 1. Fetch opening readings
   const openReadings = getOpeningReadings(dateStr, shift);
   document.getElementById('recon-du1-p-open').value = openReadings.du1_p.toFixed(2);
   document.getElementById('recon-du2-p-open').value = openReadings.du2_p.toFixed(2);
   document.getElementById('recon-du1-d-open').value = openReadings.du1_d.toFixed(2);
   document.getElementById('recon-du2-d-open').value = openReadings.du2_d.toFixed(2);
-  
+
   // 2. Fetch previous PhonePe
   const prevPhonePe = getPreviousShiftPhonePe(dateStr, shift);
   document.getElementById('recon-phonepe-prev').value = prevPhonePe.toFixed(2);
-  
+
   // 3. Fetch opening physical stock for visualizer
   const openStock = getShiftOpeningStock(dateStr, shift);
   window.reconOpenStock = openStock;
-  
+
   document.getElementById('recon-visual-val-p').textContent = Math.round(openStock.petrol) + " L";
   document.getElementById('recon-visual-val-d').textContent = Math.round(openStock.diesel) + " L";
-  
+
   const capP = db.settings.petrol_capacity || 20000;
   const capD = db.settings.diesel_capacity || 20000;
   document.getElementById('recon-visual-liquid-p').style.height = Math.min(100, (openStock.petrol / capP) * 100) + "%";
   document.getElementById('recon-visual-liquid-d').style.height = Math.min(100, (openStock.diesel / capD) * 100) + "%";
-  
+
   // 4. Prepopulate closing form if record already exists in database
   const row = db.daily_ledger.find(r => r.date === dateStr);
   if (row) {
@@ -4588,7 +4838,7 @@ function onReconShiftChange() {
       if (row.du2_p.close_day) document.getElementById('recon-du2-p-close').value = row.du2_p.close_day;
       if (row.du1_d.close_day) document.getElementById('recon-du1-d-close').value = row.du1_d.close_day;
       if (row.du2_d.close_day) document.getElementById('recon-du2-d-close').value = row.du2_d.close_day;
-      
+
       document.getElementById('recon-p-tests').value = (row.du1_p.tests_day + row.du2_p.tests_day) * 5;
       document.getElementById('recon-d-tests').value = (row.du1_d.tests_day + row.du2_d.tests_day) * 5;
     } else {
@@ -4596,17 +4846,17 @@ function onReconShiftChange() {
       if (row.du2_p.close_night) document.getElementById('recon-du2-p-close').value = row.du2_p.close_night;
       if (row.du1_d.close_night) document.getElementById('recon-du1-d-close').value = row.du1_d.close_night;
       if (row.du2_d.close_night) document.getElementById('recon-du2-d-close').value = row.du2_d.close_night;
-      
+
       document.getElementById('recon-p-tests').value = 0;
       document.getElementById('recon-d-tests').value = 0;
     }
-    
+
     // Load recon details if present
     if (row.recon && row.recon[shift]) {
       const rData = row.recon[shift];
       document.getElementById('recon-phonepe-curr').value = rData.phonepe_close || '';
       window.reconExpensesList = rData.expenses ? JSON.parse(JSON.stringify(rData.expenses)) : [];
-      
+
       resetDenominations();
       if (rData.cash_counted) {
         document.getElementById('denom-coins').value = rData.cash_counted;
@@ -4619,13 +4869,13 @@ function onReconShiftChange() {
   } else {
     clearShiftFieldsOnly();
   }
-  
+
   renderExpensesList();
   calculateLiveSales();
-  
+
   // Update template on local bridge
   updateBridgeTemplate();
-  
+
   // Refresh sync messages if sync panel is visible
   const syncSection = document.getElementById('recon-section-sync');
   if (syncSection && syncSection.style.display !== 'none') {
@@ -4657,7 +4907,7 @@ function resetDenominations() {
 
 function getOpeningReadings(dateStr, shift) {
   const sorted = [...db.daily_ledger].sort((a, b) => b.date.localeCompare(a.date));
-  
+
   if (shift === 'day') {
     const row = db.daily_ledger.find(r => r.date === dateStr);
     if (row && row.du1_p && row.du1_p.open !== undefined) {
@@ -4705,7 +4955,7 @@ function getOpeningReadings(dateStr, shift) {
       };
     }
   }
-  
+
   if (sorted.length > 0) {
     const earliest = sorted[sorted.length - 1];
     return {
@@ -4731,7 +4981,7 @@ function getPreviousShiftPhonePe(dateStr, shift) {
       return row.recon.day.phonepe_close;
     }
   }
-  
+
   const sorted = [...db.daily_ledger].sort((a, b) => b.date.localeCompare(a.date));
   for (const r of sorted) {
     if (r.recon) {
@@ -4766,7 +5016,7 @@ function getShiftOpeningStock(dateStr, shift) {
     const dayPurchases = db.purchases.filter(p => p.date.split('T')[0] === dateStr);
     const purchasedP = dayPurchases.reduce((sum, p) => sum + (p.petrol_liters || 0), 0);
     const purchasedD = dayPurchases.reduce((sum, p) => sum + (p.diesel_liters || 0), 0);
-    
+
     return {
       petrol: hist.petStart + purchasedP - daySalesP,
       diesel: hist.dieStart + purchasedD - daySalesD
@@ -4779,78 +5029,78 @@ function calculateLiveSales() {
   const du1_p_close = parseFloat(document.getElementById('recon-du1-p-close').value) || 0;
   const du2_p_open = parseFloat(document.getElementById('recon-du2-p-open').value) || 0;
   const du2_p_close = parseFloat(document.getElementById('recon-du2-p-close').value) || 0;
-  
+
   const du1_d_open = parseFloat(document.getElementById('recon-du1-d-open').value) || 0;
   const du1_d_close = parseFloat(document.getElementById('recon-du1-d-close').value) || 0;
   const du2_d_open = parseFloat(document.getElementById('recon-du2-d-open').value) || 0;
   const du2_d_close = parseFloat(document.getElementById('recon-du2-d-close').value) || 0;
-  
+
   const shift = document.getElementById('recon-shift').value;
   let p_tests = 0;
   let d_tests = 0;
-  
+
   if (shift === 'day') {
     p_tests = ((du1_p_close > du1_p_open ? 1 : 0) + (du2_p_close > du2_p_open ? 1 : 0)) * 5;
     d_tests = ((du1_d_close > du1_d_open ? 1 : 0) + (du2_d_close > du2_d_open ? 1 : 0)) * 5;
   }
-  
+
   document.getElementById('recon-p-tests').value = p_tests;
   document.getElementById('recon-d-tests').value = d_tests;
-  
+
   // Volume Calculations
   const du1_p_sales = du1_p_close > 0 ? Math.max(0, du1_p_close - du1_p_open) : 0;
   const du2_p_sales = du2_p_close > 0 ? Math.max(0, du2_p_close - du2_p_open) : 0;
   const du1_d_sales = du1_d_close > 0 ? Math.max(0, du1_d_close - du1_d_open) : 0;
   const du2_d_sales = du2_d_close > 0 ? Math.max(0, du2_d_close - du2_d_open) : 0;
-  
+
   // Deduct test liters per nozzle first (to match the core math engine in computeLedgerRow)
   const du1_p_test_l = (shift === 'day' && du1_p_close > du1_p_open) ? 5 : 0;
   const du2_p_test_l = (shift === 'day' && du2_p_close > du2_p_open) ? 5 : 0;
   const du1_d_test_l = (shift === 'day' && du1_d_close > du1_d_open) ? 5 : 0;
   const du2_d_test_l = (shift === 'day' && du2_d_close > du2_d_open) ? 5 : 0;
-  
+
   const petrol_net = Math.max(0, du1_p_sales - du1_p_test_l) + Math.max(0, du2_p_sales - du2_p_test_l);
   const diesel_net = Math.max(0, du1_d_sales - du1_d_test_l) + Math.max(0, du2_d_sales - du2_d_test_l);
-  
+
   const total_liters = petrol_net + diesel_net;
-  
+
   // Financial Calculations
   const dateStr = document.getElementById('recon-date').value;
   const prices = getPricesAt(dateStr);
-  
+
   const petrol_rev = petrol_net * prices.petrol;
   const diesel_rev = diesel_net * prices.diesel;
   const total_revenue = petrol_rev + diesel_rev;
-  
+
   // PhonePe Calculations
   const prev_pe = parseFloat(document.getElementById('recon-phonepe-prev').value) || 0;
   const curr_pe = parseFloat(document.getElementById('recon-phonepe-curr').value) || 0;
   const net_pe = curr_pe > 0 ? Math.max(0, curr_pe - prev_pe) : 0;
-  
+
   document.getElementById('recon-phonepe-net-label').textContent = formatCurrency(net_pe);
-  
+
   // Expenses calculations
   const total_expenses = window.reconExpensesList.reduce((sum, exp) => sum + exp.amount, 0);
   document.getElementById('recon-expenses-total-label').textContent = formatCurrency(total_expenses);
-  
+
   // Reconciliation Summary Board calculations
   const expected_cash = Math.max(0, total_revenue - net_pe);
   const counted_cash = calculateDenominationsValue();
   const actual_cash_accounted = counted_cash + total_expenses;
   const variance = actual_cash_accounted - expected_cash;
-  
+
   document.getElementById('board-liters-sold').textContent = total_liters.toFixed(2) + " L";
   document.getElementById('board-liters-split').textContent = `P: ${petrol_net.toFixed(2)} L | D: ${diesel_net.toFixed(2)} L`;
   document.getElementById('board-revenue').textContent = formatCurrency(total_revenue);
   document.getElementById('board-expected-cash').textContent = formatCurrency(expected_cash);
   document.getElementById('board-cash-accounted').textContent = formatCurrency(actual_cash_accounted);
-  
+
   const varEl = document.getElementById('board-variance');
   const statusEl = document.getElementById('board-variance-status');
   const cardEl = document.getElementById('board-variance-card');
-  
+
   varEl.textContent = formatCurrency(variance);
-  
+
   if (Math.abs(variance) < 0.01) {
     statusEl.textContent = "MATCHED";
     statusEl.style.background = "rgba(34, 197, 94, 0.15)";
@@ -4867,44 +5117,44 @@ function calculateLiveSales() {
     statusEl.style.color = "rgb(248, 113, 113)";
     cardEl.style.borderColor = "rgba(239, 68, 68, 0.4)";
   }
-  
+
   // 5. Update physical remaining tank volumes
   if (window.reconOpenStock) {
     const currentStockP = Math.max(0, window.reconOpenStock.petrol - petrol_net);
     const currentStockD = Math.max(0, window.reconOpenStock.diesel - diesel_net);
-    
+
     document.getElementById('recon-visual-val-p').textContent = Math.round(currentStockP) + " L";
     document.getElementById('recon-visual-val-d').textContent = Math.round(currentStockD) + " L";
-    
+
     const capP = db.settings.petrol_capacity || 20000;
     const capD = db.settings.diesel_capacity || 20000;
     document.getElementById('recon-visual-liquid-p').style.height = Math.min(100, (currentStockP / capP) * 100) + "%";
     document.getElementById('recon-visual-liquid-d').style.height = Math.min(100, (currentStockD / capD) * 100) + "%";
   }
-  
+
   // 6. Update Paper Verification table if slip was uploaded
   if (window.ocrExtractedValues) {
     const compContainer = document.getElementById('ocr-comparison-rows');
     const btnApply = document.getElementById('btn-apply-ocr');
-    
+
     const list = [
       { label: 'DU1 MS Close (P)', form: du1_p_close, ocr: window.ocrExtractedValues.du1_p_close },
       { label: 'DU2 MS Close (P)', form: du2_p_close, ocr: window.ocrExtractedValues.du2_p_close },
       { label: 'DU1 HSD Close (D)', form: du1_d_close, ocr: window.ocrExtractedValues.du1_d_close },
       { label: 'DU2 HSD Close (D)', form: du2_d_close, ocr: window.ocrExtractedValues.du2_d_close }
     ];
-    
+
     let html = '';
     let anyMismatch = false;
-    
+
     list.forEach(item => {
       const match = Math.abs(item.form - item.ocr) < 0.01;
-      const badge = match 
-        ? `<span class="ocr-match-badge">✓ Match</span>` 
+      const badge = match
+        ? `<span class="ocr-match-badge">✓ Match</span>`
         : `<span class="ocr-mismatch-badge">✗ Mismatch (Paper: ${item.ocr.toFixed(2)})</span>`;
-        
+
       if (!match) anyMismatch = true;
-      
+
       html += `
         <div class="ocr-row-item">
           <span style="color:var(--text-dim);">${item.label}</span>
@@ -4915,7 +5165,7 @@ function calculateLiveSales() {
         </div>
       `;
     });
-    
+
     compContainer.innerHTML = html;
     btnApply.style.display = anyMismatch ? 'block' : 'none';
   }
@@ -4953,12 +5203,12 @@ function calculateDenominations() {
 function renderExpensesList() {
   const container = document.getElementById('expenses-container');
   container.innerHTML = '';
-  
+
   if (window.reconExpensesList.length === 0) {
     container.innerHTML = `<div style="font-size:0.75rem; color:var(--text-dim); text-align:center; padding: 0.5rem; width:100%;">No expenses recorded.</div>`;
     return;
   }
-  
+
   window.reconExpensesList.forEach((exp, idx) => {
     const row = document.createElement('div');
     row.className = 'ocr-row-item';
@@ -4996,22 +5246,22 @@ function removeExpenseRow(index) {
 function animateNumber(elementId, startVal, endVal, suffix = "") {
   const duration = 2000; // 2 seconds
   const startTime = performance.now();
-  
+
   function update(currentTime) {
     const elapsed = currentTime - startTime;
     const progress = Math.min(elapsed / duration, 1);
-    
+
     // Ease out quad
     const easeProgress = progress * (2 - progress);
     const currentVal = Math.round(startVal + (endVal - startVal) * easeProgress);
-    
+
     document.getElementById(elementId).textContent = currentVal + suffix;
-    
+
     if (progress < 1) {
       requestAnimationFrame(update);
     }
   }
-  
+
   requestAnimationFrame(update);
 }
 
@@ -5019,49 +5269,49 @@ function triggerTestFuelAnimation(fuelType) {
   const isP = fuelType === 'petrol';
   const inputEl = document.getElementById(isP ? 'recon-p-tests' : 'recon-d-tests');
   const val = parseFloat(inputEl.value) || 0;
-  
+
   calculateLiveSales();
-  
+
   if (val <= 0) return;
-  
+
   if (window.testFuelTimers[fuelType]) {
     clearTimeout(window.testFuelTimers[fuelType]);
   }
-  
+
   const stream = document.getElementById(isP ? 'recon-visual-stream-p' : 'recon-visual-stream-d');
   const liquid = document.getElementById(isP ? 'recon-visual-liquid-p' : 'recon-visual-liquid-d');
   const badge = document.getElementById(isP ? 'recon-visual-badge-p' : 'recon-visual-badge-d');
-  
+
   const color = isP ? 'var(--color-petrol)' : 'var(--color-diesel)';
-  
+
   const du1_close = parseFloat(document.getElementById(isP ? 'recon-du1-p-close' : 'recon-du1-d-close').value) || 0;
   const du1_open = parseFloat(document.getElementById(isP ? 'recon-du1-p-open' : 'recon-du1-d-open').value) || 0;
   const du2_close = parseFloat(document.getElementById(isP ? 'recon-du2-p-close' : 'recon-du2-d-close').value) || 0;
   const du2_open = parseFloat(document.getElementById(isP ? 'recon-du2-p-open' : 'recon-du2-d-open').value) || 0;
-  
+
   const du1_sales = du1_close > 0 ? Math.max(0, du1_close - du1_open) : 0;
   const du2_sales = du2_close > 0 ? Math.max(0, du2_close - du2_open) : 0;
   const gross = du1_sales + du2_sales;
-  
+
   const openStock = window.reconOpenStock ? (isP ? window.reconOpenStock.petrol : window.reconOpenStock.diesel) : 5000;
-  
+
   const startStock = Math.max(0, openStock - gross);
   const endStock = startStock + val;
-  
+
   stream.style.display = 'block';
   stream.style.color = color;
   liquid.classList.add('glowing-stock-recirc');
   liquid.style.color = color;
-  
+
   badge.textContent = `+${val} L`;
   badge.style.display = 'inline-block';
   badge.className = 'badge badge-success float-badge-active';
-  
+
   animateNumber(isP ? 'recon-visual-val-p' : 'recon-visual-val-d', startStock, endStock, " L");
-  
+
   const cap = isP ? (db.settings.petrol_capacity || 20000) : (db.settings.diesel_capacity || 20000);
   liquid.style.height = Math.min(100, (endStock / cap) * 100) + "%";
-  
+
   window.testFuelTimers[fuelType] = setTimeout(() => {
     stream.style.display = 'none';
     liquid.classList.remove('glowing-stock-recirc');
@@ -5073,16 +5323,16 @@ function triggerTestFuelAnimation(fuelType) {
 function copyWhatsAppTemplate() {
   const dateStr = document.getElementById('recon-date').value;
   const shift = document.getElementById('recon-shift').value;
-  
+
   const d1_p_open = parseFloat(document.getElementById('recon-du1-p-open').value) || 0;
   const d2_p_open = parseFloat(document.getElementById('recon-du2-p-open').value) || 0;
   const d1_d_open = parseFloat(document.getElementById('recon-du1-d-open').value) || 0;
   const d2_d_open = parseFloat(document.getElementById('recon-du2-d-open').value) || 0;
-  
+
   const pts = dateStr.split('-');
   const formattedDate = pts.length === 3 ? `${pts[2]}-${pts[1]}-${pts[0]}` : dateStr;
   const shiftLabel = shift === 'day' ? 'Day Shift (8 AM - 8 PM)' : 'Night Shift (8 PM - 8 AM)';
-  
+
   const text = `*OctaneFlow Shift Report*
 Date: ${formattedDate}
 Shift: ${shiftLabel}
@@ -5108,16 +5358,16 @@ function updateBridgeTemplate() {
   const dateStr = document.getElementById('recon-date').value;
   const shift = document.getElementById('recon-shift').value;
   if (!dateStr || !shift) return;
-  
+
   const d1_p_open = parseFloat(document.getElementById('recon-du1-p-open').value) || 0;
   const d2_p_open = parseFloat(document.getElementById('recon-du2-p-open').value) || 0;
   const d1_d_open = parseFloat(document.getElementById('recon-du1-d-open').value) || 0;
   const d2_d_open = parseFloat(document.getElementById('recon-du2-d-open').value) || 0;
-  
+
   const pts = dateStr.split('-');
   const formattedDate = pts.length === 3 ? `${pts[2]}-${pts[1]}-${pts[0]}` : dateStr;
   const shiftLabel = shift === 'day' ? 'Day Shift (8 AM - 8 PM)' : 'Night Shift (8 PM - 8 AM)';
-  
+
   const text = `*OctaneFlow Shift Report*
 Date: ${formattedDate}
 Shift: ${shiftLabel}
@@ -5145,16 +5395,16 @@ Expenses:
 function sendWhatsAppTemplate() {
   const dateStr = document.getElementById('recon-date').value;
   const shift = document.getElementById('recon-shift').value;
-  
+
   const d1_p_open = parseFloat(document.getElementById('recon-du1-p-open').value) || 0;
   const d2_p_open = parseFloat(document.getElementById('recon-du2-p-open').value) || 0;
   const d1_d_open = parseFloat(document.getElementById('recon-du1-d-open').value) || 0;
   const d2_d_open = parseFloat(document.getElementById('recon-du2-d-open').value) || 0;
-  
+
   const pts = dateStr.split('-');
   const formattedDate = pts.length === 3 ? `${pts[2]}-${pts[1]}-${pts[0]}` : dateStr;
   const shiftLabel = shift === 'day' ? 'Day Shift (8 AM - 8 PM)' : 'Night Shift (8 PM - 8 AM)';
-  
+
   const text = `*OctaneFlow Shift Report*
 Date: ${formattedDate}
 Shift: ${shiftLabel}
@@ -5180,16 +5430,16 @@ function fetchPhonePeSettlement() {
     showNotification("Please select an Operating Date and Shift first.", "warning");
     return;
   }
-  
+
   const mid = db.settings.phonepe_mid || '';
   const saltKey = db.settings.phonepe_salt_key || '';
   const saltIndex = db.settings.phonepe_salt_index || '1';
-  
+
   if (!mid || !saltKey) {
     showNotification("Please configure PhonePe Merchant API credentials in System Settings first.", "warning");
     return;
   }
-  
+
   // Calculate start/end timestamps in IST (India Standard Time +05:30)
   let startMs, endMs;
   if (shift === 'day') {
@@ -5206,11 +5456,11 @@ function fetchPhonePeSettlement() {
     startMs = new Date(startStr).getTime();
     endMs = new Date(endStr).getTime();
   }
-  
+
   showNotification("Syncing transaction totals from PhonePe...", "info");
-  
+
   const url = `https://localhost:8000/phonepe-settlement?merchantId=${encodeURIComponent(mid)}&saltKey=${encodeURIComponent(saltKey)}&saltIndex=${encodeURIComponent(saltIndex)}&startTimestamp=${startMs}&endTimestamp=${endMs}`;
-  
+
   fetch(url)
     .then(res => res.json())
     .then(data => {
@@ -5242,7 +5492,7 @@ function parseWhatsAppReport() {
     showNotification("Please paste WhatsApp text in the input area first.", "warning");
     return;
   }
-  
+
   // Parse date
   const dateRegex = /(?:Date|date):\s*(\d{1,2})[-/.](\d{1,2})[-/.](\d{4})/;
   const dateMatch = input.match(dateRegex);
@@ -5252,7 +5502,7 @@ function parseWhatsAppReport() {
     const year = dateMatch[3];
     document.getElementById('recon-date').value = `${year}-${month}-${day}`;
   }
-  
+
   // Parse shift
   const shiftRegex = /(?:Shift|shift):\s*(day|night|Day|Night)/;
   const shiftMatch = input.match(shiftRegex);
@@ -5260,15 +5510,15 @@ function parseWhatsAppReport() {
     const sStr = shiftMatch[1].toLowerCase();
     document.getElementById('recon-shift').value = sStr.includes('night') ? 'night' : 'day';
   }
-  
+
   onReconShiftChange();
-  
+
   // Parse nozzle opening & closing values
   const du1_p_regex = /(?:DU1\s*MS|DU1\s*Petrol|DU1\s*p|DU1\s*P)[^\n:]*:\s*([^\n]+)/i;
   const du2_p_regex = /(?:DU2\s*MS|DU2\s*Petrol|DU2\s*p|DU2\s*P)[^\n:]*:\s*([^\n]+)/i;
   const du1_d_regex = /(?:DU1\s*HSD|DU1\s*Diesel|DU1\s*d|DU1\s*D)[^\n:]*:\s*([^\n]+)/i;
   const du2_d_regex = /(?:DU2\s*HSD|DU2\s*Diesel|DU2\s*d|DU2\s*D)[^\n:]*:\s*([^\n]+)/i;
-  
+
   const parseReadingLine = (matchResult, openId, closeId) => {
     if (!matchResult) return;
     const content = matchResult[1].trim();
@@ -5285,16 +5535,16 @@ function parseWhatsAppReport() {
   parseReadingLine(input.match(du2_p_regex), 'recon-du2-p-open', 'recon-du2-p-close');
   parseReadingLine(input.match(du1_d_regex), 'recon-du1-d-open', 'recon-du1-d-close');
   parseReadingLine(input.match(du2_d_regex), 'recon-du2-d-open', 'recon-du2-d-close');
-  
+
   // Parse test fuel
   const test_p_regex = /(?:Test\s*Petrol|test\s*petrol|Test\s*MS|test\s*ms|Test\s*P|test\s*p)[^\n]*:\s*\[?([\d.]+)\]?/i;
   const test_d_regex = /(?:Test\s*Diesel|test\s*diesel|Test\s*HSD|test\s*hsd|Test\s*D|test\s*d)[^\n]*:\s*\[?([\d.]+)\]?/i;
-  
+
   const tp = input.match(test_p_regex);
   const td = input.match(test_d_regex);
   if (tp) document.getElementById('recon-p-tests').value = parseFloat(tp[1]);
   if (td) document.getElementById('recon-d-tests').value = parseFloat(td[1]);
-  
+
   // Parse PhonePe Close (with word boundaries to avoid matching "Pe" inside "Petrol")
   const pe_regex = /(?:PhonePe\s*Current|\bPhonePe\b|\bPE\b|\bpe\b|\bPay\b)[^\n:]*:\s*[^0-9]*([\d,.]+)/i;
   const peMatch = input.match(pe_regex);
@@ -5302,7 +5552,7 @@ function parseWhatsAppReport() {
     const cleanVal = peMatch[1].replace(/,/g, '');
     document.getElementById('recon-phonepe-curr').value = parseFloat(cleanVal);
   }
-  
+
   // Parse expenses section
   window.reconExpensesList = [];
   const expSectionRegex = /(?:Expenses|expenses|Exp|exp):([\s\S]*)/i;
@@ -5325,7 +5575,7 @@ function parseWhatsAppReport() {
       }
     });
   }
-  
+
   renderExpensesList();
   calculateLiveSales();
   showNotification("WhatsApp report parsed and form filled!", "success");
@@ -5334,19 +5584,19 @@ function parseWhatsAppReport() {
 function handlePaperSlipUpload(event) {
   const file = event.target.files[0];
   if (!file) return;
-  
+
   const reader = new FileReader();
   reader.onload = function(e) {
     document.getElementById('upload-prompt').style.display = 'none';
     document.getElementById('upload-preview-container').style.display = 'block';
     document.getElementById('upload-preview-img').src = e.target.result;
-    
+
     // Trigger holographic scanner line
     const laser = document.getElementById('scanner-laser-line');
     laser.style.display = 'block';
-    
+
     document.getElementById('paper-verify-report').style.display = 'none';
-    
+
     setTimeout(() => {
       laser.style.display = 'none';
       showOCRVerificationReport();
@@ -5361,7 +5611,7 @@ function showOCRVerificationReport() {
   const f_du2_p = parseFloat(document.getElementById('recon-du2-p-close').value);
   const f_du1_d = parseFloat(document.getElementById('recon-du1-d-close').value);
   const f_du2_d = parseFloat(document.getElementById('recon-du2-d-close').value);
-  
+
   // OCR reads the paper totalizers (perfect OCR extraction matching entered numbers or default values)
   window.ocrExtractedValues = {
     timestamp: new Date().toLocaleString(),
@@ -5370,10 +5620,10 @@ function showOCRVerificationReport() {
     du1_d_close: !isNaN(f_du1_d) ? f_du1_d : 22320.00,
     du2_d_close: !isNaN(f_du2_d) ? f_du2_d : 19200.00
   };
-  
+
   document.getElementById('ocr-timestamp').textContent = "Extracted: " + window.ocrExtractedValues.timestamp;
   document.getElementById('paper-verify-report').style.display = 'block';
-  
+
   calculateLiveSales();
   showNotification("Paper slip scanned and verified against inputs.", "info");
 }
@@ -5384,7 +5634,7 @@ function applyOCRReadings() {
   document.getElementById('recon-du2-p-close').value = window.ocrExtractedValues.du2_p_close.toFixed(2);
   document.getElementById('recon-du1-d-close').value = window.ocrExtractedValues.du1_d_close.toFixed(2);
   document.getElementById('recon-du2-d-close').value = window.ocrExtractedValues.du2_d_close.toFixed(2);
-  
+
   calculateLiveSales();
   showNotification("Verified paper readings loaded into form.", "success");
 }
@@ -5392,37 +5642,60 @@ function applyOCRReadings() {
 function postShiftRecon() {
   const dateStr = document.getElementById('recon-date').value;
   const shift = document.getElementById('recon-shift').value;
-  
+
   if (!dateStr) {
     showNotification("Please select an operating date.", "danger");
     return;
   }
-  
+
   const du1_p_close = parseFloat(document.getElementById('recon-du1-p-close').value);
   const du2_p_close = parseFloat(document.getElementById('recon-du2-p-close').value);
   const du1_d_close = parseFloat(document.getElementById('recon-du1-d-close').value);
   const du2_d_close = parseFloat(document.getElementById('recon-du2-d-close').value);
-  
+
   if (isNaN(du1_p_close) || isNaN(du2_p_close) || isNaN(du1_d_close) || isNaN(du2_d_close)) {
     showNotification("Please enter closing readings for all nozzles.", "danger");
     return;
   }
-  
+
   const du1_p_open = parseFloat(document.getElementById('recon-du1-p-open').value) || 0;
   const du2_p_open = parseFloat(document.getElementById('recon-du2-p-open').value) || 0;
   const du1_d_open = parseFloat(document.getElementById('recon-du1-d-open').value) || 0;
   const du2_d_open = parseFloat(document.getElementById('recon-du2-d-open').value) || 0;
-  
+
+  if (du1_p_close < 0 || du2_p_close < 0 || du1_d_close < 0 || du2_d_close < 0 ||
+      du1_p_open < 0 || du2_p_open < 0 || du1_d_open < 0 || du2_d_open < 0) {
+    showNotification("⚠️ Validation Error: Readings cannot be negative.", "danger");
+    return;
+  }
+
   if (du1_p_close < du1_p_open || du2_p_close < du2_p_open || du1_d_close < du1_d_open || du2_d_close < du2_d_open) {
     showNotification("Closing readings cannot be less than opening readings.", "danger");
     return;
   }
-  
+
   const p_tests = parseFloat(document.getElementById('recon-p-tests').value) || 0;
   const d_tests = parseFloat(document.getElementById('recon-d-tests').value) || 0;
+
+  if (p_tests < 0 || d_tests < 0) {
+    showNotification("⚠️ Validation Error: Test volumes cannot be negative.", "danger");
+    return;
+  }
+
+  const diff_p = (du1_p_close - du1_p_open) + (du2_p_close - du2_p_open);
+  const diff_d = (du1_d_close - du1_d_open) + (du2_d_close - du2_d_open);
+  if (diff_p < p_tests) {
+    showNotification(`⚠️ Validation Error: Petrol tests (${p_tests} L) cannot be greater than petrol totalizer difference (${diff_p.toFixed(2)} L).`, "danger");
+    return;
+  }
+  if (diff_d < d_tests) {
+    showNotification(`⚠️ Validation Error: Diesel tests (${d_tests} L) cannot be greater than diesel totalizer difference (${diff_d.toFixed(2)} L).`, "danger");
+    return;
+  }
+
   const p_tests_count = Math.round(p_tests / 5);
   const d_tests_count = Math.round(d_tests / 5);
-  
+
   // Find or create ledger entry
   let row = db.daily_ledger.find(r => r.date === dateStr);
   if (!row) {
@@ -5436,14 +5709,14 @@ function postShiftRecon() {
       du2_d: { open: du2_d_open, close_day: du2_d_open, close_night: du2_d_open, tests_day: 0, tests_night: 0 }
     };
   }
-  
+
   // Update nozzle totals
   if (shift === 'day') {
     row.du1_p.close_day = du1_p_close;
     row.du2_p.close_day = du2_p_close;
     row.du1_d.close_day = du1_d_close;
     row.du2_d.close_day = du2_d_close;
-    
+
     row.du1_p.tests_day = (du1_p_close > row.du1_p.open) ? 1 : 0;
     row.du2_p.tests_day = (du2_p_close > row.du2_p.open) ? 1 : 0;
     row.du1_d.tests_day = (du1_d_close > row.du1_d.open) ? 1 : 0;
@@ -5456,36 +5729,36 @@ function postShiftRecon() {
       row.du1_d.close_day = row.du1_d.open;
       row.du2_d.close_day = row.du2_d.open;
     }
-    
+
     row.du1_p.close_night = du1_p_close;
     row.du2_p.close_night = du2_p_close;
     row.du1_d.close_night = du1_d_close;
     row.du2_d.close_night = du2_d_close;
-    
+
     row.du1_p.tests_night = 0;
     row.du2_p.tests_night = 0;
     row.du1_d.tests_night = 0;
     row.du2_d.tests_night = 0;
   }
-  
+
   // Save reconciliation details in the ledger
   const curr_pe = parseFloat(document.getElementById('recon-phonepe-curr').value) || 0;
   const prev_pe = parseFloat(document.getElementById('recon-phonepe-prev').value) || 0;
   const net_pe = curr_pe > 0 ? Math.max(0, curr_pe - prev_pe) : 0;
-  
+
   const total_expenses = window.reconExpensesList.reduce((sum, exp) => sum + exp.amount, 0);
-  
+
   const nozzle_p_sales = (du1_p_close - du1_p_open) + (du2_p_close - du2_p_open);
   const nozzle_d_sales = (du1_d_close - du1_d_open) + (du2_d_close - du2_d_open);
   const net_p_sales = Math.max(0, nozzle_p_sales - p_tests);
   const net_d_sales = Math.max(0, nozzle_d_sales - d_tests);
   const shift_rev = (net_p_sales * row.prices.petrol) + (net_d_sales * row.prices.diesel);
   const shift_expected_cash = Math.max(0, shift_rev - net_pe);
-  
+
   const counted_cash = calculateDenominationsValue();
   const actual_cash_accounted = counted_cash + total_expenses;
   const shift_variance = actual_cash_accounted - shift_expected_cash;
-  
+
   row.recon = row.recon || {};
   row.recon[shift] = {
     phonepe_close: curr_pe,
@@ -5497,12 +5770,73 @@ function postShiftRecon() {
     paper_verified: !!window.ocrExtractedValues,
     paper_timestamp: window.ocrExtractedValues ? window.ocrExtractedValues.timestamp : null
   };
-  
+
+  // 2. Warning Flags (Confirmation)
+  const warnings = [];
+
+  const totalLiters = net_p_sales + net_d_sales;
+
+  // Nozzle net volumes sold in this shift
+  const du1_p_sales_vol = du1_p_close - du1_p_open;
+  const du2_p_sales_vol = du2_p_close - du2_p_open;
+  const du1_d_sales_vol = du1_d_close - du1_d_open;
+  const du2_d_sales_vol = du2_d_close - du2_d_open;
+
+  const du1_p_test_liters = (shift === 'day' && du1_p_close > du1_p_open) ? 5 : 0;
+  const du2_p_test_liters = (shift === 'day' && du2_p_close > du2_p_open) ? 5 : 0;
+  const du1_d_test_liters = (shift === 'day' && du1_d_close > du1_d_open) ? 5 : 0;
+  const du2_d_test_liters = (shift === 'day' && du2_d_close > du2_d_open) ? 5 : 0;
+
+  const net_du1_p_vol = Math.max(0, du1_p_sales_vol - du1_p_test_liters);
+  const net_du2_p_vol = Math.max(0, du2_p_sales_vol - du2_p_test_liters);
+  const net_du1_d_vol = Math.max(0, du1_d_sales_vol - du1_d_test_liters);
+  const net_du2_d_vol = Math.max(0, du2_d_sales_vol - du2_d_test_liters);
+
+  if (totalLiters === 0) {
+    warnings.push("Total shift sales volume is 0 Liters.");
+  }
+  if (net_du1_p_vol > 5000) warnings.push(`DU1 Petrol sales volume (${net_du1_p_vol.toFixed(2)} L) is abnormally high (exceeds 5,000 L).`);
+  if (net_du2_p_vol > 5000) warnings.push(`DU2 Petrol sales volume (${net_du2_p_vol.toFixed(2)} L) is abnormally high (exceeds 5,000 L).`);
+  if (net_du1_d_vol > 5000) warnings.push(`DU1 Diesel sales volume (${net_du1_d_vol.toFixed(2)} L) is abnormally high (exceeds 5,000 L).`);
+  if (net_du2_d_vol > 5000) warnings.push(`DU2 Diesel sales volume (${net_du2_d_vol.toFixed(2)} L) is abnormally high (exceeds 5,000 L).`);
+
+  const estimatedRevenue = shift_rev;
+  const totalCollections = counted_cash + total_expenses + net_pe;
+
+  if (estimatedRevenue > 0) {
+    const discrepancy = totalCollections - estimatedRevenue;
+    const absDiscrepancy = Math.abs(discrepancy);
+    const ratio = totalCollections / estimatedRevenue;
+
+    if (ratio > 1.5 && absDiscrepancy > 15000) {
+      warnings.push(`Collections (${formatCurrency(totalCollections)}) are more than 1.5x of estimated revenue (${formatCurrency(estimatedRevenue)}). Discrepancy is +${formatCurrency(absDiscrepancy)}.`);
+    } else if (ratio < 0.1 && estimatedRevenue > 1000) {
+      warnings.push(`Collections (${formatCurrency(totalCollections)}) are less than 10% of estimated revenue (${formatCurrency(estimatedRevenue)}). Discrepancy is -${formatCurrency(absDiscrepancy)}.`);
+    } else if (absDiscrepancy > 15000) {
+      warnings.push(`There is a significant difference of ${formatCurrency(discrepancy)} between collections (${formatCurrency(totalCollections)}) and estimated fuel revenue (${formatCurrency(estimatedRevenue)}).`);
+    }
+  } else if (totalCollections > 0) {
+    warnings.push(`Collections entered (${formatCurrency(totalCollections)}) but estimated revenue is 0 (0 Liters sold).`);
+  }
+
+  if (warnings.length > 0) {
+    const msg = "⚠️ Warning: Potential errors detected in reconciliation:\n\n" +
+                warnings.map(w => "• " + w).join("\n") +
+                "\n\nAre you sure you want to save this reconciliation?";
+    if (!confirm(msg)) {
+      return;
+    }
+  } else {
+    if (!confirm(`Are you sure you want to save and post this shift reconciliation for ${shift === 'day' ? 'Day' : 'Night'} Shift on ${formatDate(dateStr)}?`)) {
+      return;
+    }
+  }
+
   // Call general ledger save logic which also automatically updates stock
   saveDailyReadings(row);
-  
+
   showNotification(`Reconciliation saved and posted to ledger for ${shift === 'day' ? 'Day' : 'Night'} Shift on ${formatDate(dateStr)}.`, "success");
-  
+
   // Refresh views
   onReconShiftChange();
 }
@@ -5513,15 +5847,15 @@ function postShiftRecon() {
 
 function switchReconInputMode(mode) {
   const isSync = mode === 'sync';
-  
+
   // Update button classes
   document.getElementById('btn-recon-mode-manual').classList.toggle('active', !isSync);
   document.getElementById('btn-recon-mode-sync').classList.toggle('active', isSync);
-  
+
   // Show/Hide sections
   document.getElementById('recon-section-manual').style.display = isSync ? 'none' : 'block';
   document.getElementById('recon-section-sync').style.display = isSync ? 'block' : 'none';
-  
+
   if (isSync) {
     renderEmployeesTable();
     renderSyncMessages();
@@ -5535,20 +5869,20 @@ function renderEmployeesTable() {
   const tbody = document.getElementById('employees-table-body');
   if (!tbody) return;
   tbody.innerHTML = '';
-  
+
   if (db.employees.length === 0) {
     tbody.innerHTML = `<tr><td colspan="4" style="text-align:center; padding:1rem; color:var(--text-dim);">No employees in directory.</td></tr>`;
     return;
   }
-  
+
   db.employees.forEach((emp, index) => {
     const tr = document.createElement('tr');
     tr.style.borderBottom = "1px solid var(--border)";
-    
-    const activeBadge = emp.active 
+
+    const activeBadge = emp.active
       ? `<span class="badge badge-success" style="font-size:0.65rem; cursor:pointer;" onclick="toggleEmployeeActive(${index})">Active</span>`
       : `<span class="badge badge-danger" style="font-size:0.65rem; cursor:pointer;" onclick="toggleEmployeeActive(${index})">Inactive</span>`;
-    
+
     tr.innerHTML = `
       <td style="padding: 0.5rem; font-weight:600; color:#fff;">${emp.name}</td>
       <td style="padding: 0.5rem; color:var(--text-dim);">${emp.phone}</td>
@@ -5574,9 +5908,9 @@ function addEmployee(event) {
   const name = document.getElementById('new-emp-name').value.trim();
   const phone = document.getElementById('new-emp-phone').value.trim();
   const role = document.getElementById('new-emp-role').value;
-  
+
   if (!name || !phone) return;
-  
+
   const newEmp = {
     id: 'emp_' + Date.now(),
     name,
@@ -5584,10 +5918,10 @@ function addEmployee(event) {
     role,
     active: true
   };
-  
+
   db.employees.push(newEmp);
   saveDB();
-  
+
   document.getElementById('add-employee-form').reset();
   renderEmployeesTable();
   renderSyncMessages();
@@ -5597,7 +5931,7 @@ function addEmployee(event) {
 function deleteEmployee(index) {
   const emp = db.employees[index];
   if (!confirm(`Are you sure you want to delete authorized employee ${emp.name}?`)) return;
-  
+
   db.employees.splice(index, 1);
   saveDB();
   renderEmployeesTable();
@@ -5609,20 +5943,20 @@ function renderSyncMessages() {
   const dateStr = document.getElementById('recon-date').value;
   const shift = document.getElementById('recon-shift').value;
   const openReadings = getOpeningReadings(dateStr, shift);
-  
+
   // Format date nicely as DD-MM-YYYY
   const pts = dateStr.split('-');
   const formattedDate = pts.length === 3 ? `${pts[2]}-${pts[1]}-${pts[0]}` : dateStr;
   const shiftLabel = shift === 'day' ? 'Day Shift (8 AM - 8 PM)' : 'Night Shift (8 PM - 8 AM)';
-  
+
   // Generate realistic closings for mock message
   const c1p = openReadings.du1_p + 180;
   const c2p = openReadings.du2_p + 150;
   const c1d = openReadings.du1_d + 220;
   const c2d = openReadings.du2_d + 190;
-  
+
   const phonepe_close = shift === 'day' ? 120000 : 230000;
-  
+
   // Define mock messages database
   let mockMessages = [
     {
@@ -5669,28 +6003,28 @@ Expenses:
       text: "Hello, please send me the fuel rates for today, thanks."
     }
   ];
-  
+
   if (window.liveWhatsAppMessages && window.liveWhatsAppMessages.length > 0) {
     mockMessages = [...window.liveWhatsAppMessages, ...mockMessages];
   }
-  
+
   const container = document.getElementById('recon-sync-messages');
   if (!container) return;
   container.innerHTML = '';
-  
+
   mockMessages.forEach((msg, idx) => {
     // Search for the sender in the employees database
     const emp = db.employees.find(e => {
       // Clean phone numbers for exact digit matching
       const cleanEPhone = e.phone.replace(/[^\d]/g, '');
       const cleanMsgSender = msg.sender.replace(/[^\d]/g, '');
-      
+
       if (cleanEPhone && cleanMsgSender && cleanMsgSender.includes(cleanEPhone)) return true;
       return msg.sender.toLowerCase().includes(e.name.toLowerCase()) || e.name.toLowerCase().includes(msg.sender.toLowerCase());
     });
-    
+
     const isAuth = emp && emp.active;
-    
+
     const card = document.createElement('div');
     card.style.background = isAuth ? 'rgba(34, 197, 94, 0.03)' : 'rgba(239, 68, 68, 0.02)';
     card.style.border = isAuth ? '1px solid rgba(34, 197, 94, 0.15)' : '1px solid rgba(239, 68, 68, 0.1)';
@@ -5699,28 +6033,28 @@ Expenses:
     card.style.display = 'flex';
     card.style.flexDirection = 'column';
     card.style.gap = '0.35rem';
-    
+
     const header = document.createElement('div');
     header.style.display = 'flex';
     header.style.justifyContent = 'space-between';
     header.style.fontSize = '0.7rem';
     header.style.alignItems = 'center';
-    
+
     const senderSpan = document.createElement('span');
     senderSpan.style.fontWeight = '700';
     senderSpan.style.color = isAuth ? 'var(--success)' : 'var(--text-dim)';
-    
+
     // Show role if authorized
     senderSpan.textContent = msg.sender + (isAuth ? ` (${emp.role})` : '');
-    
+
     const timeSpan = document.createElement('span');
     timeSpan.style.color = 'var(--text-muted)';
     timeSpan.textContent = msg.time;
-    
+
     header.appendChild(senderSpan);
     header.appendChild(timeSpan);
     card.appendChild(header);
-    
+
     const body = document.createElement('pre');
     body.style.margin = '0';
     body.style.whiteSpace = 'pre-wrap';
@@ -5734,21 +6068,21 @@ Expenses:
     body.style.overflowY = 'auto';
     body.textContent = msg.text;
     card.appendChild(body);
-    
+
     if (isAuth) {
       const actions = document.createElement('div');
       actions.style.display = 'flex';
       actions.style.justifyContent = 'flex-end';
       actions.style.marginTop = '0.2rem';
-      
+
       const btn = document.createElement('button');
       btn.className = 'btn btn-primary btn-sm';
       btn.style.fontSize = '0.65rem';
       btn.style.padding = '0.15rem 0.5rem';
       btn.textContent = 'Import & Verify';
-      
+
       btn.onclick = () => importSyncMessage(msg.text);
-      
+
       actions.appendChild(btn);
       card.appendChild(actions);
     } else {
@@ -5756,7 +6090,7 @@ Expenses:
       badgeContainer.style.display = 'flex';
       badgeContainer.style.justifyContent = 'flex-end';
       badgeContainer.style.marginTop = '0.2rem';
-      
+
       const badge = document.createElement('span');
       badge.style.fontSize = '0.65rem';
       badge.className = 'badge badge-danger';
@@ -5764,11 +6098,11 @@ Expenses:
       badge.style.color = 'rgb(248, 113, 113)';
       badge.style.border = '1px solid rgba(239, 68, 68, 0.3)';
       badge.textContent = emp ? 'Blocked (Inactive Staff)' : 'Blocked (Unauthorized Contact)';
-      
+
       badgeContainer.appendChild(badge);
       card.appendChild(badgeContainer);
     }
-    
+
     container.appendChild(card);
   });
 }
@@ -5776,23 +6110,23 @@ Expenses:
 function importSyncMessage(text) {
   document.getElementById('whatsapp-input').value = text;
   parseWhatsAppReport();
-  
+
   // Now simulate OCR slip photo verification scan!
   document.getElementById('upload-prompt').style.display = 'none';
   document.getElementById('upload-preview-container').style.display = 'block';
-  
+
   const close_du1_p = document.getElementById('recon-du1-p-close').value;
   const close_du2_p = document.getElementById('recon-du2-p-close').value;
   const close_du1_d = document.getElementById('recon-du1-d-close').value;
   const close_du2_d = document.getElementById('recon-du2-d-close').value;
-  
+
   // Render dynamic SVG image showing exact closing totalizer values
   document.getElementById('upload-preview-img').src = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='200' height='300' viewBox='0 0 200 300'><rect width='100%' height='100%' fill='%230f172a'/><text x='10' y='30' fill='%2310b981' font-family='monospace' font-weight='bold' font-size='11'>OCTANEFLOW VERIFY</text><line x1='10' y1='40' x2='190' y2='40' stroke='%23334155' stroke-width='1'/><text x='10' y='65' fill='%2394a3b8' font-family='monospace' font-size='9'>DU1 MS CLOSE: " + close_du1_p + "</text><text x='10' y='85' fill='%2394a3b8' font-family='monospace' font-size='9'>DU2 MS CLOSE: " + close_du2_p + "</text><text x='10' y='105' fill='%2394a3b8' font-family='monospace' font-size='9'>DU1 HSD CLOSE: " + close_du1_d + "</text><text x='10' y='125' fill='%2394a3b8' font-family='monospace' font-size='9'>DU2 HSD CLOSE: " + close_du2_d + "</text><line x1='10' y1='145' x2='190' y2='145' stroke='%23334155' stroke-width='1'/><text x='10' y='165' fill='%2364748b' font-family='monospace' font-size='8'>DATE: " + document.getElementById('recon-date').value + "</text><text x='10' y='180' fill='%2364748b' font-family='monospace' font-size='8'>VERIFIED BY VISION API</text></svg>";
-  
+
   const laser = document.getElementById('scanner-laser-line');
   laser.style.display = 'block';
   document.getElementById('paper-verify-report').style.display = 'none';
-  
+
   setTimeout(() => {
     laser.style.display = 'none';
     showOCRVerificationReport();
@@ -5865,7 +6199,7 @@ window.stopLiveWhatsAppPoll = stopLiveWhatsAppPoll;
 
 window.addEventListener('message', async (event) => {
   if (!event.origin.includes('whatsapp.com') && !event.origin.includes('localhost') && !event.origin.includes('127.0.0.1')) return;
-  
+
   if (event.data && event.data.type === 'WHATSAPP_REPORT') {
     console.log('Received WhatsApp report via postMessage:', event.data.data);
     try {
