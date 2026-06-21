@@ -2702,6 +2702,7 @@ const titles = {
 };
 
 function switchSubview(mainView, subviewId) {
+  const session = getSession();
   if (subviewId === 'dsr-checker' && (!session || session.role !== 'owner')) {
     showNotification("Access denied: Owners only.", "danger");
     return;
@@ -2725,6 +2726,7 @@ function switchSubview(mainView, subviewId) {
 }
 
 function renderSubtabsBar(mainView) {
+  const session = getSession();
   const bar = document.getElementById('header-subtabs');
   if (!bar) return;
 
@@ -4838,6 +4840,13 @@ document.getElementById('restore-db-file').addEventListener('change', (e) => {
           db.daily_ledger = [];
           delete db.shifts;
         }
+
+        // Set the restored DB as the latest synced version to prevent cloud overwrite
+        db._synced_at = new Date().toISOString();
+        const cfg = getSyncCfg();
+        cfg.last_push = db._synced_at;
+        saveSyncCfg(cfg);
+
         saveDB();
         SystemLogger.success('restoreDB', 'Database restored successfully from backup file.', {
           records: db.daily_ledger.length,
@@ -4845,6 +4854,13 @@ document.getElementById('restore-db-file').addEventListener('change', (e) => {
         });
         showNotification("Database restored successfully!", "success");
         initApp();
+
+        // Push restored data to cloud Gist so other devices get it too
+        syncPush().then(() => {
+          SystemLogger.success('restoreDB', 'Restored database successfully pushed to cloud Gist.');
+        }).catch(err => {
+          SystemLogger.error('restoreDB', 'Failed to push restored database to cloud Gist.', err);
+        });
       } else {
         SystemLogger.error('restoreDB', 'Failed to restore backup: Invalid file schema or missing properties.');
         showNotification("Invalid file format. Verification failed.", "danger");
