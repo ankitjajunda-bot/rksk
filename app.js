@@ -18,13 +18,6 @@ function getSyncCfg() {
   } catch {
     cfg = {};
   }
-  // Pre-fill default Gist credentials if not configured
-  if (!cfg.gistId) {
-    cfg.gistId = '3764c3335fce3f9de08c0164960a3882';
-  }
-  if (!cfg.gistToken) {
-    cfg.gistToken = 'ghp_ap5Ep' + 'L5fD2PL49Y' + 'UgD8Ue9sb5' + 'ssA6B3aPjhR';
-  }
   return cfg;
 }
 
@@ -65,6 +58,57 @@ function setSyncStatus(state) {
   el.innerHTML = `<span style="color:${s.color};font-size:0.75rem;font-weight:600;">${s.icon} ${s.text}${timeStr}</span>`;
 }
 
+function switchView(targetView) {
+  const item = document.querySelector(`.nav-item[data-view="${targetView}"]`);
+  if (item) {
+    item.click();
+  }
+}
+
+function updateGlobalAlertBanner() {
+  const banner = document.getElementById('global-alert-banner');
+  const text = document.getElementById('global-alert-text');
+  const actionBtn = document.getElementById('global-alert-action-btn');
+  if (!banner || !text || !actionBtn) return;
+
+  const cfg = getSyncCfg();
+  const isOnline = navigator.onLine;
+
+  if (!isOnline) {
+    banner.style.display = 'flex';
+    banner.style.borderColor = 'rgba(239, 68, 68, 0.3)';
+    banner.style.background = 'rgba(239, 68, 68, 0.1)';
+    banner.style.color = '#fca5a5';
+    text.textContent = 'You are currently offline. Operations will be saved locally and synced automatically when back online.';
+    actionBtn.style.display = 'inline-block';
+    actionBtn.textContent = 'Work Offline';
+    actionBtn.onclick = () => { banner.style.display = 'none'; };
+  } else if (!cfg.gistId || !cfg.gistToken) {
+    banner.style.display = 'flex';
+    banner.style.borderColor = 'rgba(234, 179, 8, 0.3)';
+    banner.style.background = 'rgba(234, 179, 8, 0.1)';
+    banner.style.color = '#fef08a';
+    text.textContent = 'Cloud Sync is not configured. Go to Settings to enter GitHub Token & Gist ID.';
+    actionBtn.style.display = 'inline-block';
+    actionBtn.textContent = 'Configure';
+    actionBtn.onclick = () => switchView('settings');
+  } else {
+    const rateLimit = Number(localStorage.getItem('github_rate_limit_remaining') || '60');
+    if (rateLimit < 10) {
+      banner.style.display = 'flex';
+      banner.style.borderColor = 'rgba(239, 68, 68, 0.3)';
+      banner.style.background = 'rgba(239, 68, 68, 0.1)';
+      banner.style.color = '#fca5a5';
+      text.textContent = `Warning: GitHub API rate limit is very low (${rateLimit} requests left). Sync may pause shortly.`;
+      actionBtn.style.display = 'inline-block';
+      actionBtn.textContent = 'Close';
+      actionBtn.onclick = () => { banner.style.display = 'none'; };
+    } else {
+      banner.style.display = 'none';
+    }
+  }
+}
+
 // Pull latest data from GitHub Gist
 async function syncPull() {
   const cfg = getSyncCfg();
@@ -82,6 +126,10 @@ async function syncPull() {
         'Accept': 'application/vnd.github+json'
       }
     });
+    const rateLimitRemaining = res.headers.get('x-ratelimit-remaining');
+    if (rateLimitRemaining !== null) {
+      localStorage.setItem('github_rate_limit_remaining', rateLimitRemaining);
+    }
     if (!res.ok) {
       setSyncStatus('error');
       SystemLogger.error('syncPull', `GitHub API returned error status: ${res.status} ${res.statusText}`);
@@ -184,6 +232,10 @@ async function syncPush() {
         files: { [GIST_FILENAME]: { content: JSON.stringify(payload) } }
       })
     });
+    const rateLimitRemaining = res.headers.get('x-ratelimit-remaining');
+    if (rateLimitRemaining !== null) {
+      localStorage.setItem('github_rate_limit_remaining', rateLimitRemaining);
+    }
     if (res.ok) {
       const cfg2 = getSyncCfg();
       cfg2.last_push = new Date().toISOString();
@@ -5599,7 +5651,10 @@ function renderCurrentView() {
 
 function initApp() {
   loadDB();
-  document.getElementById('current-date-span').textContent = formatDate(new Date().toISOString().split('T')[0]);
+  const todayStr = new Date().toISOString().split('T')[0];
+  const formattedToday = formatDate(todayStr);
+  document.getElementById('current-date-span').textContent = formattedToday;
+  document.title = `RKSK Pump Dashboard — ${formattedToday}`;
 
   // Read current active tab and render it
   renderCurrentView();
@@ -5634,11 +5689,16 @@ function initApp() {
   if (supplySearchEl) supplySearchEl.addEventListener('input', () => renderSupplies());
 
   // Start cloud sync check (async — won't block render)
+  updateGlobalAlertBanner();
   initSync().then(() => {
     // Re-render after sync in case cloud had newer data
     renderCurrentView();
     updatePriceInputRequirements();
-  }).catch(() => setSyncStatus('error'));
+    updateGlobalAlertBanner();
+  }).catch(() => {
+    setSyncStatus('error');
+    updateGlobalAlertBanner();
+  });
 }
 
 // ── GLOBAL RUNTIME ERROR REPORTING ──────────────────────────
@@ -5683,6 +5743,53 @@ window.addEventListener('DOMContentLoaded', () => {
 
   // 2. Unconditionally load database so 'db' is always defined
   loadDB();
+
+  // Wire up Manual Refresh button
+  const refreshBtn = document.getElementById('manual-refresh-btn');
+  if (refreshBtn) {
+    refreshBtn.addEventListener('click', async () => {
+      refreshBtn.disabled = true;
+      const originalHtml = refreshBtn.innerHTML;
+      refreshBtn.innerHTML = `<span style="font-size:0.75rem;">⌛ Syncing...</span>`;
+      showNotification('Refreshing cloud database...', 'info');
+      try {
+        await initSync();
+        updateGlobalAlertBanner();
+        showNotification('✅ Database refreshed successfully!', 'success');
+      } catch (err) {
+        showNotification('⚠️ Sync failed. Please check network connection.', 'danger');
+      } finally {
+        refreshBtn.disabled = false;
+        refreshBtn.innerHTML = originalHtml;
+      }
+    });
+  }
+
+  // Register online/offline network listeners
+  window.addEventListener('online', () => {
+    updateGlobalAlertBanner();
+    showNotification('📶 Back online! Syncing local changes with cloud...', 'success');
+    syncPush();
+  });
+  window.addEventListener('offline', () => {
+    updateGlobalAlertBanner();
+    showNotification('📶 Device is offline. All data will be saved locally.', 'warning');
+  });
+
+  // Check sync alert banner initially
+  updateGlobalAlertBanner();
+
+  // Wire up Collapsible Help Drawer in Sidebar
+  const helpToggleBtn = document.getElementById('sidebar-help-toggle-btn');
+  const helpContent = document.getElementById('sidebar-help-content');
+  const helpArrow = document.getElementById('sidebar-help-arrow');
+  if (helpToggleBtn && helpContent && helpArrow) {
+    helpToggleBtn.addEventListener('click', () => {
+      const isHidden = helpContent.style.display === 'none';
+      helpContent.style.display = isHidden ? 'block' : 'none';
+      helpArrow.textContent = isHidden ? '▲' : '▼';
+    });
+  }
 
   // Wire up Take a Tour button
   const tourBtn = document.getElementById('take-tour-btn');
