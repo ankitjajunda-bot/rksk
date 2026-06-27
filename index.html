@@ -55,6 +55,7 @@
           style="background:linear-gradient(135deg,#f97316,#ea580c);color:#fff;border:none;border-radius:0.75rem;padding:0.9rem;font-size:1rem;font-weight:700;cursor:pointer;transition:opacity 0.2s;">
           Log In
         </button>
+        <a href="#" onclick="showForgotPasswordModal(event)" style="display:block;text-align:center;color:#64748b;font-size:0.8rem;margin-top:0.75rem;text-decoration:none;transition:color 0.2s;" onmouseover="this.style.color='#f97316'" onmouseout="this.style.color='#64748b'">Forgot Password / Reset PIN?</a>
       </form>
       <p style="text-align:center;color:#475569;font-size:0.72rem;margin-top:1.5rem;">Owner default: username <strong>owner</strong> · password <strong>OctaneFlow@2026</strong><br>Change in Settings after first login.</p>
     </div>
@@ -2467,6 +2468,65 @@
         if (label) label.textContent = Math.round(currentLedgerZoom * 100) + '%';
       });
     });
-  </script>
+  <!-- OTP Password Reset Overlay -->
+  <div id="otp-reset-overlay" style="display:none;position:fixed;inset:0;z-index:20000;background:rgba(15,23,42,0.95);backdrop-filter:blur(10px);align-items:center;justify-content:center;color:var(--text-main);font-family:var(--font-sans);">
+    <div style="width:100%;max-width:440px;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-lg);padding:2rem;box-shadow:0 10px 25px -5px rgba(0,0,0,0.5);">
+      
+      <!-- Header -->
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.5rem;border-bottom:1px solid var(--border);padding-bottom:1rem;">
+        <h3 style="font-size:1.2rem;font-weight:700;color:#fff;margin:0;">🔐 Reset Account Password</h3>
+        <button onclick="closeForgotPasswordModal()" style="background:transparent;border:none;color:var(--text-muted);font-size:1.5rem;cursor:pointer;line-height:1;">&times;</button>
+      </div>
+
+      <!-- Step 1: Input Details -->
+      <div id="otp-step-1" style="display:flex;flex-direction:column;gap:1.2rem;">
+        <p style="font-size:0.85rem;color:var(--text-muted);margin:0;line-height:1.4;">Enter your username and registered mobile number. We will generate a secure OTP and send it via WhatsApp.</p>
+        <div>
+          <label style="display:block;font-size:0.8rem;font-weight:600;color:var(--text-muted);margin-bottom:0.4rem;">Username</label>
+          <input id="otp-reset-username" type="text" placeholder="e.g. owner" style="width:100%;box-sizing:border-box;background:#0f172a;border:1px solid var(--border);color:#fff;border-radius:var(--radius-sm);padding:0.7rem;font-size:0.95rem;outline:none;">
+        </div>
+        <div>
+          <label style="display:block;font-size:0.8rem;font-weight:600;color:var(--text-muted);margin-bottom:0.4rem;">Registered Mobile Number (10 digits)</label>
+          <div style="display:flex;gap:0.5rem;align-items:center;">
+            <span style="color:var(--text-muted);font-size:0.95rem;font-weight:600;">+91</span>
+            <input id="otp-reset-phone" type="tel" placeholder="9876543210" maxlength="10" style="width:100%;box-sizing:border-box;background:#0f172a;border:1px solid var(--border);color:#fff;border-radius:var(--radius-sm);padding:0.7rem;font-size:0.95rem;outline:none;">
+          </div>
+        </div>
+        <div id="otp-error-step1" style="color:#ef4444;font-size:0.8rem;min-height:1rem;"></div>
+        <button onclick="sendOtpRequest()" style="background:linear-gradient(135deg,var(--primary),#2563eb);color:#fff;border:none;border-radius:var(--radius-sm);padding:0.8rem;font-size:0.95rem;font-weight:700;cursor:pointer;">Send OTP via WhatsApp</button>
+      </div>
+
+      <!-- Step 2: Enter OTP -->
+      <div id="otp-step-2" style="display:none;flex-direction:column;gap:1.2rem;">
+        <p style="font-size:0.85rem;color:var(--text-muted);margin:0;line-height:1.4;">An OTP code was sent to your WhatsApp number. Please check your messages and enter it below.</p>
+        <div>
+          <label style="display:block;font-size:0.8rem;font-weight:600;color:var(--text-muted);margin-bottom:0.4rem;">Enter 6-Digit OTP</label>
+          <input id="otp-input-code" type="text" maxlength="6" placeholder="******" style="width:100%;box-sizing:border-box;background:#0f172a;border:1px solid var(--border);color:#fff;border-radius:var(--radius-sm);padding:0.7rem;font-size:1.2rem;text-align:center;letter-spacing:6px;font-weight:700;outline:none;">
+        </div>
+        <div id="otp-timer" style="font-size:0.8rem;color:var(--color-diesel);text-align:center;font-weight:600;">Time remaining: 05:00</div>
+        <div id="otp-error-step2" style="color:#ef4444;font-size:0.8rem;min-height:1rem;"></div>
+        <div style="display:flex;gap:0.5rem;">
+          <button onclick="backToStep1()" style="flex:1;background:transparent;border:1px solid var(--border);color:var(--text-muted);border-radius:var(--radius-sm);padding:0.8rem;font-size:0.95rem;font-weight:700;cursor:pointer;">Back</button>
+          <button onclick="verifyOtpRequest()" style="flex:1.5;background:linear-gradient(135deg,var(--success),#059669);color:#fff;border:none;border-radius:var(--radius-sm);padding:0.8rem;font-size:0.95rem;font-weight:700;cursor:pointer;">Verify OTP</button>
+        </div>
+      </div>
+
+      <!-- Step 3: Set New Password -->
+      <div id="otp-step-3" style="display:none;flex-direction:column;gap:1.2rem;">
+        <p style="font-size:0.85rem;color:var(--text-muted);margin:0;line-height:1.4;">OTP verified successfully! Please enter your new login password or PIN below.</p>
+        <div>
+          <label style="display:block;font-size:0.8rem;font-weight:600;color:var(--text-muted);margin-bottom:0.4rem;">New Password / PIN</label>
+          <input id="otp-new-password" type="password" placeholder="Min 4 characters" style="width:100%;box-sizing:border-box;background:#0f172a;border:1px solid var(--border);color:#fff;border-radius:var(--radius-sm);padding:0.7rem;font-size:0.95rem;outline:none;">
+        </div>
+        <div>
+          <label style="display:block;font-size:0.8rem;font-weight:600;color:var(--text-muted);margin-bottom:0.4rem;">Confirm New Password</label>
+          <input id="otp-confirm-password" type="password" placeholder="Repeat new password" style="width:100%;box-sizing:border-box;background:#0f172a;border:1px solid var(--border);color:#fff;border-radius:var(--radius-sm);padding:0.7rem;font-size:0.95rem;outline:none;">
+        </div>
+        <div id="otp-error-step3" style="color:#ef4444;font-size:0.8rem;min-height:1rem;"></div>
+        <button onclick="submitNewPassword()" style="background:linear-gradient(135deg,#f97316,#ea580c);color:#fff;border:none;border-radius:var(--radius-sm);padding:0.8rem;font-size:0.95rem;font-weight:700;cursor:pointer;">Update Password</button>
+      </div>
+
+    </div>
+  </div>
 </body>
 </html>
