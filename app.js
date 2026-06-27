@@ -2940,6 +2940,51 @@ function renderDashboard() {
   const percentPetrolEl = document.getElementById('tank-percent-petrol');
   if (percentPetrolEl) percentPetrolEl.textContent = `${petrolPct.toFixed(1)}% of ${maxPetrol} L`;
 
+  // Calculate rolling 7-day average sales and days of cover
+  const getAverageSales = (days = 7) => {
+    let petSalesSum = 0;
+    let dieSalesSum = 0;
+    let count = 0;
+    const sortedLedger = [...(window.dsrDraftData || [])].sort((a, b) => b.date.localeCompare(a.date));
+    for (let i = 0; i < Math.min(days, sortedLedger.length); i++) {
+      const row = sortedLedger[i];
+      const p1_open = row.du1_p.open || 0;
+      const p1_close = row.du1_p.close_day || 0;
+      const p2_open = row.du2_p.open || 0;
+      const p2_close = row.du2_p.close_day || 0;
+      const p_tests = ((row.du1_p.tests_day || 0) + (row.du1_p.tests_night || 0) + (row.du2_p.tests_day || 0) + (row.du2_p.tests_night || 0)) * 5;
+      const p_sales = Math.max(0, (p1_close - p1_open) + (p2_close - p2_open) - p_tests);
+
+      const d1_open = row.du1_d.open || 0;
+      const d1_close = row.du1_d.close_day || 0;
+      const d2_open = row.du2_d.open || 0;
+      const d2_close = row.du2_d.close_day || 0;
+      const d_tests = ((row.du1_d.tests_day || 0) + (row.du1_d.tests_night || 0) + (row.du2_d.tests_day || 0) + (row.du2_d.tests_night || 0)) * 5;
+      const d_sales = Math.max(0, (d1_close - d1_open) + (d2_close - d2_open) - d_tests);
+      
+      petSalesSum += p_sales;
+      dieSalesSum += d_sales;
+      count++;
+    }
+    return {
+      petrol: count > 0 ? petSalesSum / count : 1000,
+      diesel: count > 0 ? dieSalesSum / count : 1500
+    };
+  };
+
+  const avgSales = getAverageSales(7);
+  const petCover = avgSales.petrol > 0 ? usableP / avgSales.petrol : 99;
+  const dieCover = avgSales.diesel > 0 ? usableD / avgSales.diesel : 99;
+
+  const coverPetrolEl = document.getElementById('tank-cover-petrol');
+  if (coverPetrolEl) {
+    if (petCover < 3) {
+      coverPetrolEl.innerHTML = `<strong style="color:#f87171;">${petCover.toFixed(1)} days</strong> <span style="background:rgba(239,68,68,0.15); color:#f87171; padding:1px 5px; border-radius:3px; font-size:0.65rem; font-weight:700; margin-left:0.25rem;">⚠️ Low Stock</span>`;
+    } else {
+      coverPetrolEl.innerHTML = `<strong style="color:#4ade80;">${petCover.toFixed(1)} days</strong> <span style="background:rgba(74,222,128,0.15); color:#4ade80; padding:1px 5px; border-radius:3px; font-size:0.65rem; font-weight:700; margin-left:0.25rem;">🟢 Healthy</span>`;
+    }
+  }
+
   const stockDieselEl = document.getElementById('tank-stock-diesel');
   if (stockDieselEl) stockDieselEl.textContent = formatVol(dieselVol);
   const usableDieselEl = document.getElementById('tank-usable-diesel');
@@ -2948,6 +2993,15 @@ function renderDashboard() {
   if (deadDieselEl) deadDieselEl.textContent = formatVol(deadDStock);
   const percentDieselEl = document.getElementById('tank-percent-diesel');
   if (percentDieselEl) percentDieselEl.textContent = `${dieselPct.toFixed(1)}% of ${maxDiesel} L`;
+
+  const coverDieselEl = document.getElementById('tank-cover-diesel');
+  if (coverDieselEl) {
+    if (dieCover < 3) {
+      coverDieselEl.innerHTML = `<strong style="color:#f87171;">${dieCover.toFixed(1)} days</strong> <span style="background:rgba(239,68,68,0.15); color:#f87171; padding:1px 5px; border-radius:3px; font-size:0.65rem; font-weight:700; margin-left:0.25rem;">⚠️ Low Stock</span>`;
+    } else {
+      coverDieselEl.innerHTML = `<strong style="color:#4ade80;">${dieCover.toFixed(1)} days</strong> <span style="background:rgba(74,222,128,0.15); color:#4ade80; padding:1px 5px; border-radius:3px; font-size:0.65rem; font-weight:700; margin-left:0.25rem;">🟢 Healthy</span>`;
+    }
+  }
 
   // Render today's stock flow details (starting, sales, shipments, and final values)
   const todayStr = new Date().toISOString().split('T')[0];
@@ -8511,9 +8565,48 @@ function calculateRowExpectedRev(row) {
   return p_sales * (row.prices?.petrol || 0) + d_sales * (row.prices?.diesel || 0);
 }
 
+function dipToLiters(dipCm, maxCapacity, maxDipCm) {
+  if (!dipCm || dipCm <= 0) return 0;
+  if (dipCm >= maxDipCm) return maxCapacity;
+  const r = maxDipCm / 2;
+  const h = dipCm;
+  try {
+    const theta = 2 * Math.acos((r - h) / r);
+    const segmentArea = 0.5 * r * r * (theta - Math.sin(theta));
+    const totalArea = Math.PI * r * r;
+    return maxCapacity * (segmentArea / totalArea);
+  } catch (e) {
+    return 0;
+  }
+}
+
+function getDailyDeliveries(dateStr) {
+  let ms = 0;
+  let hsd = 0;
+  let ms_shortage = 0;
+  let hsd_shortage = 0;
+  if (db && db.purchases) {
+    db.purchases.forEach(p => {
+      const pDate = p.date ? p.date.split('T')[0] : '';
+      if (pDate === dateStr) {
+        ms += p.petrol_liters || 0;
+        hsd += p.diesel_liters || 0;
+        ms_shortage += p.petrol_shortage || 0;
+        hsd_shortage += p.diesel_shortage || 0;
+      }
+    });
+  }
+  return { ms, hsd, ms_shortage, hsd_shortage };
+}
+
 function validateDsrData(data) {
   const issues = [];
   data.sort((a, b) => a.date.localeCompare(b.date));
+
+  const max_cap_ms = db.settings?.petrol_capacity || 20000;
+  const max_cap_hsd = db.settings?.diesel_capacity || 20000;
+  const max_dip_ms = db.settings?.petrol_tank_dia || 200;
+  const max_dip_hsd = db.settings?.diesel_tank_dia || 200;
 
   for (let i = 0; i < data.length; i++) {
     const row = data[i];
@@ -8538,6 +8631,39 @@ function validateDsrData(data) {
     const actualColl = row.actual_collection !== undefined ? row.actual_collection : expectedRev;
     const variance = expectedRev - actualColl;
 
+    let isConsecutive = false;
+    if (prevRow) {
+      const d1 = new Date(prevRow.date);
+      const d2 = new Date(row.date);
+      const diffDays = Math.round((d2 - d1) / (1000 * 60 * 60 * 24));
+      if (diffDays === 1) {
+        isConsecutive = true;
+      }
+    }
+
+    const deliv = getDailyDeliveries(row.date);
+
+    const phys_ms = dipToLiters(row.dip_ms_cm || 0, max_cap_ms, max_dip_ms);
+    const phys_hsd = dipToLiters(row.dip_hsd_cm || 0, max_cap_hsd, max_dip_hsd);
+
+    let book_ms = phys_ms;
+    let book_hsd = phys_hsd;
+
+    if (i > 0 && isConsecutive) {
+      book_ms = (prevRow.phys_ms || 0) + deliv.ms - p_sales;
+      book_hsd = (prevRow.phys_hsd || 0) + deliv.hsd - d_sales;
+    }
+
+    const var_ms = phys_ms - book_ms;
+    const var_hsd = phys_hsd - book_hsd;
+
+    row.phys_ms = phys_ms;
+    row.phys_hsd = phys_hsd;
+    row.book_ms = book_ms;
+    row.book_hsd = book_hsd;
+    row.var_ms = var_ms;
+    row.var_hsd = var_hsd;
+
     const addNozzleIssue = (type, nozzleLabel, uKey, oVal, cVal, prevCl, nextOp, desc) => {
       issues.push({
         type: type,
@@ -8554,7 +8680,7 @@ function validateDsrData(data) {
     };
 
     if (p1_close < p1_open) {
-      addNozzleIssue('trend', 'Petrol DU1', 'du1_p', p1_open, p1_close, prevRow ? prevRow.du1_p.close_day : null, nextRow ? nextRow.du1_p.open : null, `Petrol DU1 closing (${p1_close.toFixed(2)}) is less than opening (${p1_open.toFixed(2)})`);
+      addNozzleIssue('trend', 'Petrol DU1', 'du1_p', p1_open, p1_close, prevRow ? prevRow.du1_p.close_night : null, nextRow ? nextRow.du1_p.open : null, `Petrol DU1 closing (${p1_close.toFixed(2)}) is less than opening (${p1_open.toFixed(2)})`);
     }
     if (p2_close < p2_open) {
       addNozzleIssue('trend', 'Petrol DU2', 'du2_p', p2_open, p2_close, prevRow ? prevRow.du2_p.close_day : null, nextRow ? nextRow.du2_p.open : null, `Petrol DU2 closing (${p2_close.toFixed(2)}) is less than opening (${p2_open.toFixed(2)})`);
@@ -8564,16 +8690,6 @@ function validateDsrData(data) {
     }
     if (d2_close < d2_open) {
       addNozzleIssue('trend', 'Diesel DU2', 'du2_d', d2_open, d2_close, prevRow ? prevRow.du2_d.close_day : null, nextRow ? nextRow.du2_d.open : null, `Diesel DU2 closing (${d2_close.toFixed(2)}) is less than opening (${d2_open.toFixed(2)})`);
-    }
-
-    let isConsecutive = false;
-    if (prevRow) {
-      const d1 = new Date(prevRow.date);
-      const d2 = new Date(row.date);
-      const diffDays = Math.round((d2 - d1) / (1000 * 60 * 60 * 24));
-      if (diffDays === 1) {
-        isConsecutive = true;
-      }
     }
 
     if (isConsecutive) {
@@ -8596,6 +8712,24 @@ function validateDsrData(data) {
         type: 'variance',
         date: row.date,
         msg: `[${row.date}] High cash variance: expected ₹${expectedRev.toFixed(0)}, actual ₹${actualColl.toFixed(0)} (diff: ₹${variance.toFixed(0)})`
+      });
+    }
+
+    const var_ms_pct = p_sales > 0 ? (Math.abs(var_ms) / p_sales) * 100 : 0;
+    if (Math.abs(var_ms) > 10 && var_ms_pct > 0.5) {
+      issues.push({
+        type: 'wetstock',
+        date: row.date,
+        msg: `[${row.date}] Petrol Wetstock Var: ${var_ms.toFixed(1)} L (${var_ms_pct.toFixed(2)}% of sales)`
+      });
+    }
+
+    const var_hsd_pct = d_sales > 0 ? (Math.abs(var_hsd) / d_sales) * 100 : 0;
+    if (Math.abs(var_hsd) > 10 && var_hsd_pct > 0.5) {
+      issues.push({
+        type: 'wetstock',
+        date: row.date,
+        msg: `[${row.date}] Diesel Wetstock Var: ${var_hsd.toFixed(1)} L (${var_hsd_pct.toFixed(2)}% of sales)`
       });
     }
   }
@@ -8844,6 +8978,17 @@ async function renderDsrChecker() {
         ${p_sales.toFixed(1)} L
       </td>
 
+      <!-- Petrol Tank Wetstock -->
+      <td style="padding: 0.5rem; border-bottom: 1px solid var(--border); text-align: right; background: rgba(16, 185, 129, 0.02);" class="col-petrol">
+        <span class="editable-cell" title="Enter physical Petrol dip in cm" style="border-bottom: 1px dashed #10b981; padding: 2px 4px; cursor: pointer; color: #fff; font-weight: 600;" contenteditable="true" onblur="updateDsrCell('${row.date}', 'recon', 'dip_ms_cm', this.textContent)">${(row.dip_ms_cm || 0).toFixed(1)}</span>
+      </td>
+      <td style="padding: 0.5rem; border-bottom: 1px solid var(--border); text-align: right; color: var(--text-muted); font-size: 0.75rem; background: rgba(16, 185, 129, 0.02);" class="col-petrol">
+        ${(row.phys_ms || 0).toFixed(0)} L
+      </td>
+      <td style="padding: 0.5rem; border-bottom: 1px solid var(--border); text-align: right; font-weight: 700; color: ${Math.abs(row.var_ms || 0) > (p_sales * 0.005) ? '#ef4444' : '#10b981'}; background: rgba(16, 185, 129, 0.02);" class="col-petrol" title="Book Stock: ${(row.book_ms || 0).toFixed(0)} L | Physical Stock: ${(row.phys_ms || 0).toFixed(0)} L${deliv.ms_shortage > 0 ? ' | Tanker Shortage: -' + deliv.ms_shortage.toFixed(0) + ' L' : ''}">
+        ${(row.var_ms || 0) >= 0 ? '+' : ''}${(row.var_ms || 0).toFixed(0)} L${deliv.ms_shortage > 0 ? ' <small style="color:#f87171;font-weight:normal;" title="Tanker delivery shortfall of ' + deliv.ms_shortage.toFixed(0) + ' L detected via density check">⚠️</small>' : ''}
+      </td>
+
       <!-- Diesel Totalizers -->
       <td style="padding: 0.5rem; border-bottom: 1px solid var(--border); text-align: right;" class="col-diesel">
         <span class="editable-cell ${hasD1ContinuityError ? 'diff-highlight' : ''}" title="${d1OpenTitle}" style="border-bottom: 1px dashed var(--color-diesel); padding: 2px 4px; cursor: pointer;" contenteditable="true" onblur="updateDsrCell('${row.date}', 'du1_d', 'open', this.textContent)">${d1_open.toFixed(2)}</span>
@@ -8862,6 +9007,17 @@ async function renderDsrChecker() {
       </td>
       <td style="padding: 0.5rem; border-bottom: 1px solid var(--border); text-align: right; font-weight: 700; color: var(--color-diesel);" class="col-diesel">
         ${d_sales.toFixed(1)} L
+      </td>
+
+      <!-- Diesel Tank Wetstock -->
+      <td style="padding: 0.5rem; border-bottom: 1px solid var(--border); text-align: right; background: rgba(245, 158, 11, 0.02);" class="col-diesel">
+        <span class="editable-cell" title="Enter physical Diesel dip in cm" style="border-bottom: 1px dashed #f59e0b; padding: 2px 4px; cursor: pointer; color: #fff; font-weight: 600;" contenteditable="true" onblur="updateDsrCell('${row.date}', 'recon', 'dip_hsd_cm', this.textContent)">${(row.dip_hsd_cm || 0).toFixed(1)}</span>
+      </td>
+      <td style="padding: 0.5rem; border-bottom: 1px solid var(--border); text-align: right; color: var(--text-muted); font-size: 0.75rem; background: rgba(245, 158, 11, 0.02);" class="col-diesel">
+        ${(row.phys_hsd || 0).toFixed(0)} L
+      </td>
+      <td style="padding: 0.5rem; border-bottom: 1px solid var(--border); text-align: right; font-weight: 700; color: ${Math.abs(row.var_hsd || 0) > (d_sales * 0.005) ? '#ef4444' : '#10b981'}; background: rgba(245, 158, 11, 0.02);" class="col-diesel" title="Book Stock: ${(row.book_hsd || 0).toFixed(0)} L | Physical Stock: ${(row.phys_hsd || 0).toFixed(0)} L${deliv.hsd_shortage > 0 ? ' | Tanker Shortage: -' + deliv.hsd_shortage.toFixed(0) + ' L' : ''}">
+        ${(row.var_hsd || 0) >= 0 ? '+' : ''}${(row.var_hsd || 0).toFixed(0)} L${deliv.hsd_shortage > 0 ? ' <small style="color:#f87171;font-weight:normal;" title="Tanker delivery shortfall of ' + deliv.hsd_shortage.toFixed(0) + ' L detected via density check">⚠️</small>' : ''}
       </td>
 
       <!-- Cash Variance Analysis -->
@@ -8916,6 +9072,16 @@ window.updateDsrCell = function(date, unitKey, fieldKey, rawValue) {
     if (unitKey === 'recon' && fieldKey === 'actual_collection') {
       if (row.actual_collection !== num) {
         row.actual_collection = num;
+        changed = true;
+      }
+    } else if (unitKey === 'recon' && fieldKey === 'dip_ms_cm') {
+      if (row.dip_ms_cm !== num) {
+        row.dip_ms_cm = num;
+        changed = true;
+      }
+    } else if (unitKey === 'recon' && fieldKey === 'dip_hsd_cm') {
+      if (row.dip_hsd_cm !== num) {
+        row.dip_hsd_cm = num;
         changed = true;
       }
     } else if (row[unitKey]) {
