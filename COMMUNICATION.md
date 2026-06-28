@@ -70,32 +70,58 @@ Here is the detailed scope of Plan 23 we are implementing:
 
 ---
 
-### 🎓 COMPREHENSIVE TRAINING DIRECTIVES (For AG2)
-To ensure AG2 does not introduce calculations errors or logical discrepancies, follow these rules strictly:
+### 🎓 COMPREHENSIVE PROJECT ARCHIVE & TRAINING LOG (For AG2)
+*This is the historical training log containing all project insights since the start of RKSK Fuel Station Manager development.*
 
-#### 1. Nozzle-to-DU Mapping Ground Truth
-Always use this mapping when inspecting sheets or totalizer sequences:
+#### 1. The Original OCR Extraction Pipeline (How the Data Was Digitized)
+We built a multi-stage pipeline to digitize handwritten, scanned daily sheets (DSR PDFs) which typically contain 2 pages per month (Page 1 = Petrol/MS, Page 2 = Diesel/HSD):
+* **Stage 1 — PDF rendering**: Swift + PDFKit ([`pdf_ocr_coords.swift`](file:///Users/macintosh/.gemini/antigravity-ide/scratch/pdf_ocr_coords.swift)) renders each page to a high-resolution CGImage at 3x scale.
+* **Stage 2 — Multi-Region Apple Vision OCR**: To avoid text bleeding across cramped columns, we crop and perform OCR on 4 distinct horizontal regions:
+  * `[FULL]` (x: 0.0 to 1.0) — For date and dip columns.
+  * `[STOCK]` (x: 0.25 to 0.41) — For opening stock and receipts.
+  * `[TOTALIZER]` (x: 0.40 to 0.54) — For pump totalizers.
+  * `[SALES]` (x: 0.80 to 0.96) — For daily/cumulative sales.
+* **Stage 3 — Row Grouping**: A clustering script ([`parse_rows.py`](file:///Users/macintosh/.gemini/antigravity-ide/scratch/parse_rows.py)) groups bounding boxes into daily rows based on a y-coordinate tolerance of `0.013`, sorting left-to-right (x ascending).
+
+#### 2. Core Wetstock & Cash Calculations
+* **Horizontal Tank Volume Formula**: Built in `app.js` and test scripts to convert physical dip readings (cm) into fuel volume:
+  `Volume = [R² · arccos((R-h)/R) - (R-h) · sqrt(2Rh - h²)] · L / 1000`
+  * *Parameters*: Tank radius ($R = 100$ cm), Tank length ($L = 636.6$ cm).
+* **Expected Revenue**: Calculated as `Liters Sold × Price per Liter` for all nozzles.
+* **Cash Variance**: Calculated as `Actual Collection (entered by Ankit) - Expected Revenue`.
+
+#### 3. Nozzle-to-DU Mapping Ground Truth
 * **DU1 Petrol** ➡️ Nozzle 1 Petrol (range ~1.43M to 1.53M)
 * **DU1 Diesel** ➡️ Nozzle 2 Diesel (range ~1.17M to 1.25M)
 * **DU2 Petrol** ➡️ Nozzle 3 Petrol (range ~33k to 105k)
 * **DU2 Diesel** ➡️ Nozzle 4 Diesel (range ~1.14M to 1.24M)
-> ⚠️ **Warning**: Do not label Nozzle 4 under DU1. It belongs to DU2.
+> ⚠️ **Warning**: Never map Nozzle 4 under DU1. It belongs to DU2 (often listed as Nozzle 2 of DU2).
 
-#### 2. Totalizer Continuity & Delta Propagation
-* **Totalizers must always increase**. A decrease is a data entry typo.
-* **Delta Propagation**: If you edit any totalizer value (e.g. correcting a reading in the past), you **must** propagate the offset (delta) forward to all subsequent consecutive days. Otherwise, you will break the continuity of the entire ledger. Use the propagation logic from `scratch/apply_db_repairs.py`.
+#### 4. Historical Data Typo Corrections (November 2025 - June 2026)
+Below are the critical corrections we made to the production database:
+* **Nov 30, 2025**: Corrected price rate changes and calculated nozzle sales values.
+* **Dec 7, 2025**: Corrected DU2 Petrol amount misread (₹3,716 ➡️ ₹56,431).
+* **March 10, 2026**: Set correct physical sheet values for all 4 nozzles to resolve shift continuity mismatches.
+* **April 2, 3, 4, and 5, 2026**: Adjusted DU1 Petrol openings (starting at `1449166.37`) and DU2 Petrol sequence to match physical logs.
+* **April 14, 2026**: Fixed night shift close to `1173760.13` (net night sale 222.8 L).
+* **April 24, 2026**: Aligned DU1 Diesel Day Close and Night Open to `1202024.60` (always increasing).
+* **May 9, 2026**: Aligned DU1 Diesel night close to `1212373.58` (operator decimals typo).
+* **May 12, 2026**: Corrected DU1 Petrol close to `1479434.98` (net sales 486 L).
+* **June 5, 2026**: Corrected DU2 Diesel close to `1234196.47` (net sales 506.68 L).
+* **June 8, 2026**: Corrected DU1 Petrol opening typo `1493911.13` ➡️ `1495911.13`.
+* **June 9, 2026**: Corrected vehicle number typo in payments collection (`6,801,500.0` ➡️ `1500.0`).
+* **June 14, 2026**: Corrected DU1 Petrol closing typo `150010.38` ➡️ `1500010.38`.
+* **June 16 & 18, 2026**: Programmatically resolved rollovers and restored missing totalizer prefixes.
+* **Future Dates Removed**: Mapped June 29/30 future dates back to May 29/30.
 
-#### 3. Checker View and Staging Flow
-* **Exceptions-Only Filtering**: The DSR Data Checker now hides clean production ledger rows automatically to avoid clutter. It only displays drafts, gaps, and rows with errors.
-* **Row-by-Row Submission**: Every row in the checker now has an individual `📩 Submit` button. Do not bulk-merge everything; users prefer submitting entries row-by-row.
-* **Editing Production Rows**: If you edit an entry that is already in production, `app.js` will clone it to draft staging (`window.dsrDraftData`). Once the user clicks Submit, it writes back to the production ledger.
+#### 5. Totalizer Sequence delta propagation
+To maintain continuity across the daily ledger, anytime you modify an entry in the past, you must run the propagation logic (written in `scratch/apply_db_repairs.py`) to carry the delta offset forward recursively to all consecutive days. This keeps the ledger mathematical checks clean without altering daily sales volumes.
 
----
-
-### 📋 Current Plan 23 Progress
-* **Workspace Cleaned**: All scanned PDFs and raw CSVs are consolidated under the `data/` folder. All 76 obsolete scratch files have been deleted.
-* **Database Repaired**: Patched all historical corrections (March 10, April 2/3/4/5, April 14, April 24, May 9, May 12, June 5) and propagated the totalizer sequences forward (aligned over 1,800 entries). All June drafts are now 100% continuous.
-* **Startup Pruning**: The app now automatically removes entries dated in the future from `db.daily_ledger` on startup.
+#### 6. Database Staging & Submission Flow
+* **Exceptions-Only Checker**: Clean production rows are hidden from the DSR Checker tab. It only displays drafts, gaps, and rows with warnings.
+* **Staging-on-Edit**: Editing a production entry clones it to draft staging (`window.dsrDraftData`). Clicking `📩 Submit` merges it back to production.
+* **Auto-Prune drafts**: Staged drafts are automatically pruned from localStorage once they match clean production ledger records.
+* **Future Date Pruning**: The app now automatically removes entries dated in the future from `db.daily_ledger` on startup.
 
 **AG2 is now cleared to take the driver seat. Follow the next steps for Plan 23 (Syncing shift expenses to cash books and bank ledgers).**
 
