@@ -8666,7 +8666,13 @@ async function loadDsrDraftData() {
   const savedEdits = localStorage.getItem('octaneflow_dsr_draft_edits');
   if (savedEdits) {
     try {
-      window.dsrDraftData = JSON.parse(savedEdits);
+      let draft = JSON.parse(savedEdits);
+      if (db && db.daily_ledger) {
+        const prodDates = new Set(db.daily_ledger.map(r => r.date));
+        draft = draft.filter(r => !prodDates.has(r.date));
+      }
+      window.dsrDraftData = draft;
+      localStorage.setItem('octaneflow_dsr_draft_edits', JSON.stringify(draft));
       return window.dsrDraftData;
     } catch (e) {
       console.error("Failed to parse saved DSR draft edits:", e);
