@@ -9047,18 +9047,27 @@ async function renderDsrChecker() {
   const monthIdx = meta.index;
   const prefix = `${year}-${String(monthIdx).padStart(2, '0')}`;
 
-  const existingMap = {};
-  data.forEach(row => {
-    if (row.date.startsWith(prefix)) {
-      existingMap[row.date] = row;
-    }
+  // Find all production rows for this month
+  const prodRows = db.daily_ledger.filter(row => row.date.startsWith(prefix));
+
+  // Find all draft rows for this month
+  const draftRows = data.filter(row => row.date.startsWith(prefix));
+
+  // Combine them by date (draft overrides production)
+  const combinedMap = {};
+  prodRows.forEach(row => {
+    combinedMap[row.date] = JSON.parse(JSON.stringify(row));
+    combinedMap[row.date].actual_collection = row.recon?.total_collection ?? calculateRowExpectedRev(row);
+  });
+  draftRows.forEach(row => {
+    combinedMap[row.date] = row;
   });
 
   const today = new Date();
   const isCurrentMonth = (today.getFullYear() === year && (today.getMonth() + 1) === monthIdx);
   const maxDay = isCurrentMonth ? today.getDate() : new Date(year, monthIdx, 0).getDate();
 
-  const monthData = [];
+  const fullMonthData = [];
   for (let day = 1; day <= maxDay; day++) {
     const dateStr = `${year}-${String(monthIdx).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
 
@@ -9067,10 +9076,10 @@ async function renderDsrChecker() {
       continue;
     }
 
-    if (existingMap[dateStr]) {
-      monthData.push(existingMap[dateStr]);
+    if (combinedMap[dateStr]) {
+      fullMonthData.push(combinedMap[dateStr]);
     } else {
-      monthData.push({
+      fullMonthData.push({
         date: dateStr,
         prices: { petrol: 113.37, diesel: 98.41 },
         du1_p: { open: 0.0, close_day: 0.0, close_night: 0.0, tests_day: 0, tests_night: 0 },
@@ -9086,29 +9095,41 @@ async function renderDsrChecker() {
     }
   }
 
-  monthData.sort((a, b) => a.date.localeCompare(b.date));
+  fullMonthData.sort((a, b) => a.date.localeCompare(b.date));
+
+  // Run full validation to calculate issues and flags
+  const issues = validateDsrData(fullMonthData);
+  const issueDates = new Set(issues.map(i => i.date));
+
+  // Filter fullMonthData to only display rows that are drafts, placeholders, or have issues
+  const renderedMonthData = fullMonthData.filter(row => {
+    if (row.isPlaceholder) return true; // Keep placeholders
+    const isDraft = draftRows.some(dr => dr.date === row.date);
+    if (isDraft) return true; // Keep drafts
+    const hasIssue = issueDates.has(row.date);
+    if (hasIssue) return true; // Keep production rows with validation issues
+    return false; // Hide clean production rows
+  });
 
   document.getElementById('dsr-summary-month-name').textContent = meta.name;
-  const realCount = data.filter(row => row.date.startsWith(prefix)).length;
-  document.getElementById('dsr-summary-total-days').textContent = `${realCount} days loaded`;
+  const pendingCount = renderedMonthData.filter(row => !row.isPlaceholder).length;
+  document.getElementById('dsr-summary-total-days').textContent = `${pendingCount} issues/drafts pending`;
 
   const tbody = document.getElementById('dsr-review-table-body');
   if (!tbody) return;
   tbody.innerHTML = '';
 
-  if (monthData.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="15" style="text-align:center; color: var(--text-dim); padding: 3rem;">No DSR data available for this month.</td></tr>`;
+  if (renderedMonthData.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="15" style="text-align:center; color: #22c55e; font-weight: 600; padding: 3rem;">🎉 All clean! No pending issues or drafts for this month.</td></tr>`;
     updateDsrSummaryCards(0, 0, []);
     return;
   }
 
-  const issues = validateDsrData(monthData);
-
   let petrolTotalSales = 0;
   let dieselTotalSales = 0;
 
-  monthData.forEach((row, idx) => {
-    const prevRow = idx > 0 ? monthData[idx - 1] : null;
+  renderedMonthData.forEach((row, idx) => {
+    const prevRow = idx > 0 ? renderedMonthData[idx - 1] : null;
 
     const p1_open = row.du1_p.open || 0;
     const p1_close = row.du1_p.close_day || 0;
@@ -9257,16 +9278,20 @@ async function renderDsrChecker() {
 
       <!-- Math Check Status -->
       <td style="padding: 0.5rem; border-bottom: 1px solid var(--border); text-align: center;">
-        ${rowHasError ?
-          `<span class="validation-badge warning" style="background: rgba(234, 179, 8, 0.1); color: #eab308; padding: 2px 6px; border-radius: 4px; font-size: 0.75rem;" title="Discrepancy in calculations, continuity, or variance check">⚠️ Issue</span>` :
-          `<span class="validation-badge success" style="background: rgba(34, 197, 94, 0.1); color: #22c55e; padding: 2px 6px; border-radius: 4px; font-size: 0.75rem;" title="Continuity and mathematical formulas match perfectly">✅ Clean</span>`
+        ${row.isPlaceholder ?
+          `<span style="color: var(--text-dim); font-size: 0.75rem;">Placeholder</span>` :
+          (rowHasError ?
+            `<button class="btn btn-warning btn-xs" style="font-size:0.7rem; padding: 4px 8px; border-radius:4px; font-weight:700; background-color: #d97706; border-color: #d97706; color: #fff; cursor: pointer;" onclick="submitRowToLedger('${row.date}')">⚠️ Submit anyway</button>` :
+            `<button class="btn btn-success btn-xs" style="font-size:0.7rem; padding: 4px 8px; border-radius:4px; font-weight:700; background-color: #22c55e; border-color: #22c55e; color: #fff; cursor: pointer;" onclick="submitRowToLedger('${row.date}')">📩 Submit</button>`
+          )
         }
       </td>
     `;
     tbody.appendChild(tr);
   });
 
-  updateDsrSummaryCards(petrolTotalSales, dieselTotalSales, issues);
+  const filteredIssues = issues.filter(issue => renderedMonthData.some(row => row.date === issue.date));
+  updateDsrSummaryCards(petrolTotalSales, dieselTotalSales, filteredIssues);
 }
 
 window.selectDsrMonth = function(monthKey) {
@@ -9292,19 +9317,26 @@ window.updateDsrCell = function(date, unitKey, fieldKey, rawValue) {
 
   let row = window.dsrDraftData.find(r => r.date === date);
   if (!row) {
-    row = {
-      date: date,
-      prices: { petrol: 113.37, diesel: 98.41 },
-      du1_p: { open: 0.0, close_day: 0.0, close_night: 0.0, tests_day: 0, tests_night: 0 },
-      du2_p: { open: 0.0, close_day: 0.0, close_night: 0.0, tests_day: 0, tests_night: 0 },
-      du1_d: { open: 0.0, close_day: 0.0, close_night: 0.0, tests_day: 0, tests_night: 0 },
-      du2_d: { open: 0.0, close_day: 0.0, close_night: 0.0, tests_day: 0, tests_night: 0 },
-      recon: {},
-      actual_collection: 0.0,
-      dip_ms_cm: 0.0,
-      dip_hsd_cm: 0.0
-    };
-    window.dsrDraftData.push(row);
+    const prodRow = db.daily_ledger.find(r => r.date === date);
+    if (prodRow) {
+      row = JSON.parse(JSON.stringify(prodRow));
+      row.actual_collection = prodRow.recon?.total_collection ?? calculateRowExpectedRev(prodRow);
+      window.dsrDraftData.push(row);
+    } else {
+      row = {
+        date: date,
+        prices: { petrol: 113.37, diesel: 98.41 },
+        du1_p: { open: 0.0, close_day: 0.0, close_night: 0.0, tests_day: 0, tests_night: 0 },
+        du2_p: { open: 0.0, close_day: 0.0, close_night: 0.0, tests_day: 0, tests_night: 0 },
+        du1_d: { open: 0.0, close_day: 0.0, close_night: 0.0, tests_day: 0, tests_night: 0 },
+        du2_d: { open: 0.0, close_day: 0.0, close_night: 0.0, tests_day: 0, tests_night: 0 },
+        recon: {},
+        actual_collection: 0.0,
+        dip_ms_cm: 0.0,
+        dip_hsd_cm: 0.0
+      };
+      window.dsrDraftData.push(row);
+    }
   }
 
   let changed = false;
@@ -9436,6 +9468,76 @@ window.approveAndMergeDsr = function() {
   }
 
   showNotification(`🎉 Successfully merged ${mergeCount} clean DSR entries to the production database. ${dirtyRows.length} entries with issues remain in draft.`, 'success');
+  initApp();
+};
+
+window.submitRowToLedger = function(date) {
+  const row = window.dsrDraftData.find(r => r.date === date);
+  if (!row) {
+    showNotification("⚠️ Cannot submit placeholder or empty row. Please enter some values first.", "warning");
+    return;
+  }
+
+  const session = getSession();
+  const approvedBy = session ? session.username : 'owner';
+  const approvedAt = new Date().toISOString();
+
+  let existingRow = db.daily_ledger.find(r => r.date === row.date);
+  let oldNetP = 0;
+  let oldNetD = 0;
+
+  if (existingRow) {
+    try {
+      const oldCalc = computeLedgerRow(existingRow);
+      oldNetP = oldCalc.totals.net_24h.petrol || 0;
+      oldNetD = oldCalc.totals.net_24h.diesel || 0;
+    } catch(e) {}
+  }
+
+  const newRow = JSON.parse(JSON.stringify(row));
+  const actualColl = newRow.actual_collection !== undefined ? newRow.actual_collection : (calculateRowExpectedRev(newRow));
+  newRow.recon = {
+    cash: actualColl,
+    phonepe: 0,
+    credit: 0,
+    total_collection: actualColl,
+    remarks: 'OCR Digitized DSR'
+  };
+  delete newRow.actual_collection;
+  delete newRow.isPlaceholder;
+
+  newRow._approved_by = approvedBy;
+  newRow._approved_at = approvedAt;
+  newRow._submitted_by = 'ocr';
+
+  try {
+    const newCalc = computeLedgerRow(newRow);
+    const newNetP = newCalc.totals.net_24h.petrol || 0;
+    const newNetD = newCalc.totals.net_24h.diesel || 0;
+
+    db.stock.petrol = Math.max(0, db.stock.petrol + oldNetP - newNetP);
+    db.stock.diesel = Math.max(0, db.stock.diesel + oldNetD - newNetD);
+  } catch(e) {}
+
+  if (existingRow) {
+    const idx = db.daily_ledger.indexOf(existingRow);
+    db.daily_ledger[idx] = newRow;
+  } else {
+    db.daily_ledger.push(newRow);
+  }
+
+  db.daily_ledger.sort((a, b) => b.date.localeCompare(a.date));
+  saveDB();
+
+  // Remove this row from draft data staging
+  window.dsrDraftData = window.dsrDraftData.filter(r => r.date !== date);
+  if (window.dsrDraftData.length === 0) {
+    localStorage.removeItem('octaneflow_dsr_draft_edits');
+  } else {
+    localStorage.setItem('octaneflow_dsr_draft_edits', JSON.stringify(window.dsrDraftData));
+  }
+
+  showNotification(`🎉 Successfully submitted DSR entry for ${formatDate(date)} to sales ledger.`, 'success');
   initApp();
 };
 
