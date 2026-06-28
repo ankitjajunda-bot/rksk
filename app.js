@@ -8736,6 +8736,23 @@ function dipToLiters(dipCm, maxCapacity, maxDipCm) {
   }
 }
 
+function litersToDip(liters, maxCapacity, maxDipCm) {
+  if (liters <= 0) return 0;
+  if (liters >= maxCapacity) return maxDipCm;
+  let low = 0;
+  let high = maxDipCm;
+  for (let iter = 0; iter < 20; iter++) {
+    const mid = (low + high) / 2;
+    const vol = dipToLiters(mid, maxCapacity, maxDipCm);
+    if (vol < liters) {
+      low = mid;
+    } else {
+      high = mid;
+    }
+  }
+  return (low + high) / 2;
+}
+
 function getDailyDeliveries(dateStr) {
   let ms = 0;
   let hsd = 0;
@@ -8838,6 +8855,8 @@ function validateDsrData(data) {
     row.phys_hsd = phys_hsd;
     row.book_ms = book_ms;
     row.book_hsd = book_hsd;
+    row.exp_dip_ms = litersToDip(book_ms, max_cap_ms, max_dip_ms);
+    row.exp_dip_hsd = litersToDip(book_hsd, max_cap_hsd, max_dip_hsd);
     row.var_ms = var_ms;
     row.var_hsd = var_hsd;
 
@@ -9264,7 +9283,7 @@ async function renderDsrChecker() {
       <td style="padding: 0.5rem; border-bottom: 1px solid var(--border); text-align: right; color: var(--text-muted); font-size: 0.75rem; background: rgba(16, 185, 129, 0.02);" class="col-petrol">
         ${(row.phys_ms || 0).toFixed(0)} L
       </td>
-      <td style="padding: 0.5rem; border-bottom: 1px solid var(--border); text-align: right; font-weight: 700; color: ${Math.abs(row.var_ms || 0) > (p_sales * 0.005) ? '#ef4444' : '#10b981'}; background: rgba(16, 185, 129, 0.02);" class="col-petrol" title="Book Stock: ${(row.book_ms || 0).toFixed(0)} L | Physical Stock: ${(row.phys_ms || 0).toFixed(0)} L${deliv.ms_shortage > 0 ? ' | Tanker Shortage: -' + deliv.ms_shortage.toFixed(0) + ' L' : ''}">
+      <td style="padding: 0.5rem; border-bottom: 1px solid var(--border); text-align: right; font-weight: 700; color: ${Math.abs(row.var_ms || 0) > (p_sales * 0.005) ? '#ef4444' : '#10b981'}; background: rgba(16, 185, 129, 0.02);" class="col-petrol" title="Book Stock (Expected): ${(row.book_ms || 0).toFixed(0)} L (Dip: ${(row.exp_dip_ms || 0).toFixed(1)} cm) | Physical Stock (Actual): ${(row.phys_ms || 0).toFixed(0)} L (Dip: ${(row.dip_ms_cm || 0).toFixed(1)} cm)${deliv.ms_shortage > 0 ? ' | Tanker Shortage: -' + deliv.ms_shortage.toFixed(0) + ' L' : ''}">
         ${(row.var_ms || 0) >= 0 ? '+' : ''}${(row.var_ms || 0).toFixed(0)} L${deliv.ms_shortage > 0 ? ' <small style="color:#f87171;font-weight:normal;" title="Tanker delivery shortfall of ' + deliv.ms_shortage.toFixed(0) + ' L detected via density check">⚠️</small>' : ''}
       </td>
 
@@ -9295,7 +9314,7 @@ async function renderDsrChecker() {
       <td style="padding: 0.5rem; border-bottom: 1px solid var(--border); text-align: right; color: var(--text-muted); font-size: 0.75rem; background: rgba(245, 158, 11, 0.02);" class="col-diesel">
         ${(row.phys_hsd || 0).toFixed(0)} L
       </td>
-      <td style="padding: 0.5rem; border-bottom: 1px solid var(--border); text-align: right; font-weight: 700; color: ${Math.abs(row.var_hsd || 0) > (d_sales * 0.005) ? '#ef4444' : '#10b981'}; background: rgba(245, 158, 11, 0.02);" class="col-diesel" title="Book Stock: ${(row.book_hsd || 0).toFixed(0)} L | Physical Stock: ${(row.phys_hsd || 0).toFixed(0)} L${deliv.hsd_shortage > 0 ? ' | Tanker Shortage: -' + deliv.hsd_shortage.toFixed(0) + ' L' : ''}">
+      <td style="padding: 0.5rem; border-bottom: 1px solid var(--border); text-align: right; font-weight: 700; color: ${Math.abs(row.var_hsd || 0) > (d_sales * 0.005) ? '#ef4444' : '#10b981'}; background: rgba(245, 158, 11, 0.02);" class="col-diesel" title="Book Stock (Expected): ${(row.book_hsd || 0).toFixed(0)} L (Dip: ${(row.exp_dip_hsd || 0).toFixed(1)} cm) | Physical Stock (Actual): ${(row.phys_hsd || 0).toFixed(0)} L (Dip: ${(row.dip_hsd_cm || 0).toFixed(1)} cm)${deliv.hsd_shortage > 0 ? ' | Tanker Shortage: -' + deliv.hsd_shortage.toFixed(0) + ' L' : ''}">
         ${(row.var_hsd || 0) >= 0 ? '+' : ''}${(row.var_hsd || 0).toFixed(0)} L${deliv.hsd_shortage > 0 ? ' <small style="color:#f87171;font-weight:normal;" title="Tanker delivery shortfall of ' + deliv.hsd_shortage.toFixed(0) + ' L detected via density check">⚠️</small>' : ''}
       </td>
 
