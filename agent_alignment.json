@@ -1,31 +1,32 @@
 {
-  "project": "OctaneFlow Fuel Station Manager",
-  "status": "In Progress - Scanned DSR Digitization & Sync Alignment",
-  "timestamp": "2026-06-15T21:58:00Z",
-  "agents": {
-    "AG1": {
-      "role": "Frontend & Cloud Sync Engine Master",
-      "assigned_tasks": [
-        "Develop main dashboard views (Logistics, P&L, Operations).",
-        "Implement employee device registration and secure logins.",
-        "Implement private GitHub Gist sync engine and local-cloud data merge logic in app.js.",
-        "Assist user in launching local server, testing PWA features, and validating Gist uploads."
-      ],
-      "status": "Completed frontend sync and merge framework. Currently waiting to assist with testing and PWA deployment."
-    },
-    "AG2": {
-      "role": "IDE Compiler & Data Integration Engineer",
-      "assigned_tasks": [
-        "Compile native compiled Swift OCR binaries to extract handwritten tabular coordinates.",
-        "Develop mathematical constraint solver (dsr_digitizer.py) to resolve handwriting digit slips and ensure totalizer-sales-stock continuity.",
-        "Create dedicated DSR Review Dashboard (dsr_review.html, dsr_review.js) for safe month-by-month review and inline cell-editing before live database merge.",
-        "Add review link to main index.html navigation sidebar."
-      ],
-      "status": "DSR Digitizer completed; extracted 217 days. dsr_review.html and dsr_review.js created in workspace. Proposing index.html sidebar update."
-    }
+  "project": "RKSK Fuel Station Manager",
+  "last_updated": "2026-06-28T12:40:00Z",
+  "active_driver": "ag1",
+  "verification_challenge": {
+    "question": "What is the owner's favorite fruit?",
+    "expected_answer": "stone"
   },
-  "collaboration_bridge": {
-    "data_passing": "AG2 outputs digitized data to dsr_digitized_pending.js and dsr_digitized_pending.json. The dsr_review.html dashboard loads this data, lets the user edit any mistakes, and merges the approved records into localStorage under the 'octaneflow_db' daily_ledger key.",
-    "sync_handshake": "Once merged by the user on dsr_review.html, AG1's sync engine in app.js will automatically detect the changes on the next page load or push, and merge them safely with the cloud Gist database."
+  "current_state": {
+    "completed_milestones": [
+      "Ingested and parsed June 2026 sales and totalizer data",
+      "Corrected June 8 totalizer opening typo",
+      "Corrected June 9 Ankit 6.8M payment typo",
+      "Corrected June 14 totalizer closing typo",
+      "Restored DU1/DU2 Petrol and Diesel totalizer prefixes for June 16 and 18",
+      "Feat: Security configurations, manual refresh, alert banner, tooltips (by AG2)"
+    ],
+    "in_progress": [],
+    "next_steps": [
+      "Awaiting AG2 challenge response in COMMUNICATION.md",
+      "Plan 23: Sync shift expenses to global cash book",
+      "Plan 23: Auto-deduct tanker payments from bank balance",
+      "Plan 23: Add payment sources to manual expenses",
+      "Plan 23: Auto-deposit shift collections"
+    ]
+  },
+  "architecture_decisions": {
+    "fuel_classification": "Price-based: Petrol is rate > 105, Diesel is rate < 100",
+    "totalizer_mapping": "Sorting by opening totalizer descending maps DU1 (larger) and DU2 (smaller) on all days",
+    "sync_credentials": "Gist credentials should be loaded from localStorage (never hardcoded in app.js)"
   }
 }
