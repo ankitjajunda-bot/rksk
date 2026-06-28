@@ -3229,18 +3229,24 @@ function renderLedger() {
     const dateStr = row.date;
     const phys = (typeof DSR_PHYSICAL_STOCK_DATA !== 'undefined') ? DSR_PHYSICAL_STOCK_DATA[dateStr] : null;
     
-    if (phys) {
+    // Prioritize bank-verified supply invoices
+    let p_bill_supply = 0;
+    let d_bill_supply = 0;
+    if (typeof SUPPLY_BILLS_DATA !== 'undefined') {
+      const daySupplies = SUPPLY_BILLS_DATA.filter(s => s.invoice_date_iso === dateStr);
+      daySupplies.forEach(s => {
+        const qty = (s.quantity_kl || 0) * 1000;
+        if (s.product === 'Petrol') p_bill_supply += qty;
+        else if (s.product === 'Diesel') d_bill_supply += qty;
+      });
+    }
+
+    if (p_bill_supply > 0 || d_bill_supply > 0) {
+      p_supply = p_bill_supply;
+      d_supply = d_bill_supply;
+    } else if (phys) {
       p_supply = phys.petrol_receipt || 0;
       d_supply = phys.diesel_receipt || 0;
-    } else {
-      if (typeof SUPPLY_BILLS_DATA !== 'undefined') {
-        const daySupplies = SUPPLY_BILLS_DATA.filter(s => s.invoice_date_iso === dateStr);
-        daySupplies.forEach(s => {
-          const qty = (s.quantity_kl || 0) * 1000;
-          if (s.product === 'Petrol') p_supply += qty;
-          else if (s.product === 'Diesel') d_supply += qty;
-        });
-      }
     }
 
     // Plan 21: Truck capacity safeguard. Total supply cannot exceed 12,000 L (12 KL).
@@ -8735,7 +8741,19 @@ function getDailyDeliveries(dateStr) {
   let hsd = 0;
   let ms_shortage = 0;
   let hsd_shortage = 0;
-  if (db && db.purchases) {
+  
+  // Prioritize bank-verified supply invoices
+  if (typeof SUPPLY_BILLS_DATA !== 'undefined') {
+    const daySupplies = SUPPLY_BILLS_DATA.filter(s => s.invoice_date_iso === dateStr);
+    daySupplies.forEach(s => {
+      const qty = (s.quantity_kl || 0) * 1000;
+      if (s.product === 'Petrol') ms += qty;
+      else if (s.product === 'Diesel') hsd += qty;
+    });
+  }
+  
+  // Fallback to active DB purchases array if no supply invoices found
+  if (ms === 0 && hsd === 0 && db && db.purchases) {
     db.purchases.forEach(p => {
       const pDate = p.date ? p.date.split('T')[0] : '';
       if (pDate === dateStr) {
