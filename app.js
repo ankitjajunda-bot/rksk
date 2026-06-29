@@ -3595,7 +3595,7 @@ function renderLedger() {
                 No readings entered yet${stkEstHtml}
               </td>
               <td class="sticky-col-right">
-                <button class="btn btn-primary btn-sm" onclick="switchView('dsr')" style="padding: 0.25rem 0.5rem; font-size:0.72rem;">Enter Data</button>
+                <button class="btn btn-primary btn-sm" onclick="openLogReadingsModal('${row.date}')" style="padding: 0.25rem 0.5rem; font-size:0.72rem;">Enter Data</button>
               </td>
             </tr>
           `;
@@ -3805,7 +3805,7 @@ function renderLedger() {
                 No readings entered yet${stkEstHtml}
               </td>
               <td class="sticky-col-right">
-                <button class="btn btn-primary btn-sm" onclick="switchView('dsr')" style="padding: 0.25rem 0.5rem; font-size:0.72rem;">Enter Data</button>
+                <button class="btn btn-primary btn-sm" onclick="openLogReadingsModal('${row.date}')" style="padding: 0.25rem 0.5rem; font-size:0.72rem;">Enter Data</button>
               </td>
             </tr>
           `;
@@ -4953,14 +4953,18 @@ function renderSettings() {
 // -------------------------------------------------------------
 // EVENT HANDLERS & MODALS
 // -------------------------------------------------------------
-function openLogReadingsModal() {
-  // Set date field to today
-  document.getElementById('ledger-date').value = new Date().toISOString().split('T')[0];
-  document.getElementById('log-readings-modal-title').textContent = "Log Daily Totalizer Readings";
+function openLogReadingsModal(targetDate) {
+  // Use targetDate if provided, otherwise default to current IST date
+  const nowIST = new Date(Date.now() + (5.5 * 60 * 60 * 1000));
+  const defaultDate = nowIST.toISOString().split('T')[0];
+  const activeDate = targetDate || defaultDate;
+
+  document.getElementById('ledger-date').value = activeDate;
+  document.getElementById('log-readings-modal-title').textContent = `Log Daily Totalizer Readings for ${formatDate(activeDate)}`;
 
   // Clear form fields
   document.getElementById('log-readings-form').reset();
-  document.getElementById('ledger-date').value = new Date().toISOString().split('T')[0];
+  document.getElementById('ledger-date').value = activeDate;
   const remarksEl = document.getElementById('ledger-remarks');
   if (remarksEl) remarksEl.value = '';
 
@@ -5369,8 +5373,13 @@ document.getElementById('log-readings-form').addEventListener('submit', (e) => {
 
   const getFormData = (prefix) => {
     const open = parseFloat(document.getElementById(`${prefix}_open`).value) || 0;
-    const close_day = parseFloat(document.getElementById(`${prefix}_close_day`).value) || 0;
-    const close_night = parseFloat(document.getElementById(`${prefix}_close_night`).value) || 0;
+    const close_day_raw = document.getElementById(`${prefix}_close_day`).value.trim();
+    const close_night_raw = document.getElementById(`${prefix}_close_night`).value.trim();
+
+    // If empty (e.g. in the morning), default closing to opening so sales are calculated as 0
+    const close_day = close_day_raw === '' ? open : (parseFloat(close_day_raw) || 0);
+    const close_night = close_night_raw === '' ? close_day : (parseFloat(close_night_raw) || 0);
+
     return {
       open,
       close_day,
@@ -5411,6 +5420,7 @@ document.getElementById('log-readings-form').addEventListener('submit', (e) => {
   const pDipVal = document.getElementById('ledger_p_dip_override').value.trim();
   const dDipVal = document.getElementById('ledger_d_dip_override').value.trim();
 
+  const existingRow = db.daily_ledger.find(row => row.date === date);
   const ledgerEntry = { 
     date, 
     prices: { petrol: prices.petrol, diesel: prices.diesel }, 
@@ -5419,7 +5429,9 @@ document.getElementById('log-readings-form').addEventListener('submit', (e) => {
     du2_p, 
     du2_d, 
     feedback: remarks,
-    expenses: tempModalExpenses
+    expenses: tempModalExpenses,
+    createdAt: existingRow?.createdAt || new Date().toISOString(),
+    updatedAt: new Date().toISOString()
   };
 
   if (pDipVal !== '') {
