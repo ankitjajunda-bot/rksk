@@ -160,7 +160,7 @@ async function syncPush() {
   const cfg = getSyncCfg();
   if (!cfg.gistId || !cfg.gistToken) {
     SystemLogger.warning('syncPush', 'Sync push skipped: GitHub Gist credentials are not configured.');
-    return;
+    return false;
   }
   SystemLogger.info('syncPush', 'Starting cloud push & synchronization...');
   try {
@@ -243,14 +243,17 @@ async function syncPush() {
       localStorage.setItem('octaneflow_last_sync', cfg2.last_push);
       setSyncStatus('synced');
       SystemLogger.success('syncPush', 'Cloud push completed successfully. Cloud database updated.');
+      return true;
     } else {
       setSyncStatus('error');
       SystemLogger.error('syncPush', `Cloud push failed: GitHub API returned status ${res.status} ${res.statusText}`);
+      return false;
     }
   } catch (err) {
     const isOnline = navigator.onLine;
     setSyncStatus(isOnline ? 'error' : 'offline');
     SystemLogger.error('syncPush', `Cloud push failed due to network exception. Device is ${isOnline ? 'Online' : 'Offline'}.`, err);
+    return false;
   }
 }
 
@@ -1349,37 +1352,55 @@ async function submitEmployeeReading(session) {
 
 
 
+  const submitBtn = document.getElementById('emp-submit-btn');
+  const originalText = submitBtn ? submitBtn.innerHTML : 'Submit Shift Readings';
+  if (submitBtn) {
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = `⌛ Syncing to Cloud...`;
+  }
+
   if (!db.pending_entries) db.pending_entries = [];
   db.pending_entries.push(entry);
   buildIndexes(); // Keep in-memory index current
-  saveDB(true);
-
+  
   const typeLabel = submissionType === 'opening' ? 'Opening Reading' : submissionType === 'snapshot' ? 'Mid-Shift Snapshot' : 'Closing Reading';
-  showNotification(`✅ ${typeLabel} submitted! Owner can see it under Operations → Approve Shifts.`, 'success');
 
-  // Clear numeric form inputs
-  ['emp-du1p-open','emp-du1p-close','emp-du1p-tests',
-   'emp-du1d-open','emp-du1d-close','emp-du1d-tests',
-   'emp-du2p-open','emp-du2p-close','emp-du2p-tests',
-   'emp-du2d-open','emp-du2d-close','emp-du2d-tests',
-   'emp-cash','emp-card','emp-remarks',
-   'emp-pp-open','emp-pp-midnight','emp-pp-close']
-    .forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+  saveDB(true).then(success => {
+    if (submitBtn) {
+      submitBtn.disabled = false;
+      submitBtn.innerHTML = originalText;
+    }
+    if (success) {
+      showNotification(`✅ ${typeLabel} submitted and synced to cloud! Owner can see it under Operations → Approve Shifts.`, 'success');
+      
+      // Clear numeric form inputs
+      ['emp-du1p-open','emp-du1p-close','emp-du1p-tests',
+       'emp-du1d-open','emp-du1d-close','emp-du1d-tests',
+       'emp-du2p-open','emp-du2p-close','emp-du2p-tests',
+       'emp-du2d-open','emp-du2d-close','emp-du2d-tests',
+       'emp-cash','emp-card','emp-remarks',
+       'emp-pp-open','emp-pp-midnight','emp-pp-close']
+        .forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
 
-  // Hide live calc previews after submit
-  ['calc-du1p','calc-du1d','calc-du2p','calc-du2d','emp-live-totals','pp-delta-preview']
-    .forEach(id => { const el = document.getElementById(id); if (el) el.style.display = 'none'; });
+      // Hide live calc previews after submit
+      ['calc-du1p','calc-du1d','calc-du2p','calc-du2d','emp-live-totals','pp-delta-preview']
+        .forEach(id => { const el = document.getElementById(id); if (el) el.style.display = 'none'; });
 
-  // Reset date selectors to today
-  const today = new Date();
-  const dEl = document.getElementById('emp-date-day');
-  const mEl = document.getElementById('emp-date-month');
-  const yEl = document.getElementById('emp-date-year');
-  if (dEl) dEl.value = today.getDate();
-  if (mEl) mEl.value = today.getMonth() + 1;
-  if (yEl) yEl.value = today.getFullYear();
-
-  renderEmployeeView(session);
+      // Reset date selectors to today
+      const today = new Date();
+      const dEl = document.getElementById('emp-date-day');
+      const mEl = document.getElementById('emp-date-month');
+      const yEl = document.getElementById('emp-date-year');
+      if (dEl) dEl.value = today.getDate();
+      if (mEl) mEl.value = today.getMonth() + 1;
+      if (yEl) yEl.value = today.getFullYear();
+      
+      renderEmployeeView(session);
+    } else {
+      showNotification(`⚠️ Saved locally, but cloud sync is pending. We will automatically retry in the background.`, 'warning');
+      renderEmployeeView(session);
+    }
+  });
 }
 
 // ── Owner: Approvals Panel ─────────────────────────────────
@@ -1479,27 +1500,14 @@ function bulkApproveEntries(groupId) {
 }
 
 function refreshApprovalsPanel() {
-  // Pull latest from cloud then re-render
-  const cfg = getSyncCfg();
-  if (cfg.gistId && cfg.gistToken) {
-    const refreshBtn = document.getElementById('approvals-refresh-btn');
-    if (refreshBtn) { refreshBtn.textContent = '🔄 Refreshing...'; refreshBtn.disabled = true; }
-    syncPull().then(cloudData => {
-      if (cloudData) {
-        // Merge pending entries from cloud
-        const localPending = db.pending_entries || [];
-        const cloudPending = cloudData.pending_entries || [];
-        const merged = [...cloudPending];
-        localPending.forEach(lp => { if (!merged.some(cp => cp.id === lp.id)) merged.push(lp); });
-        db.pending_entries = merged;
-        buildIndexes();
-        localStorage.setItem('octaneflow_db', JSON.stringify(db));
-      }
-      renderApprovalsPanel();
-    }).catch(() => renderApprovalsPanel());
-  } else {
+  const refreshBtn = document.getElementById('approvals-refresh-btn');
+  if (refreshBtn) { refreshBtn.textContent = '🔄 Refreshing...'; refreshBtn.disabled = true; }
+  initSync().then(() => {
+    buildIndexes();
     renderApprovalsPanel();
-  }
+  }).catch(() => {
+    renderApprovalsPanel();
+  });
 }
 
 function buildLiveShiftStatus() {
@@ -2480,9 +2488,10 @@ function saveDB(immediate = false) {
   // Auto-push to cloud on every save (debounced 2s to avoid hammering API, or immediate)
   clearTimeout(saveDB._pushTimer);
   if (immediate) {
-    syncPush();
+    return syncPush();
   } else {
     saveDB._pushTimer = setTimeout(() => syncPush(), 2000);
+    return Promise.resolve(true);
   }
 }
 
@@ -6688,7 +6697,7 @@ window.addEventListener('DOMContentLoaded', () => {
         }
       }).catch(() => {});
     }
-  }, 15000);
+  }, 8000);
 });
 
 
