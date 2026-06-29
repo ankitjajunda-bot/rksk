@@ -1102,9 +1102,33 @@ function initEmployeeDatePicker() {
   yearEl.value = today.getFullYear();
 }
 
+function updateEmpSubmissionTypeView() {
+  const type = document.getElementById('emp-submission-type')?.value;
+  const nozzleSection = document.getElementById('emp-nozzle-section');
+  const phonepeSection = document.getElementById('emp-phonepe-section');
+  const cashSection = document.getElementById('emp-cash-section');
+  const depositSection = document.getElementById('emp-deposit-section');
+  const liveTotals = document.getElementById('emp-live-totals');
+
+  if (type === 'deposit') {
+    if (nozzleSection) nozzleSection.style.display = 'none';
+    if (phonepeSection) phonepeSection.style.display = 'none';
+    if (cashSection) cashSection.style.display = 'none';
+    if (liveTotals) liveTotals.style.display = 'none';
+    if (depositSection) depositSection.style.display = 'flex';
+  } else {
+    if (nozzleSection) nozzleSection.style.display = 'flex';
+    if (phonepeSection) phonepeSection.style.display = 'flex';
+    if (cashSection) cashSection.style.display = 'flex';
+    if (depositSection) depositSection.style.display = 'none';
+    updateEmpLiveCalc();
+  }
+}
+
 // ── Employee: Submit Reading form ──────────────────────────
 // Shows hint text under each opening field instead of pre-filling the value
 function updateEmpOpeningHints() {
+  updateEmpSubmissionTypeView();
   const dayVal   = document.getElementById('emp-date-day')?.value;
   const monthVal = document.getElementById('emp-date-month')?.value;
   const yearVal  = document.getElementById('emp-date-year')?.value;
@@ -1377,6 +1401,65 @@ async function submitEmployeeReading(session) {
   }
 
   const shift = document.getElementById('emp-shift')?.value || 'day';
+  const submissionType = document.getElementById('emp-submission-type')?.value || 'closing';
+
+  if (submissionType === 'deposit') {
+    const depositAmount = val('emp-deposit-amount');
+    if (depositAmount <= 0) {
+      showNotification('⚠️ Validation Error: Please enter a valid deposit amount.', 'danger');
+      return;
+    }
+    if (!confirm(`Are you sure you want to submit a Cash Deposit of ₹${depositAmount.toLocaleString('en-IN')}?`)) {
+      return;
+    }
+    
+    const entry = {
+      id: `pe_${Date.now()}`,
+      submittedBy: session.username, submittedByName: session.displayName,
+      submittedAt: new Date().toISOString(), deviceId: getDeviceId(),
+      status: 'pending',
+      submission_type: 'deposit',
+      entryData: {
+        date, shift,
+        deposit_amount: depositAmount,
+        remarks: document.getElementById('emp-remarks')?.value?.trim() || ''
+      },
+      rejectionReason: '', reviewedBy: '', reviewedAt: '',
+      _dirty: true
+    };
+
+    const submitBtn = document.getElementById('emp-submit-btn');
+    const originalText = submitBtn ? submitBtn.innerHTML : 'Submit Shift Readings';
+    if (submitBtn) {
+      submitBtn.disabled = true;
+      submitBtn.innerHTML = `⌛ Syncing to Cloud...`;
+    }
+
+    if (!db.pending_entries) db.pending_entries = [];
+    db.pending_entries.push(entry);
+    buildIndexes();
+
+    saveDB(true).then(success => {
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = originalText;
+      }
+      if (success) {
+        showNotification(`✅ Office Cash Deposit of ₹${depositAmount.toLocaleString('en-IN')} submitted and synced to cloud!`, 'success');
+        
+        ['emp-deposit-amount', 'emp-remarks'].forEach(id => {
+          const el = document.getElementById(id);
+          if (el) el.value = '';
+        });
+        
+        renderEmployeeView(session);
+      } else {
+        showNotification(`⚠️ Saved locally, but cloud sync is pending. We will automatically retry in the background.`, 'warning');
+        renderEmployeeView(session);
+      }
+    });
+    return;
+  }
 
   // 1. Math Validations (Strict Errors, only run validation checks on fields that are filled)
   const checkNozzle = (prefix, label) => {
@@ -1563,7 +1646,8 @@ async function submitEmployeeReading(session) {
        'emp-du2p-open','emp-du2p-close','emp-du2p-tests',
        'emp-du2d-open','emp-du2d-close','emp-du2d-tests',
        'emp-cash','emp-card','emp-remarks',
-       'emp-pp-open','emp-pp-midnight','emp-pp-close']
+       'emp-pp-open','emp-pp-midnight','emp-pp-close',
+       'emp-deposit-amount']
         .forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
 
       // Hide live calc previews after submit
@@ -1633,15 +1717,19 @@ function updateGroupCalculations(groupId) {
       const ed = entry.entryData;
       const shift = ed.shift;
 
-      const p1 = calculateNozzleSale(ed.du1_p, shift);
-      const d1 = calculateNozzleSale(ed.du1_d, shift);
-      const p2 = calculateNozzleSale(ed.du2_p, shift);
-      const d2 = calculateNozzleSale(ed.du2_d, shift);
+      if (entry.submission_type === 'deposit') {
+        totalCash += (ed.deposit_amount || 0);
+      } else {
+        const p1 = calculateNozzleSale(ed.du1_p, shift);
+        const d1 = calculateNozzleSale(ed.du1_d, shift);
+        const p2 = calculateNozzleSale(ed.du2_p, shift);
+        const d2 = calculateNozzleSale(ed.du2_d, shift);
 
-      totalPetrol += (p1 + p2);
-      totalDiesel += (d1 + d2);
-      totalCash += (ed.cash_sales || 0);
-      totalCard += (ed.card_sales || 0);
+        totalPetrol += (p1 + p2);
+        totalDiesel += (d1 + d2);
+        totalCash += (ed.cash_sales || 0);
+        totalCard += (ed.card_sales || 0);
+      }
     }
   });
 
@@ -1845,6 +1933,43 @@ function renderApprovalsPanel() {
               const ed = entry.entryData;
               const shift = ed.shift;
 
+              if (entry.submission_type === 'deposit') {
+                const depositAmount = ed.deposit_amount || 0;
+                return `
+                  <div style="background:#0f111a; border:1px solid #22c55e; border-left: 3px solid #22c55e; border-radius:0.75rem; padding:1rem; display:flex; gap:0.75rem;">
+                    <!-- Checkbox Column -->
+                    <div style="display:flex; align-items:flex-start; padding-top:0.25rem;">
+                      <input type="checkbox" class="bulk-select-${groupId}" value="${entry.id}" onchange="updateGroupCalculations('${groupId}')" style="transform: scale(1.15); cursor:pointer;">
+                    </div>
+
+                    <!-- Details Column -->
+                    <div style="flex:1; display:flex; flex-direction:column; gap:0.6rem;">
+                      <div style="display:flex; justify-content:space-between; flex-wrap:wrap; gap:0.25rem;">
+                        <div>
+                          <strong style="font-size:0.88rem; color:#fff;">${ed.date} · ${shift === 'day' ? '☀️ Day Shift' : '🌙 Night Shift'}</strong>
+                          <span style="font-size:0.72rem; color:#64748b; margin-left:0.5rem;">by ${entry.submittedByName}</span>
+                          <span style="font-size:0.68rem; background:rgba(34,197,94,0.15); color:#86efac; border:1px solid rgba(34,197,94,0.3); border-radius:3px; padding:0.05rem 0.3rem; margin-left:0.25rem;">💰 Cash Deposit</span>
+                        </div>
+                        <span style="font-size:0.7rem; color:#94a3b8; font-family:monospace;">${entry.submittedAt.replace('T',' ').slice(11,16)}</span>
+                      </div>
+
+                      <div style="background:rgba(34,197,94,0.05); border:1px dashed rgba(34,197,94,0.3); border-radius:0.5rem; padding:0.75rem; display:flex; align-items:center; justify-content:space-between;">
+                        <span style="font-size:0.85rem; color:#94a3b8; font-weight:600;">Office Cash Deposited</span>
+                        <strong style="font-size:1.2rem; color:#22c55e;">₹ ${depositAmount.toLocaleString('en-IN')}</strong>
+                      </div>
+
+                      ${ed.remarks ? `<div style="font-size:0.75rem; color:#94a3b8; background:rgba(255,255,255,0.02); border-left:2px solid #22c55e; padding:0.35rem 0.6rem; border-radius:4px;">📝 <strong style="color:#f8fafc;">Note:</strong> ${ed.remarks}</div>` : ''}
+
+                      <!-- Actions -->
+                      <div style="display:flex; gap:0.5rem; justify-content:flex-end; flex-wrap:wrap; margin-top:0.25rem;">
+                        <button onclick="approveEntry('${entry.id}')" style="background:#22c55e; color:#fff; border:none; border-radius:0.4rem; padding:0.4rem 0.8rem; font-size:0.75rem; font-weight:700; cursor:pointer;">✅ Approve & Credit Cash</button>
+                        <button onclick="promptRejectEntry('${entry.id}')" style="background:#ef4444; color:#fff; border:none; border-radius:0.4rem; padding:0.4rem 0.8rem; font-size:0.75rem; font-weight:700; cursor:pointer;">❌ Reject</button>
+                      </div>
+                    </div>
+                  </div>
+                `;
+              }
+
               // Calculate nozzle sales
               const du1_p_open = ed.du1_p?.open || 0;
               const du1_p_close = shift === 'day' ? (ed.du1_p?.close_day || 0) : (ed.du1_p?.close_night || 0);
@@ -1977,6 +2102,19 @@ function renderApprovalsPanel() {
                       ${ed.manual_prices ? ' <span style="color:#f97316;font-size:0.65rem;">⚠️ Manual prices used</span>' : ''}
                     </div>` : ''}
 
+                    ${(function() {
+                      const ledgerDay = db.daily_ledger.find(r => r.date === ed.date);
+                      const depositsApproved = (ledgerDay?.recon?.deposits || []).reduce((sum, d) => sum + d.amount, 0);
+                      if (depositsApproved > 0) {
+                        return `
+                          <div style="font-size:0.72rem;color:#22c55e;background:rgba(34,197,94,0.05);border:1px solid rgba(34,197,94,0.1);border-radius:4px;padding:0.35rem 0.5rem;margin-top:0.25rem;">
+                            💰 Approved Office Deposits today: <strong style="color:#86efac;">₹${depositsApproved.toLocaleString('en-IN')}</strong>
+                          </div>
+                        `;
+                      }
+                      return '';
+                    })()}
+
                     ${ed.remarks ? `<div style="font-size:0.75rem; color:#94a3b8; background:rgba(255,255,255,0.02); border-left:2px solid var(--primary); padding:0.35rem 0.6rem; border-radius:4px;">📝 <strong style="color:#f8fafc;">Note:</strong> ${ed.remarks}</div>` : ''}
 
                     <!-- Actions -->
@@ -2043,13 +2181,15 @@ function approveEntry(entryId, skipRender = false) {
 
   if (row) {
     row._dirty = true;
-    // Record old sales values for stock reconciliation
-    try {
-      const oldCalc = computeLedgerRow(row);
-      oldNetP = oldCalc.totals.net_24h.petrol || 0;
-      oldNetD = oldCalc.totals.net_24h.diesel || 0;
-    } catch (err) {
-      console.warn('[Approval] Failed to compute old ledger row sales: ', err);
+    if (entry.submission_type !== 'deposit') {
+      // Record old sales values for stock reconciliation
+      try {
+        const oldCalc = computeLedgerRow(row);
+        oldNetP = oldCalc.totals.net_24h.petrol || 0;
+        oldNetD = oldCalc.totals.net_24h.diesel || 0;
+      } catch (err) {
+        console.warn('[Approval] Failed to compute old ledger row sales: ', err);
+      }
     }
   } else {
     // Determine selling prices for the date
@@ -2067,39 +2207,60 @@ function approveEntry(entryId, skipRender = false) {
     db.daily_ledger.push(row);
   }
 
-  // Merge nozzle values based on shift
-  if (ed.shift === 'day') {
-    for (const nozzle of ['du1_p', 'du1_d', 'du2_p', 'du2_d']) {
-      row[nozzle].open = ed[nozzle].open || 0;
-      row[nozzle].close_day = ed[nozzle].close_day || 0;
-      row[nozzle].tests_day = ed[nozzle].tests_day || 0;
-      if (!row[nozzle].close_night || row[nozzle].close_night === 0) {
-        row[nozzle].close_night = ed[nozzle].close_day || 0;
-      }
+  if (entry.submission_type === 'deposit') {
+    row.recon.cash = (row.recon.cash || 0) + (ed.deposit_amount || 0);
+    row.recon.total_collection = (row.recon.cash || 0) + (row.recon.phonepe || 0) + (row.recon.credit || 0);
+
+    if (!row.recon.deposits) row.recon.deposits = [];
+    row.recon.deposits.push({
+      id: entry.id,
+      submitted_by: entry.submittedBy,
+      submitted_by_name: entry.submittedByName,
+      submitted_at: entry.submittedAt,
+      amount: ed.deposit_amount,
+      remarks: ed.remarks || ''
+    });
+
+    if (ed.remarks) {
+      row.recon.remarks = row.recon.remarks
+        ? `${row.recon.remarks} | Deposit: ${ed.remarks}`
+        : `Deposit: ${ed.remarks}`;
     }
   } else {
-    // shift === 'night'
-    for (const nozzle of ['du1_p', 'du1_d', 'du2_p', 'du2_d']) {
-      row[nozzle].close_night = ed[nozzle].close_night || 0;
-      row[nozzle].tests_night = ed[nozzle].tests_night || 0;
-      if (!row[nozzle].close_day || row[nozzle].close_day === 0) {
-        row[nozzle].close_day = ed[nozzle].open || 0;
-      }
-      if (!row[nozzle].open || row[nozzle].open === 0) {
+    // Merge nozzle values based on shift
+    if (ed.shift === 'day') {
+      for (const nozzle of ['du1_p', 'du1_d', 'du2_p', 'du2_d']) {
         row[nozzle].open = ed[nozzle].open || 0;
+        row[nozzle].close_day = ed[nozzle].close_day || 0;
+        row[nozzle].tests_day = ed[nozzle].tests_day || 0;
+        if (!row[nozzle].close_night || row[nozzle].close_night === 0) {
+          row[nozzle].close_night = ed[nozzle].close_day || 0;
+        }
+      }
+    } else {
+      // shift === 'night'
+      for (const nozzle of ['du1_p', 'du1_d', 'du2_p', 'du2_d']) {
+        row[nozzle].close_night = ed[nozzle].close_night || 0;
+        row[nozzle].tests_night = ed[nozzle].tests_night || 0;
+        if (!row[nozzle].close_day || row[nozzle].close_day === 0) {
+          row[nozzle].close_day = ed[nozzle].open || 0;
+        }
+        if (!row[nozzle].open || row[nozzle].open === 0) {
+          row[nozzle].open = ed[nozzle].open || 0;
+        }
       }
     }
-  }
 
-  // Merge financial collections
-  row.recon.cash = (row.recon.cash || 0) + (ed.cash_sales || 0);
-  row.recon.phonepe = (row.recon.phonepe || 0) + (ed.card_sales || 0);
-  row.recon.total_collection = row.recon.cash + row.recon.phonepe + (row.recon.credit || 0);
+    // Merge financial collections
+    row.recon.cash = (row.recon.cash || 0) + (ed.cash_sales || 0);
+    row.recon.phonepe = (row.recon.phonepe || 0) + (ed.card_sales || 0);
+    row.recon.total_collection = row.recon.cash + row.recon.phonepe + (row.recon.credit || 0);
 
-  if (ed.remarks) {
-    row.recon.remarks = row.recon.remarks
-      ? `${row.recon.remarks} | ${ed.remarks}`
-      : ed.remarks;
+    if (ed.remarks) {
+      row.recon.remarks = row.recon.remarks
+        ? `${row.recon.remarks} | ${ed.remarks}`
+        : ed.remarks;
+    }
   }
 
   // Set audit metadata
@@ -2107,16 +2268,18 @@ function approveEntry(entryId, skipRender = false) {
   row._approved_at = new Date().toISOString();
   row._submitted_by = entry.submittedBy;
 
-  // Recompute sales and reconcile stock level adjustments
-  try {
-    const newCalc = computeLedgerRow(row);
-    const newNetP = newCalc.totals.net_24h.petrol || 0;
-    const newNetD = newCalc.totals.net_24h.diesel || 0;
+  if (entry.submission_type !== 'deposit') {
+    // Recompute sales and reconcile stock level adjustments
+    try {
+      const newCalc = computeLedgerRow(row);
+      const newNetP = newCalc.totals.net_24h.petrol || 0;
+      const newNetD = newCalc.totals.net_24h.diesel || 0;
 
-    db.stock.petrol = Math.max(0, db.stock.petrol + oldNetP - newNetP);
-    db.stock.diesel = Math.max(0, db.stock.diesel + oldNetD - newNetD);
-  } catch (err) {
-    console.error('[Approval] Error recalculating stock metrics: ', err);
+      db.stock.petrol = Math.max(0, db.stock.petrol + oldNetP - newNetP);
+      db.stock.diesel = Math.max(0, db.stock.diesel + oldNetD - newNetD);
+    } catch (err) {
+      console.error('[Approval] Error recalculating stock metrics: ', err);
+    }
   }
 
   // Sort daily ledger descending by date
@@ -2130,7 +2293,10 @@ function approveEntry(entryId, skipRender = false) {
 
   if (!skipRender) {
     saveDB(true);
-    showNotification(`✅ Entry for ${ed.date} approved and merged into Daily Production Ledger. Synced to cloud Supabase! View on Sales Cumulative Sheet.`, 'success');
+    const successMsg = entry.submission_type === 'deposit'
+      ? `✅ Cash Deposit of ₹${ed.deposit_amount.toLocaleString('en-IN')} approved and credited to the daily ledger!`
+      : `✅ Entry for ${ed.date} approved and merged into Daily Production Ledger. Synced to cloud Supabase! View on Sales Cumulative Sheet.`;
+    showNotification(successMsg, 'success');
     renderApprovalsPanel();
   }
 }
