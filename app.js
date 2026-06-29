@@ -3562,14 +3562,23 @@ function renderLedger() {
       `;
 
 
-      // Build full date list from first entry to today, inserting placeholders for missing dates
+      // Build full date list — from first entry to END OF NEXT MONTH, inserting placeholders for all missing dates
       const ledgerDateMap = {};
       db.daily_ledger.forEach(r => { ledgerDateMap[r.date] = r; });
-      const todayDateStr = new Date().toISOString().split('T')[0];
+
+      // Always use IST date (Asia/Kolkata = UTC+5:30)
+      const nowIST = new Date(Date.now() + (5.5 * 60 * 60 * 1000));
+      const todayDateStr = nowIST.toISOString().split('T')[0];
+
+      // End date = last day of NEXT month so pending rows extend into the future
+      const nextMonthDate = new Date(nowIST);
+      nextMonthDate.setMonth(nextMonthDate.getMonth() + 2, 0); // day 0 = last day of next month
+      const endDateStr = nextMonthDate.toISOString().split('T')[0];
+
       const firstLedgerDate = forwardLedger[0]?.date || todayDateStr;
       const fullLedgerRows = [];
       let iterDate = new Date(firstLedgerDate + 'T12:00:00Z');
-      const endIterDate = new Date(todayDateStr + 'T12:00:00Z');
+      const endIterDate = new Date(endDateStr + 'T12:00:00Z');
       while (iterDate <= endIterDate) {
         const ds = iterDate.toISOString().split('T')[0];
         fullLedgerRows.push(ledgerDateMap[ds] ? { ...ledgerDateMap[ds], _isPending: false } : { date: ds, _isPending: true });
@@ -3785,7 +3794,32 @@ function renderLedger() {
         </thead>
       `;
 
-      db.daily_ledger.forEach((row, index) => {
+
+      // Reuse same fullLedgerRows built above (includes pending placeholders)
+      fullLedgerRows.forEach((row) => {
+        if (row._isPending) {
+          const stkEst = stockTimeline[row.date];
+          const stkEstHtml = stkEst
+            ? `<span style="color:#10b981; font-size:0.72rem; margin-left:0.5rem;">≈ P: ${stkEst.start_p.toFixed(0)} L | D: ${stkEst.start_d.toFixed(0)} L</span>`
+            : '';
+          rowsHtml += `
+            <tr style="background: rgba(239,68,68,0.05); border-left: 3px solid #ef4444;">
+              <td class="sticky-col-left" style="color: #ef4444;">
+                <strong>${formatDate(row.date)}</strong>
+                <span style="display:block; font-size:0.68rem; color:#ef4444; margin-top:2px;">⏳ Pending</span>
+              </td>
+              <td colspan="28" style="text-align:center; color: var(--text-muted); font-size:0.78rem; font-style:italic; padding: 0.6rem 0;">
+                No readings entered yet${stkEstHtml}
+              </td>
+              <td class="sticky-col-right">
+                <button class="btn btn-primary btn-sm" onclick="switchView('dsr')" style="padding: 0.25rem 0.5rem; font-size:0.72rem;">Enter Data</button>
+              </td>
+            </tr>
+          `;
+          return;
+        }
+
+        const index = db.daily_ledger.findIndex(r => r.date === row.date);
         const anomaly = getAnomalyStats(row, index);
         const c = anomaly.c;
         const testsP = anomaly.testsP;
@@ -3795,6 +3829,7 @@ function renderLedger() {
           start_p: 0, supply_p: 0, close_p: 0, physical_p: null,
           start_d: 0, supply_d: 0, close_d: 0, physical_d: null
         };
+
 
         let p_dip_html = stk.start_p.toFixed(0);
         if (stk.physical_p !== null) {
