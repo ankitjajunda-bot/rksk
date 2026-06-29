@@ -283,8 +283,7 @@ async function syncPull() {
   }
 }
 
-// Push current db to Supabase
-async function syncPush() {
+async function syncPush(forceAll = false) {
   const cfg = getSyncCfg();
   if (!cfg.supabaseUrl || !cfg.supabaseKey) {
     SystemLogger.warning('syncPush', 'Sync push skipped: Supabase credentials are not configured.');
@@ -299,10 +298,14 @@ async function syncPush() {
     return false;
   }
   
-  SystemLogger.info('syncPush', 'Starting Supabase database sync & push...');
+  const session = getSession();
+  const isOwner = session && session.role === 'owner';
+  
+  SystemLogger.info('syncPush', `Starting Supabase database sync & push (forceAll: ${forceAll})...`);
   try {
     setSyncStatus('syncing');
     
+    // 1. Push app_state (always push)
     const appStateRows = [
       { key: 'settings', value: db.settings || {} },
       { key: 'stock', value: db.stock || {} },
@@ -315,38 +318,60 @@ async function syncPush() {
     const { error: stateErr } = await supabaseClient.from('app_state').upsert(appStateRows);
     if (stateErr) throw stateErr;
     
+    // 2. Push pending_entries (filter to pending or recent if not forceAll)
     if (db.pending_entries && db.pending_entries.length > 0) {
-      const pendingRows = db.pending_entries.map(e => ({
-        id: e.id,
-        submitted_by: e.submittedBy,
-        submitted_by_name: e.submittedByName,
-        submitted_at: e.submittedAt,
-        submission_type: e.submission_type,
-        status: e.status,
-        entry_data: e.entryData,
-        rejection_reason: e.rejectionReason || '',
-        reviewed_by: e.reviewedBy || '',
-        reviewed_at: e.reviewedAt || null
-      }));
-      const { error: pendingErr } = await supabaseClient.from('pending_entries').upsert(pendingRows);
-      if (pendingErr) throw pendingErr;
+      let entriesToPush = db.pending_entries;
+      if (!forceAll) {
+        const sevenDaysAgo = new Date();
+        sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+        const cutoff = sevenDaysAgo.toISOString();
+        entriesToPush = db.pending_entries.filter(e => e.status === 'pending' || e.submittedAt >= cutoff || (e.reviewedAt && e.reviewedAt >= cutoff));
+      }
+      
+      if (entriesToPush.length > 0) {
+        const pendingRows = entriesToPush.map(e => ({
+          id: e.id,
+          submitted_by: e.submittedBy,
+          submitted_by_name: e.submittedByName,
+          submitted_at: e.submittedAt,
+          submission_type: e.submission_type,
+          status: e.status,
+          entry_data: e.entryData,
+          rejection_reason: e.rejectionReason || '',
+          reviewed_by: e.reviewedBy || '',
+          reviewed_at: e.reviewedAt || null
+        }));
+        const { error: pendingErr } = await supabaseClient.from('pending_entries').upsert(pendingRows);
+        if (pendingErr) throw pendingErr;
+      }
     }
     
-    if (db.daily_ledger && db.daily_ledger.length > 0) {
-      const ledgerRows = db.daily_ledger.map(e => ({
-        date: e.date,
-        prices: e.prices,
-        du1_p: e.du1_p,
-        du1_d: e.du1_d,
-        du2_p: e.du2_p,
-        du2_d: e.du2_d,
-        recon: e.recon,
-        approved_by: e.approved_by || 'owner',
-        approved_at: e.approved_at || new Date().toISOString(),
-        submitted_by: e.submitted_by || 'system'
-      }));
-      const { error: ledgerErr } = await supabaseClient.from('daily_ledger').upsert(ledgerRows);
-      if (ledgerErr) throw ledgerErr;
+    // 3. Push daily_ledger (Only push if owner, and only push recent 14 days unless forceAll)
+    if (isOwner && db.daily_ledger && db.daily_ledger.length > 0) {
+      let ledgerToPush = db.daily_ledger;
+      if (!forceAll) {
+        const fourteenDaysAgo = new Date();
+        fourteenDaysAgo.setDate(fourteenDaysAgo.getDate() - 14);
+        const dateCutoff = fourteenDaysAgo.toISOString().split('T')[0];
+        ledgerToPush = db.daily_ledger.filter(e => e.date >= dateCutoff);
+      }
+      
+      if (ledgerToPush.length > 0) {
+        const ledgerRows = ledgerToPush.map(e => ({
+          date: e.date,
+          prices: e.prices,
+          du1_p: e.du1_p,
+          du1_d: e.du1_d,
+          du2_p: e.du2_p,
+          du2_d: e.du2_d,
+          recon: e.recon,
+          approved_by: e.approved_by || 'owner',
+          approved_at: e.approved_at || new Date().toISOString(),
+          submitted_by: e.submitted_by || 'system'
+        }));
+        const { error: ledgerErr } = await supabaseClient.from('daily_ledger').upsert(ledgerRows);
+        if (ledgerErr) throw ledgerErr;
+      }
     }
     
     const cfg2 = getSyncCfg();
@@ -5593,7 +5618,7 @@ function renderSettings() {
     forcePushBtn._wired = true;
     forcePushBtn.addEventListener('click', async () => {
       showNotification('Pushing all data to cloud…', 'info');
-      const success = await syncPush();
+      const success = await syncPush(true);
       if (success) showNotification('✅ All data pushed to cloud.', 'success');
       else showNotification('❌ Push failed. Did you create the tables in Supabase?', 'danger');
     });
