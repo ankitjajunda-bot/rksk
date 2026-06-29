@@ -2,23 +2,21 @@
 
 // ============================================================
 // GITHUB GIST AUTO-SYNC ENGINE
-// Stores data in a private GitHub Gist — no size limit, free.
+// Stores data in a private Supabase — no size limit, free.
 // Credentials live in localStorage under 'octaneflow_sync_cfg'
 // (separate from db so they survive a DB reset).
 // ============================================================
 
 const SYNC_CFG_KEY  = 'octaneflow_sync_cfg';
-const GIST_API_BASE = 'https://api.github.com/gists';
-const GIST_FILENAME = 'octaneflow_data.json';
 
 let supabase = null;
 
 function initSupabaseClient() {
   const cfg = getSyncCfg();
-  if (cfg.gistId && cfg.gistToken && typeof window.supabase !== 'undefined') {
+  if (cfg.supabaseUrl && cfg.supabaseKey && typeof window.supabase !== 'undefined') {
     try {
-      if (cfg.gistId.startsWith('http://') || cfg.gistId.startsWith('https://')) {
-        supabase = window.supabase.createClient(cfg.gistId, cfg.gistToken);
+      if (cfg.supabaseUrl.startsWith('http://') || cfg.supabaseUrl.startsWith('https://')) {
+        supabase = window.supabase.createClient(cfg.supabaseUrl, cfg.supabaseKey);
       } else {
         SystemLogger.warning('initSupabaseClient', 'Supabase URL is not valid. Skipping initialization.');
         supabase = null;
@@ -104,12 +102,12 @@ function updateGlobalAlertBanner() {
     actionBtn.style.display = 'inline-block';
     actionBtn.textContent = 'Work Offline';
     actionBtn.onclick = () => { banner.style.display = 'none'; };
-  } else if (!cfg.gistId || !cfg.gistToken) {
+  } else if (!cfg.supabaseUrl || !cfg.supabaseKey) {
     banner.style.display = 'flex';
     banner.style.borderColor = 'rgba(234, 179, 8, 0.3)';
     banner.style.background = 'rgba(234, 179, 8, 0.1)';
     banner.style.color = '#fef08a';
-    text.textContent = 'Cloud Sync is not configured. Go to Settings to enter GitHub Token & Gist ID.';
+    text.textContent = 'Cloud Sync is not configured. Go to Settings to enter GitHub Token & Supabase ID.';
     actionBtn.style.display = 'inline-block';
     actionBtn.textContent = 'Configure';
     actionBtn.onclick = () => switchView('settings');
@@ -130,10 +128,10 @@ function updateGlobalAlertBanner() {
   }
 }
 
-// Pull latest data from GitHub Gist
+// Pull latest data from Supabase
 async function syncPull() {
   const cfg = getSyncCfg();
-  if (!cfg.gistId || !cfg.gistToken) {
+  if (!cfg.supabaseUrl || !cfg.supabaseKey) {
     setSyncStatus('off');
     SystemLogger.warning('syncPull', 'Sync skipped: Supabase credentials are not configured.');
     return null;
@@ -232,10 +230,10 @@ async function syncPull() {
   }
 }
 
-// Push current db to GitHub Gist
+// Push current db to Supabase
 async function syncPush() {
   const cfg = getSyncCfg();
-  if (!cfg.gistId || !cfg.gistToken) {
+  if (!cfg.supabaseUrl || !cfg.supabaseKey) {
     SystemLogger.warning('syncPush', 'Sync push skipped: Supabase credentials are not configured.');
     return false;
   }
@@ -310,12 +308,13 @@ async function syncPush() {
     setSyncStatus(isOnline ? 'error' : 'offline');
     SystemLogger.error('syncPush', 'Supabase push failed due to exception.', err);
     return false;
+  }
 }
 
 // On app start — pull cloud data if it's newer than local
 async function initSync() {
   const cfg = getSyncCfg();
-  if (!cfg.gistId || !cfg.gistToken) {
+  if (!cfg.supabaseUrl || !cfg.supabaseKey) {
     setSyncStatus('off');
     SystemLogger.info('initSync', 'Auto-sync is disabled (no credentials).');
     return;
@@ -535,9 +534,9 @@ function renderDiagnostics() {
   const cfg = getSyncCfg();
   const syncStatusEl = document.getElementById('diag-sync-status');
   const syncTimeEl = document.getElementById('diag-sync-time');
-  const syncGistIdEl = document.getElementById('diag-sync-gist-id');
+  const syncSupabaseIdEl = document.getElementById('diag-sync-gist-id');
 
-  if (cfg.gistId && cfg.gistToken) {
+  if (cfg.supabaseUrl && cfg.supabaseKey) {
     if (syncStatusEl) {
       const activeStateEl = document.getElementById('sync-status-indicator');
       const activeState = activeStateEl ? activeStateEl.textContent : '';
@@ -560,9 +559,9 @@ function renderDiagnostics() {
         syncTimeEl.textContent = 'Never Synced';
       }
     }
-    if (syncGistIdEl) {
-      syncGistIdEl.textContent = `Gist ID: ...${cfg.gistId.slice(-8)}`;
-      syncGistIdEl.title = cfg.gistId;
+    if (syncSupabaseIdEl) {
+      syncSupabaseIdEl.textContent = `Supabase URL: ...${cfg.supabaseUrl.slice(-8)}`;
+      syncSupabaseIdEl.title = cfg.supabaseUrl;
     }
   } else {
     if (syncStatusEl) {
@@ -570,7 +569,7 @@ function renderDiagnostics() {
       syncStatusEl.style.color = 'var(--text-dim)';
     }
     if (syncTimeEl) syncTimeEl.textContent = 'N/A';
-    if (syncGistIdEl) syncGistIdEl.textContent = 'Gist ID: Not Configured';
+    if (syncSupabaseIdEl) syncSupabaseIdEl.textContent = 'Database: Not Configured';
   }
 }
 
@@ -1998,7 +1997,7 @@ function approveEntry(entryId, skipRender = false) {
 
   if (!skipRender) {
     saveDB(true);
-    showNotification(`✅ Entry for ${ed.date} approved and merged into Daily Production Ledger. Synced to cloud Gist! View on Sales Cumulative Sheet.`, 'success');
+    showNotification(`✅ Entry for ${ed.date} approved and merged into Daily Production Ledger. Synced to cloud Supabase! View on Sales Cumulative Sheet.`, 'success');
     renderApprovalsPanel();
   }
 }
@@ -2146,11 +2145,11 @@ window.deleteEmployeeAccount = deleteEmployeeAccount;
 
 function copyEmployeeSetupLink(username) {
   const cfg = getSyncCfg();
-  if (!cfg.gistId || !cfg.gistToken) {
+  if (!cfg.supabaseUrl || !cfg.supabaseKey) {
     showNotification('⚠️ Setup cloud sync first under Settings.', 'danger');
     return;
   }
-  const token = btoa(`${cfg.gistId}|${cfg.gistToken}|${username}`);
+  const token = btoa(`${cfg.supabaseUrl}|${cfg.supabaseKey}|${username}`);
   const url = `${location.origin}${location.pathname}#setup=${token}`;
 
   navigator.clipboard.writeText(url)
@@ -3068,7 +3067,7 @@ function saveDailyReadings(data) {
 
     db.daily_ledger[existingIdx] = data;
     SystemLogger.success('saveDailyReadings', `Reconciliation modified and saved for date ${formatDate(data.date)}. Net Sales: Petrol = ${newNetP.toFixed(2)} L, Diesel = ${newNetD.toFixed(2)} L.`, newCalc.totals);
-    showNotification(`✅ Reconciled values saved in local database and synced to Gist cloud! Updates visible on Sales Cumulative Sheet and Profit charts.`, "success");
+    showNotification(`✅ Reconciled values saved in local database and synced to Supabase! Updates visible on Sales Cumulative Sheet and Profit charts.`, "success");
   } else {
     // New date log entry: directly subtract sales from stock
     db.stock.petrol = Math.max(0, db.stock.petrol - newNetP);
@@ -3076,7 +3075,7 @@ function saveDailyReadings(data) {
 
     db.daily_ledger.push(data);
     SystemLogger.success('saveDailyReadings', `Daily readings logged and saved for date ${formatDate(data.date)}. Net Sales: Petrol = ${newNetP.toFixed(2)} L, Diesel = ${newNetD.toFixed(2)} L.`, newCalc.totals);
-    showNotification(`✅ Daily readings logged in local database and synced to Gist cloud! Updates visible on Sales Cumulative Sheet and Profit charts.`, "success");
+    showNotification(`✅ Daily readings logged in local database and synced to Supabase! Updates visible on Sales Cumulative Sheet and Profit charts.`, "success");
   }
 
   // Sort daily ledger chronologically descending
@@ -3203,7 +3202,7 @@ function recordTanker(dateStr, timeStr, loadType, customP, customD, priceP, pric
   db.purchases.unshift(purchase);
   saveDB();
   SystemLogger.success('recordTanker', `Recorded tanker delivery: Petrol = ${petrolQty} L @ ₹${priceP}/L, Diesel = ${dieselQty} L @ ₹${priceD}/L. Total Cost: ₹${purchase.total_cost.toFixed(2)}`, purchase);
-  showNotification("✅ Tanker delivery saved to local database and synced to Gist cloud! Added to Tanker purchases registry and reconciled closing stock.", "success");
+  showNotification("✅ Tanker delivery saved to local database and synced to Supabase! Added to Tanker purchases registry and reconciled closing stock.", "success");
 }
 
 function updateSellingPrice(dateTimeStr, priceP, priceD) {
@@ -3217,7 +3216,7 @@ function updateSellingPrice(dateTimeStr, priceP, priceD) {
   db.prices.sort((a,b) => new Date(b.effective_date) - new Date(a.effective_date));
   saveDB();
   SystemLogger.success('updateSellingPrice', `Selling prices updated: Petrol = ₹${entry.petrol.toFixed(2)}/L, Diesel = ₹${entry.diesel.toFixed(2)}/L (Effective: ${entry.effective_date})`, entry);
-  showNotification("✅ Selling prices saved to local database and synced to Gist cloud! Updates will apply to future DSR commission calculations.", "success");
+  showNotification("✅ Selling prices saved to local database and synced to Supabase! Updates will apply to future DSR commission calculations.", "success");
 }
 
 function addHoliday(dateStr, name) {
@@ -3228,13 +3227,13 @@ function addHoliday(dateStr, name) {
   db.holidays.push({ date: dateStr, name });
   db.holidays.sort((a,b) => new Date(a.date) - new Date(b.date));
   saveDB();
-  showNotification("✅ Bank holiday added to calendar database and synced to Gist cloud! Bank credit offset will apply to credit planning.", "success");
+  showNotification("✅ Bank holiday added to calendar database and synced to Supabase! Bank credit offset will apply to credit planning.", "success");
 }
 
 function removeHoliday(dateStr) {
   db.holidays = db.holidays.filter(h => h.date !== dateStr);
   saveDB();
-  showNotification("✅ Holiday removed from calendar database and synced to Gist cloud.", "info");
+  showNotification("✅ Holiday removed from calendar database and synced to Supabase.", "info");
 }
 
 function togglePayment(purchaseId) {
@@ -3259,16 +3258,16 @@ function togglePayment(purchaseId) {
       const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
       const ratePerDay = 0.15 / 365;
       p.interest_charged = p.total_cost * ratePerDay * diffDays;
-      showNotification(`✅ Payment marked as PAID (Late by ${diffDays} days). Interest charged. Synced to Gist cloud!`, "warning");
+      showNotification(`✅ Payment marked as PAID (Late by ${diffDays} days). Interest charged. Synced to Supabase!`, "warning");
     } else {
       p.interest_charged = 0;
-      showNotification("✅ Payment marked as PAID (On Time). Synced to Gist cloud!", "success");
+      showNotification("✅ Payment marked as PAID (On Time). Synced to Supabase!", "success");
     }
   } else {
     p.payment_status = 'unpaid';
     p.paid_date = null;
     p.interest_charged = 0;
-    showNotification("✅ Payment reset to unpaid status. Synced to Gist cloud!", "info");
+    showNotification("✅ Payment reset to unpaid status. Synced to Supabase!", "info");
   }
 
   saveDB();
@@ -5391,18 +5390,18 @@ function renderSettings() {
   // ── Cloud Sync Settings ──────────────────────────────────
   const syncCfg      = getSyncCfg();
   const syncTokenEl  = document.getElementById('cfg-sync-master-key');
-  const syncGistEl   = document.getElementById('cfg-sync-bin-id');
-  if (syncTokenEl) syncTokenEl.value = syncCfg.gistToken || '';
-  if (syncGistEl)  syncGistEl.value  = syncCfg.gistId    || '';
+  const syncSupabaseEl   = document.getElementById('cfg-sync-bin-id');
+  if (syncTokenEl) syncTokenEl.value = syncCfg.supabaseKey || '';
+  if (syncSupabaseEl)  syncSupabaseEl.value  = syncCfg.supabaseUrl    || '';
 
   const saveSyncBtn = document.getElementById('cfg-save-sync-btn');
   if (saveSyncBtn && !saveSyncBtn._wired) {
     saveSyncBtn._wired = true;
     saveSyncBtn.addEventListener('click', async () => {
       const tok  = (syncTokenEl ? syncTokenEl.value : '').trim();
-      const gid  = (syncGistEl  ? syncGistEl.value  : '').trim();
+      const gid  = (syncSupabaseEl  ? syncSupabaseEl.value  : '').trim();
       if (!tok || !gid) { showNotification('Enter both Supabase API URL and Anon Key.', 'danger'); return; }
-      saveSyncCfg({ gistToken: tok, gistId: gid });
+      saveSyncCfg({ supabaseKey: tok, supabaseUrl: gid });
       initSupabaseClient();
       showNotification('Sync settings saved. Pushing data to cloud…', 'success');
       await syncPush();
@@ -6257,11 +6256,11 @@ document.getElementById('restore-db-file').addEventListener('change', (e) => {
         showNotification("Database restored successfully!", "success");
         initApp();
 
-        // Push restored data to cloud Gist so other devices get it too
+        // Push restored data to cloud Supabase so other devices get it too
         syncPush().then(() => {
-          SystemLogger.success('restoreDB', 'Restored database successfully pushed to cloud Gist.');
+          SystemLogger.success('restoreDB', 'Restored database successfully pushed to cloud Supabase.');
         }).catch(err => {
-          SystemLogger.error('restoreDB', 'Failed to push restored database to cloud Gist.', err);
+          SystemLogger.error('restoreDB', 'Failed to push restored database to cloud Supabase.', err);
         });
       } else {
         SystemLogger.error('restoreDB', 'Failed to restore backup: Invalid file schema or missing properties.');
@@ -6583,9 +6582,9 @@ window.addEventListener('DOMContentLoaded', () => {
     try {
       const encoded = hash.substring(7); // remove '#setup='
       const decoded = atob(encoded); // decode base64
-      const [gistId, gistToken, inviteUser] = decoded.split('|');
-      if (gistId && gistToken) {
-        saveSyncCfg({ gistId, gistToken });
+      const [supabaseUrl, supabaseKey, inviteUser] = decoded.split('|');
+      if (supabaseUrl && supabaseKey) {
+        saveSyncCfg({ supabaseUrl, supabaseKey });
         if (inviteUser) {
           localStorage.setItem('octaneflow_invited_user', inviteUser);
         }
@@ -6716,8 +6715,8 @@ window.addEventListener('DOMContentLoaded', () => {
 
   // Auto-configure sync status
   const cfg = getSyncCfg();
-  if (cfg.gistId && cfg.gistToken) {
-    console.log('[Sync] Gist credentials found — auto-sync enabled');
+  if (cfg.supabaseUrl && cfg.supabaseKey) {
+    console.log('[Sync] Supabase credentials found — auto-sync enabled');
   }
 
   // ── AUTH INIT ──────────────────────────────────────────
@@ -6725,7 +6724,7 @@ window.addEventListener('DOMContentLoaded', () => {
     initLoginForm();   // wire the login form submit
 
     // Sync database with cloud (if credentials exist) so employee/device databases are updated
-    const syncPromise = (cfg.gistId && cfg.gistToken) ? initSync() : Promise.resolve();
+    const syncPromise = (cfg.supabaseUrl && cfg.supabaseKey) ? initSync() : Promise.resolve();
 
     syncPromise.then(() => {
       const session = checkAuth(); // show login screen or app
@@ -6744,7 +6743,7 @@ window.addEventListener('DOMContentLoaded', () => {
   setInterval(() => {
     const currentCfg = getSyncCfg();
     const session = getSession();
-    if (currentCfg.gistId && currentCfg.gistToken && session && document.visibilityState === 'visible') {
+    if (currentCfg.supabaseUrl && currentCfg.supabaseKey && session && document.visibilityState === 'visible') {
       initSync().then(() => {
         buildIndexes();
         if (session.role === 'owner') {
@@ -10268,7 +10267,7 @@ window.updateDsrCell = function(date, unitKey, fieldKey, rawValue) {
     renderDsrChecker();
 
     // Toast notification confirming saved draft and merge path
-    showNotification(`✏️ Value saved to local draft. Click 'Merge to Production' (top-right) to apply and sync changes to GitHub Gist.`, 'success');
+    showNotification(`✏️ Value saved to local draft. Click 'Merge to Production' (top-right) to apply and sync changes to Supabase.`, 'success');
   } else {
     renderDsrChecker();
   }
