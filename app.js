@@ -1354,7 +1354,7 @@ async function submitEmployeeReading(session) {
   if (!db.pending_entries) db.pending_entries = [];
   db.pending_entries.push(entry);
   buildIndexes(); // Keep in-memory index current
-  saveDB();
+  saveDB(true);
 
   const typeLabel = submissionType === 'opening' ? 'Opening Reading' : submissionType === 'snapshot' ? 'Mid-Shift Snapshot' : 'Closing Reading';
   showNotification(`✅ ${typeLabel} submitted! Owner can see it under Operations → Approve Shifts.`, 'success');
@@ -1936,7 +1936,7 @@ function approveEntry(entryId, skipRender = false) {
   db.pending_entries[idx].reviewedAt = new Date().toISOString();
 
   if (!skipRender) {
-    saveDB();
+    saveDB(true);
     showNotification(`✅ Entry for ${ed.date} approved and merged into Daily Production Ledger. Synced to cloud Gist! View on Sales Cumulative Sheet.`, 'success');
     renderApprovalsPanel();
   }
@@ -1952,7 +1952,7 @@ function promptRejectEntry(entryId) {
   db.pending_entries[idx].rejectionReason = reason || 'No reason given';
   db.pending_entries[idx].reviewedBy      = session.username;
   db.pending_entries[idx].reviewedAt      = new Date().toISOString();
-  saveDB();
+  saveDB(true);
   showNotification('Entry rejected.', 'info');
   renderApprovalsPanel();
 }
@@ -2460,7 +2460,7 @@ function buildIndexes() {
   };
 }
 
-function saveDB() {
+function saveDB(immediate = false) {
   prunePendingEntries();
   try {
     // Exclude runtime index from serialization
@@ -2479,9 +2479,13 @@ function saveDB() {
     showNotification('⚠️ Database write failed! Storage may be full.', 'danger');
   }
   buildIndexes(); // Rebuild index after every save
-  // Auto-push to cloud on every save (debounced 2s to avoid hammering API)
+  // Auto-push to cloud on every save (debounced 2s to avoid hammering API, or immediate)
   clearTimeout(saveDB._pushTimer);
-  saveDB._pushTimer = setTimeout(() => syncPush(), 2000);
+  if (immediate) {
+    syncPush();
+  } else {
+    saveDB._pushTimer = setTimeout(() => syncPush(), 2000);
+  }
 }
 
 function resetDB() {
