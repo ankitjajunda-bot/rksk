@@ -6,7 +6,7 @@
 //   - Everything else               → Network First, fallback to cache
 // ============================================================
 
-const CACHE_NAME     = 'octaneflow-v40';
+const CACHE_NAME     = 'octaneflow-v41';
 const FONT_CACHE     = 'octaneflow-fonts-v1';
 
 // Detect base path automatically — works on localhost AND GitHub Pages /octaneflow/

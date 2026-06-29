@@ -2192,18 +2192,23 @@ async function renderPendingDeviceApprovals() {
       return;
     }
 
-    const users = getUsers();
-    const unapprovedEmployees = Object.values(users).filter(u => u.role === 'employee' && !u.deviceId);
+    const allEmployees = Object.values(users).filter(u => u.role === 'employee');
+    const unapprovedEmployees = allEmployees.filter(u => !u.deviceId);
 
     container.innerHTML = data.map(req => {
       const info = req.entry_data || {};
-      const dropdownHtml = unapprovedEmployees.length === 0
-        ? '<span style="color:#ef4444;font-size:0.72rem;">Add employee profile first</span>'
-        : `
+      let dropdownHtml = '';
+      if (unapprovedEmployees.length === 0) {
+        dropdownHtml = allEmployees.length === 0
+          ? '<span style="color:#ef4444;font-size:0.72rem;">Add employee profile first</span>'
+          : '<span style="color:#94a3b8;font-size:0.72rem;">All profiles approved (Reset one above)</span>';
+      } else {
+        dropdownHtml = `
           <select id="approve-user-select-${req.id}" style="padding:0.3rem;background:var(--bg-input);color:#fff;border:1px solid var(--border);border-radius:0.3rem;font-size:0.72rem;">
             ${unapprovedEmployees.map(u => `<option value="${u.username}">${u.displayName} (@${u.username})</option>`).join('')}
           </select>
         `;
+      }
 
       const approveBtnHtml = unapprovedEmployees.length === 0
         ? ''
