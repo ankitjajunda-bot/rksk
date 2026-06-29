@@ -2,8 +2,8 @@
   "name": "OctaneFlow — Fuel Station Manager",
   "short_name": "OctaneFlow",
   "description": "Fuel station operations dashboard — sales, stock, P&L, tanker forecast",
-  "start_url": "/octaneflow/index.html",
-  "scope": "/octaneflow/",
+  "start_url": "/rksk/index.html",
+  "scope": "/rksk/",
   "display": "standalone",
   "orientation": "portrait-primary",
   "background_color": "#0f1117",
@@ -24,19 +24,19 @@
     {
       "name": "Log Today's Readings",
       "short_name": "Log Readings",
-      "url": "/octaneflow/index.html#ledger",
+      "url": "/rksk/index.html#ledger",
       "icons": [{ "src": "icons/icon-96x96.png", "sizes": "96x96" }]
     },
     {
       "name": "View Dashboard",
       "short_name": "Dashboard",
-      "url": "/octaneflow/index.html#dashboard",
+      "url": "/rksk/index.html#dashboard",
       "icons": [{ "src": "icons/icon-96x96.png", "sizes": "96x96" }]
     },
     {
       "name": "Cash Flow Forecast",
       "short_name": "Forecast",
-      "url": "/octaneflow/index.html#cashflow",
+      "url": "/rksk/index.html#cashflow",
       "icons": [{ "src": "icons/icon-96x96.png", "sizes": "96x96" }]
     }
   ]
