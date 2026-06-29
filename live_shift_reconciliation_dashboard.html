@@ -5546,8 +5546,7 @@ function exportCSV() {
       ]);
     }
   }
-  const csv = rows2.map(r=>r.join(',')).join('
-');
+  const csv = rows2.map(r=>r.join(',')).join('\n');
   const a = document.createElement('a');
   a.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv);
   a.download = `kc_dsr_corrected_${new Date().toISOString().slice(0,10)}.csv`;
