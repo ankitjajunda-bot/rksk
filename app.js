@@ -3204,7 +3204,33 @@ function renderLedger() {
   const toggleBtn = document.getElementById('toggle-view-btn');
 
   if (db.daily_ledger.length === 0) {
-    if (ledgerViewMode === 'table') {
+  
+  // Build full date list — from first entry to END OF NEXT MONTH (IST), inserting placeholders for all missing dates
+  // Declared OUTSIDE if/else so both table views share the same data.
+  const ledgerDateMap = {};
+  db.daily_ledger.forEach(r => { ledgerDateMap[r.date] = r; });
+
+  // Always use IST date (Asia/Kolkata = UTC+5:30)
+  const nowIST = new Date(Date.now() + (5.5 * 60 * 60 * 1000));
+  const todayDateStr = nowIST.toISOString().split('T')[0];
+
+  // End date = last day of NEXT month so pending rows extend into the future
+  const nextMonthDate = new Date(nowIST);
+  nextMonthDate.setMonth(nextMonthDate.getMonth() + 2, 0); // day 0 = last day of next month
+  const endDateStr = nextMonthDate.toISOString().split('T')[0];
+
+  const firstLedgerDate = forwardLedger[0]?.date || todayDateStr;
+  const fullLedgerRows = [];
+  let iterDate = new Date(firstLedgerDate + 'T12:00:00Z');
+  const endIterDate = new Date(endDateStr + 'T12:00:00Z');
+  while (iterDate <= endIterDate) {
+    const ds = iterDate.toISOString().split('T')[0];
+    fullLedgerRows.push(ledgerDateMap[ds] ? { ...ledgerDateMap[ds], _isPending: false } : { date: ds, _isPending: true });
+    iterDate.setDate(iterDate.getDate() + 1);
+  }
+  fullLedgerRows.reverse(); // newest first
+
+  if (ledgerViewMode === 'table') {
       table.innerHTML = `<tbody><tr><td style="text-align: center; color: var(--text-dim); padding: 3rem;">No daily readings logged. Click "Log Daily Readings" to start.</td></tr></tbody>`;
     } else {
       document.getElementById('ledger-date-carousel').innerHTML = '<div style="color:var(--text-dim); text-align:center; padding: 2rem; width: 100%;">No logs.</div>';
@@ -3561,30 +3587,6 @@ function renderLedger() {
         </thead>
       `;
 
-
-      // Build full date list — from first entry to END OF NEXT MONTH, inserting placeholders for all missing dates
-      const ledgerDateMap = {};
-      db.daily_ledger.forEach(r => { ledgerDateMap[r.date] = r; });
-
-      // Always use IST date (Asia/Kolkata = UTC+5:30)
-      const nowIST = new Date(Date.now() + (5.5 * 60 * 60 * 1000));
-      const todayDateStr = nowIST.toISOString().split('T')[0];
-
-      // End date = last day of NEXT month so pending rows extend into the future
-      const nextMonthDate = new Date(nowIST);
-      nextMonthDate.setMonth(nextMonthDate.getMonth() + 2, 0); // day 0 = last day of next month
-      const endDateStr = nextMonthDate.toISOString().split('T')[0];
-
-      const firstLedgerDate = forwardLedger[0]?.date || todayDateStr;
-      const fullLedgerRows = [];
-      let iterDate = new Date(firstLedgerDate + 'T12:00:00Z');
-      const endIterDate = new Date(endDateStr + 'T12:00:00Z');
-      while (iterDate <= endIterDate) {
-        const ds = iterDate.toISOString().split('T')[0];
-        fullLedgerRows.push(ledgerDateMap[ds] ? { ...ledgerDateMap[ds], _isPending: false } : { date: ds, _isPending: true });
-        iterDate.setDate(iterDate.getDate() + 1);
-      }
-      fullLedgerRows.reverse(); // newest first
 
       fullLedgerRows.forEach((row) => {
         if (row._isPending) {
