@@ -1627,7 +1627,7 @@ function renderUserManagement() {
           <div style="display:flex;gap:0.4rem;flex-wrap:wrap;">
             <button onclick="resetEmployeeDevice('${u.username}')" style="background:#1e293b;color:#94a3b8;border:1px solid #334155;border-radius:0.4rem;padding:0.3rem 0.6rem;font-size:0.72rem;cursor:pointer;">📱 Reset Device</button>
             <button onclick="toggleEmployee('${u.username}')" style="background:${u.active?'rgba(239,68,68,0.1)':'rgba(34,197,94,0.1)'};color:${u.active?'#ef4444':'#22c55e'};border:1px solid ${u.active?'#ef4444':'#22c55e'};border-radius:0.4rem;padding:0.3rem 0.6rem;font-size:0.72rem;cursor:pointer;">${u.active?'Deactivate':'Activate'}</button>
-            <button onclick="deleteEmployeeAccount('${u.username}')" style="background:rgba(239,68,68,0.15);color:#ef4444;border:1px solid #ef4444;border-radius:0.4rem;padding:0.3rem 0.6rem;font-size:0.72rem;cursor:pointer;">🗑️ Delete</button>
+            <button id="del-btn-${u.username}" onclick="deleteEmployeeAccount('${u.username}')" style="background:rgba(239,68,68,0.15);color:#ef4444;border:1px solid #ef4444;border-radius:0.4rem;padding:0.3rem 0.6rem;font-size:0.72rem;cursor:pointer;">🗑️ Delete</button>
           </div>
         </div>`).join('');
 
@@ -1694,24 +1694,44 @@ function toggleEmployee(username) {
   renderUserManagement();
 }
 
+window._deleteTimers = {};
 function deleteEmployeeAccount(username) {
-  if (username === 'owner') {
-    showNotification('⚠️ Cannot delete the primary administrator account!', 'danger');
-    return;
+  const btn = document.getElementById(`del-btn-${username}`);
+  if (!btn) return;
+
+  if (btn.dataset.confirmed === "true") {
+    clearTimeout(window._deleteTimers[username]);
+    delete window._deleteTimers[username];
+
+    if (username === 'owner') {
+      showNotification('⚠️ Cannot delete the primary administrator account!', 'danger');
+      return;
+    }
+    const session = getSession();
+    if (session && session.username === username) {
+      showNotification('⚠️ Cannot delete the account you are currently logged in with!', 'danger');
+      return;
+    }
+
+    const users = getUsers();
+    if (!users[username]) return;
+    delete users[username];
+    saveUsers(users);
+    showNotification(`Account @${username} deleted permanently.`, 'info');
+    renderUserManagement();
+  } else {
+    btn.dataset.confirmed = "true";
+    btn.innerHTML = "⚠️ Confirm Delete?";
+    btn.style.background = "#ef4444";
+    btn.style.color = "#fff";
+
+    window._deleteTimers[username] = setTimeout(() => {
+      btn.dataset.confirmed = "false";
+      btn.innerHTML = "🗑️ Delete";
+      btn.style.background = "rgba(239, 68, 68, 0.15)";
+      btn.style.color = "#ef4444";
+    }, 3000);
   }
-  const session = getSession();
-  if (session && session.username === username) {
-    showNotification('⚠️ Cannot delete the account you are currently logged in with!', 'danger');
-    return;
-  }
-  if (!confirm(`Are you sure you want to permanently delete user account @${username}?`)) return;
-  
-  const users = getUsers();
-  if (!users[username]) return;
-  delete users[username];
-  saveUsers(users);
-  showNotification(`Account @${username} deleted permanently.`, 'info');
-  renderUserManagement();
 }
 window.deleteEmployeeAccount = deleteEmployeeAccount;
 
@@ -8000,7 +8020,7 @@ function renderEmployeesTable() {
       <td style="padding: 0.5rem;">${emp.role}</td>
       <td style="padding: 0.5rem; text-align: right; display:flex; gap:0.25rem; justify-content: flex-end; align-items:center;">
         ${activeBadge}
-        <button class="btn btn-secondary btn-sm" onclick="deleteEmployee(${index})" style="padding: 0.15rem 0.35rem; font-size: 0.65rem; border-radius:3px; background:rgba(239, 68, 68, 0.15); color:rgb(248, 113, 113); border:none; cursor:pointer;">Delete</button>
+        <button id="emp-del-btn-${index}" class="btn btn-secondary btn-sm" onclick="deleteEmployee(${index}, 'emp-del-btn-${index}')" style="padding: 0.15rem 0.35rem; font-size: 0.65rem; border-radius:3px; background:rgba(239, 68, 68, 0.15); color:rgb(248, 113, 113); border:none; cursor:pointer; transition:all 0.2s;">Delete</button>
       </td>
     `;
     tbody.appendChild(tr);
@@ -8039,15 +8059,35 @@ function addEmployee(event) {
   showNotification(`Authorized employee ${name} added successfully.`, "success");
 }
 
-function deleteEmployee(index) {
-  const emp = db.employees[index];
-  if (!confirm(`Are you sure you want to delete authorized employee ${emp.name}?`)) return;
+window._empDeleteTimers = {};
+function deleteEmployee(index, btnId) {
+  const btn = document.getElementById(btnId);
+  if (!btn) return;
 
-  db.employees.splice(index, 1);
-  saveDB();
-  renderEmployeesTable();
-  renderSyncMessages();
-  showNotification(`Employee deleted from authorized directory.`, "info");
+  if (btn.dataset.confirmed === "true") {
+    clearTimeout(window._empDeleteTimers[index]);
+    delete window._empDeleteTimers[index];
+
+    const emp = db.employees[index];
+    if (!emp) return;
+    db.employees.splice(index, 1);
+    saveDB();
+    renderEmployeesTable();
+    renderSyncMessages();
+    showNotification(`Employee deleted from authorized directory.`, "info");
+  } else {
+    btn.dataset.confirmed = "true";
+    btn.innerHTML = "Confirm?";
+    btn.style.background = "#ef4444";
+    btn.style.color = "#fff";
+
+    window._empDeleteTimers[index] = setTimeout(() => {
+      btn.dataset.confirmed = "false";
+      btn.innerHTML = "Delete";
+      btn.style.background = "rgba(239, 68, 68, 0.15)";
+      btn.style.color = "rgb(248, 113, 113)";
+    }, 3000);
+  }
 }
 
 function renderSyncMessages() {
