@@ -2512,7 +2512,7 @@
   <script src="extracted_kc_expenses.js"></script>
   <script src="ocr_stock_data.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="app.js?v=44"></script>
+  <script src="app.js?v=45"></script>
 
 
   <!-- PWA: Offline banner -->
@@ -2548,6 +2548,15 @@
             setInterval(() => reg.update(), 60000);
           })
           .catch(err => console.warn('[PWA] SW failed:', err));
+      });
+
+      // Auto-reload the page once the new Service Worker activates and takes control
+      let refreshing = false;
+      navigator.serviceWorker.addEventListener('controllerchange', () => {
+        if (!refreshing) {
+          refreshing = true;
+          window.location.reload();
+        }
       });
     }
 
