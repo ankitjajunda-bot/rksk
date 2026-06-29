@@ -1556,7 +1556,6 @@ async function submitEmployeeReading(session) {
     }
   }
 
-  const submissionType = document.getElementById('emp-submission-type')?.value || 'closing';
 
   const mkNozzle = (prefix, s) => {
     const openVal  = val(`${prefix}-open`);
