@@ -723,33 +723,49 @@ async function initAuth() {
   }
 }
 
-// ── Login ──────────────────────────────────────────────────
 async function loginUser(username, credential) {
   const users = getUsers();
   const uname = username.toLowerCase().trim();
   let user = users[uname];
 
-  if (!user) {
-    user = users['owner'];
-  }
-
-  if (!user) {
+  if (!user && uname === 'owner') {
+    // Default Owner fallback if not found in db
+    const defaultHash = await hashString('OctaneFlow@2026');
     user = {
       username: 'owner',
       displayName: 'Owner',
       role: 'owner',
+      passwordHash: defaultHash,
       active: true
     };
   }
 
-  // Auto-bind device for employees to prevent unauthorized device lockout
-  if (user.role !== 'owner') {
-    const deviceId = getDeviceId();
-    if (users[user.username]) {
-      users[user.username].deviceId = deviceId;
-      users[user.username].deviceRegisteredAt = new Date().toISOString();
-      saveUsers(users);
-      user = users[user.username];
+  if (!user) {
+    return { success: false, error: 'User account not found.' };
+  }
+
+  if (!user.active) {
+    return { success: false, error: 'This account has been deactivated by the administrator.' };
+  }
+
+  // Hash the incoming password/PIN to compare
+  const incomingHash = await hashString(credential);
+
+  if (user.role === 'owner') {
+    const targetHash = user.passwordHash || user.pinHash; // Fallback support
+    if (incomingHash !== targetHash) {
+      return { success: false, error: 'Incorrect administrator password.' };
+    }
+  } else {
+    // Employee credential check (PIN)
+    if (incomingHash !== user.pinHash) {
+      return { success: false, error: 'Incorrect employee PIN.' };
+    }
+
+    // Strict Device ID check
+    const currentDeviceId = getDeviceId();
+    if (!user.deviceId || user.deviceId !== currentDeviceId) {
+      return { success: false, error: 'DEVICE_NOT_APPROVED', user };
     }
   }
 
@@ -797,6 +813,14 @@ function initLoginForm() {
   const btnEl   = document.getElementById('login-btn');
   if (!form) return;
 
+  // Pre-fill username from invite link if present
+  const invitedUser = localStorage.getItem('octaneflow_invited_user');
+  if (invitedUser) {
+    const userInp = document.getElementById('login-username');
+    if (userInp) userInp.value = invitedUser;
+    localStorage.removeItem('octaneflow_invited_user'); // Clean up
+  }
+
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
     const username   = document.getElementById('login-username')?.value || '';
@@ -808,7 +832,18 @@ function initLoginForm() {
 
     if (!result.success) {
       if (btnEl) { btnEl.disabled = false; btnEl.textContent = 'Log In'; }
-      if (errEl) errEl.textContent = result.error;
+      if (result.error === 'DEVICE_NOT_APPROVED') {
+        showDeviceRequestForm();
+        const reqName = document.getElementById('req-emp-name');
+        const reqUser = document.getElementById('req-emp-username');
+        const reqPhone = document.getElementById('req-emp-phone');
+        if (reqName) reqName.value = result.user.displayName || '';
+        if (reqUser) reqUser.value = result.user.username || '';
+        if (reqPhone) reqPhone.value = result.user.phone || '';
+        showNotification('⚠️ This device is not approved yet. Please generate a code and send it to the owner.', 'warning');
+      } else {
+        if (errEl) errEl.textContent = result.error;
+      }
       return;
     }
 
@@ -821,9 +856,6 @@ function initLoginForm() {
 
     if (btnEl) { btnEl.disabled = false; btnEl.textContent = 'Log In'; }
 
-    if (result.newDevice) {
-      showNotification('✅ Device registered. Welcome!', 'success');
-    }
     checkAuth();
     if (result.user.role === 'owner') {
       initApp();
@@ -1603,7 +1635,6 @@ function promptRejectEntry(entryId) {
   renderApprovalsPanel();
 }
 
-// ── User Management (owner: Settings tab) ─────────────────
 function renderUserManagement() {
   const session = getSession();
   if (!session || session.role !== 'owner') return;
@@ -1620,11 +1651,12 @@ function renderUserManagement() {
             <span style="font-weight:700;color:#f8fafc;">${u.displayName}</span>
             <span style="color:#64748b;font-size:0.78rem;margin-left:0.5rem;">@${u.username}</span><br>
             <span style="font-size:0.72rem;color:${u.deviceId?'#22c55e':'#f97316'};">
-              ${u.deviceId ? `✅ Device registered ${u.deviceRegisteredAt?u.deviceRegisteredAt.split('T')[0]:''}` : '⏳ No device yet (first login will register)'}
+              ${u.deviceId ? `✅ Device approved (...${u.deviceId.slice(-8)})` : '⏳ No device approved (pending registration)'}
             </span>
             · <span style="font-size:0.72rem;color:${u.active?'#22c55e':'#ef4444'};">${u.active?'Active':'Inactive'}</span>
           </div>
           <div style="display:flex;gap:0.4rem;flex-wrap:wrap;">
+            ${u.deviceId ? `<button onclick="copyEmployeeSetupLink('${u.username}')" style="background:#0f172a;color:#f97316;border:1px solid #f97316;border-radius:0.4rem;padding:0.3rem 0.6rem;font-size:0.72rem;cursor:pointer;">📋 Copy Setup Link</button>` : ''}
             <button onclick="resetEmployeeDevice('${u.username}')" style="background:#1e293b;color:#94a3b8;border:1px solid #334155;border-radius:0.4rem;padding:0.3rem 0.6rem;font-size:0.72rem;cursor:pointer;">📱 Reset Device</button>
             <button onclick="toggleEmployee('${u.username}')" style="background:${u.active?'rgba(239,68,68,0.1)':'rgba(34,197,94,0.1)'};color:${u.active?'#ef4444':'#22c55e'};border:1px solid ${u.active?'#ef4444':'#22c55e'};border-radius:0.4rem;padding:0.3rem 0.6rem;font-size:0.72rem;cursor:pointer;">${u.active?'Deactivate':'Activate'}</button>
             <button id="del-btn-${u.username}" onclick="deleteEmployeeAccount('${u.username}')" style="background:rgba(239,68,68,0.15);color:#ef4444;border:1px solid #ef4444;border-radius:0.4rem;padding:0.3rem 0.6rem;font-size:0.72rem;cursor:pointer;">🗑️ Delete</button>
@@ -1636,12 +1668,6 @@ function renderUserManagement() {
     console.log('[User Management] Wiring add employee button listener');
     addBtn._wired = true;
     addBtn.addEventListener('click', addUserAccount);
-  }
-
-  const setupBtn = document.getElementById('copy-setup-link-btn');
-  if (setupBtn && !setupBtn._wired) {
-    setupBtn._wired = true;
-    setupBtn.addEventListener('click', copyEmployeeSetupLink);
   }
 }
 
@@ -1735,21 +1761,153 @@ function deleteEmployeeAccount(username) {
 }
 window.deleteEmployeeAccount = deleteEmployeeAccount;
 
-function copyEmployeeSetupLink() {
+function copyEmployeeSetupLink(username) {
   const cfg = getSyncCfg();
   if (!cfg.gistId || !cfg.gistToken) {
     showNotification('⚠️ Setup cloud sync first under Settings.', 'danger');
     return;
   }
-  const token = btoa(`${cfg.gistId}|${cfg.gistToken}`);
+  const token = btoa(`${cfg.gistId}|${cfg.gistToken}|${username}`);
   const url = `${location.origin}${location.pathname}#setup=${token}`;
 
   navigator.clipboard.writeText(url)
-    .then(() => showNotification('📋 Setup link copied to clipboard! Send this to employees.', 'success'))
+    .then(() => showNotification(`📋 Setup link for @${username} copied to clipboard! Send this to them.`, 'success'))
     .catch(() => {
       alert(`Could not copy automatically. Here is the link:\n\n${url}`);
     });
 }
+window.copyEmployeeSetupLink = copyEmployeeSetupLink;
+
+function approveDeviceCode() {
+  const input = document.getElementById('paste-device-code-input');
+  if (!input) return;
+  const val = input.value.trim();
+  if (!val) {
+    showNotification('⚠️ Please paste a valid registration code.', 'danger');
+    return;
+  }
+
+  try {
+    const raw = atob(val);
+    const data = JSON.parse(raw);
+    if (!data.username || !data.deviceId || !data.name) {
+      throw new Error('Missing fields in code');
+    }
+
+    const users = getUsers();
+    if (!users[data.username]) {
+      showNotification(`⚠️ Username @${data.username} does not exist in the Directory. Please add them first!`, 'danger');
+      return;
+    }
+
+    users[data.username].deviceId = data.deviceId;
+    users[data.username].deviceRegisteredAt = new Date().toISOString();
+    users[data.username].displayName = data.name; // Keep name aligned
+    if (data.phone) users[data.username].phone = data.phone;
+    
+    saveUsers(users);
+    input.value = '';
+    showNotification(`✅ Device approved successfully for ${data.name}!`, 'success');
+    renderUserManagement();
+  } catch (e) {
+    console.error('[Device Approval] Failed:', e);
+    showNotification('❌ Invalid registration code. Please make sure you copied the entire code.', 'danger');
+  }
+}
+window.approveDeviceCode = approveDeviceCode;
+
+// Device Registration Helpers for Employee Form
+function showDeviceRequestForm(event) {
+  if (event) event.preventDefault();
+  const loginForm = document.getElementById('login-form');
+  const reqForm = document.getElementById('device-request-form');
+  const successPanel = document.getElementById('registration-success-panel');
+  const hintEl = document.getElementById('owner-login-hint');
+
+  if (loginForm) loginForm.style.display = 'none';
+  if (successPanel) successPanel.style.display = 'none';
+  if (reqForm) reqForm.style.display = 'flex';
+  if (hintEl) hintEl.style.display = 'none';
+
+  // Pre-fill generated Device ID
+  const devIdEl = document.getElementById('req-emp-device-id');
+  if (devIdEl) devIdEl.value = getDeviceId();
+}
+window.showDeviceRequestForm = showDeviceRequestForm;
+
+function showLoginForm(event) {
+  if (event) event.preventDefault();
+  const loginForm = document.getElementById('login-form');
+  const reqForm = document.getElementById('device-request-form');
+  const successPanel = document.getElementById('registration-success-panel');
+  const hintEl = document.getElementById('owner-login-hint');
+
+  if (reqForm) reqForm.style.display = 'none';
+  if (successPanel) successPanel.style.display = 'none';
+  if (loginForm) loginForm.style.display = 'flex';
+  if (hintEl) hintEl.style.display = 'block';
+}
+window.showLoginForm = showLoginForm;
+
+// Wire up the submit handler for the device request form
+window.addEventListener('DOMContentLoaded', () => {
+  const reqForm = document.getElementById('device-request-form');
+  if (reqForm) {
+    reqForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const name = document.getElementById('req-emp-name').value.trim();
+      const username = document.getElementById('req-emp-username').value.trim().toLowerCase().replace(/\s+/g,'');
+      const phone = document.getElementById('req-emp-phone').value.trim();
+      const deviceId = getDeviceId();
+
+      const payload = {
+        name,
+        username,
+        phone,
+        deviceId,
+        requestedAt: new Date().toISOString()
+      };
+
+      const code = btoa(JSON.stringify(payload));
+      localStorage.setItem('octaneflow_temp_req_code', code);
+      localStorage.setItem('octaneflow_temp_req_name', name);
+
+      // Display success view
+      reqForm.style.display = 'none';
+      const successPanel = document.getElementById('registration-success-panel');
+      if (successPanel) successPanel.style.display = 'flex';
+
+      const displayBox = document.getElementById('req-code-display-box');
+      if (displayBox) displayBox.textContent = code;
+
+      // Copy code to clipboard automatically
+      navigator.clipboard.writeText(code)
+        .then(() => showNotification('📋 Code copied to clipboard!', 'success'))
+        .catch(() => console.warn('Auto copy failed'));
+    });
+  }
+});
+
+function shareRequestOnWhatsApp() {
+  const code = localStorage.getItem('octaneflow_temp_req_code') || '';
+  const name = localStorage.getItem('octaneflow_temp_req_name') || 'Employee';
+  if (!code) {
+    showNotification('⚠️ No registration code found. Please generate one first.', 'danger');
+    return;
+  }
+  const text = `Hello Owner, please approve my device for OctaneFlow.\n\nEmployee: ${name}\nCode:\n${code}`;
+  window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
+}
+window.shareRequestOnWhatsApp = shareRequestOnWhatsApp;
+
+function copyReqCodeAgain() {
+  const code = localStorage.getItem('octaneflow_temp_req_code') || '';
+  if (!code) return;
+  navigator.clipboard.writeText(code)
+    .then(() => showNotification('📋 Code copied to clipboard!', 'success'))
+    .catch(() => alert('Copy failed. Please manually select and copy the text inside the box.'));
+}
+window.copyReqCodeAgain = copyReqCodeAgain;
 
 // ── Format datetime helper ─────────────────────────────────
 function formatDateTime(iso) {
@@ -5913,6 +6071,11 @@ function seedDemoData() {
 // APP INITIALIZATION
 // -------------------------------------------------------------
 function renderCurrentView() {
+  const session = getSession();
+  if (session && session.role !== 'owner') {
+    checkAuth();
+    return;
+  }
   const activeItem = document.querySelector('.nav-item.active');
   if (!activeItem) return;
   const activeTab = activeItem.dataset.view;
@@ -5925,6 +6088,11 @@ function renderCurrentView() {
 }
 
 function initApp() {
+  const session = getSession();
+  if (session && session.role !== 'owner') {
+    checkAuth();
+    return;
+  }
   loadDB();
   const todayStr = new Date().toISOString().split('T')[0];
   const formattedToday = formatDate(todayStr);
@@ -6004,9 +6172,12 @@ window.addEventListener('DOMContentLoaded', () => {
     try {
       const encoded = hash.substring(7); // remove '#setup='
       const decoded = atob(encoded); // decode base64
-      const [gistId, gistToken] = decoded.split('|');
+      const [gistId, gistToken, inviteUser] = decoded.split('|');
       if (gistId && gistToken) {
         saveSyncCfg({ gistId, gistToken });
+        if (inviteUser) {
+          localStorage.setItem('octaneflow_invited_user', inviteUser);
+        }
         // Clear hash from URL immediately so it doesn't linger in navigation history
         history.replaceState(null, document.title, window.location.pathname + window.location.search);
         console.log('[Sync] Setup configuration successfully applied from link.');
