@@ -644,6 +644,8 @@ function approveEntry(entryId, skipRender = false) {
   db.pending_entries[idx].reviewedAt = new Date().toISOString();
   db.pending_entries[idx]._dirty     = true;
 
+  window.logAuditTrail('SHIFT_APPROVAL', '', JSON.stringify(db.pending_entries[idx]), `Approved shift entry ${entryId}`);
+
   window.markAppStateDirty('stock');
   window.markAppStateDirty('cashflow');
 

@@ -263,6 +263,26 @@ function buildIndexes() {
   };
 }
 
+window.logAuditTrail = function(action, prevValue, newValue, reason = '') {
+  if (!db) return;
+  db.audit_trail = db.audit_trail || [];
+  const session = typeof getSession === 'function' ? getSession() : null;
+  const username = session ? session.username : 'system';
+  
+  const record = {
+    timestamp: new Date().toISOString(),
+    user: username,
+    action,
+    prev_value: typeof prevValue === 'object' ? JSON.stringify(prevValue) : String(prevValue),
+    new_value: typeof newValue === 'object' ? JSON.stringify(newValue) : String(newValue),
+    reason
+  };
+  
+  db.audit_trail.push(record);
+  window.markAppStateDirty('audit_trail');
+  SystemLogger.info('AuditTrail', `Logged Action: ${action} by ${username}`, record);
+};
+
 window.markAppStateDirty = function(key) {
   if (!db) return;
   db.dirty_app_state_keys = db.dirty_app_state_keys || [];
@@ -814,24 +834,75 @@ function saveDailyReadings(data) {
   const newNetP = newCalc.totals.net_24h.petrol;
   const newNetD = newCalc.totals.net_24h.diesel;
 
+  const maxP = db.settings?.petrol_capacity || 25000;
+  const maxD = db.settings?.diesel_capacity || 25000;
+
   if (existingIdx !== -1) {
     const oldCalc = computeLedgerRow(db.daily_ledger[existingIdx]);
     const oldNetP = oldCalc.totals.net_24h.petrol;
     const oldNetD = oldCalc.totals.net_24h.diesel;
 
-    // Adjust stock back (add old sales, subtract new sales)
-    db.stock.petrol = Math.max(0, db.stock.petrol + oldNetP - newNetP);
-    db.stock.diesel = Math.max(0, db.stock.diesel + oldNetD - newNetD);
+    const targetPetrolStock = db.stock.petrol + oldNetP - newNetP;
+    const targetDieselStock = db.stock.diesel + oldNetD - newNetD;
 
+    if (targetPetrolStock < 0) {
+      SystemLogger.warning('saveDailyReadings', `Petrol stock drops below 0: ${targetPetrolStock.toFixed(2)} L`);
+      window.logAuditTrail('STOCK_NEGATIVE_WARNING', db.stock.petrol, targetPetrolStock, `Petrol stock went negative on modifying ledger date ${data.date}`);
+      showNotification(`⚠️ Warning: Petrol stock drops below 0 (${targetPetrolStock.toFixed(2)} L) on modify!`, 'warning');
+    } else if (targetPetrolStock > maxP) {
+      SystemLogger.warning('saveDailyReadings', `Petrol stock exceeds tank capacity: ${targetPetrolStock.toFixed(2)} L`);
+      window.logAuditTrail('STOCK_OVERFILL_WARNING', db.stock.petrol, targetPetrolStock, `Petrol stock exceeded tank capacity on modifying ledger date ${data.date}`);
+      showNotification(`⚠️ Warning: Petrol stock exceeds tank capacity (${targetPetrolStock.toFixed(2)} L) on modify!`, 'warning');
+    }
+
+    if (targetDieselStock < 0) {
+      SystemLogger.warning('saveDailyReadings', `Diesel stock drops below 0: ${targetDieselStock.toFixed(2)} L`);
+      window.logAuditTrail('STOCK_NEGATIVE_WARNING', db.stock.diesel, targetDieselStock, `Diesel stock went negative on modifying ledger date ${data.date}`);
+      showNotification(`⚠️ Warning: Diesel stock drops below 0 (${targetDieselStock.toFixed(2)} L) on modify!`, 'warning');
+    } else if (targetDieselStock > maxD) {
+      SystemLogger.warning('saveDailyReadings', `Diesel stock exceeds tank capacity: ${targetDieselStock.toFixed(2)} L`);
+      window.logAuditTrail('STOCK_OVERFILL_WARNING', db.stock.diesel, targetDieselStock, `Diesel stock exceeded tank capacity on modifying ledger date ${data.date}`);
+      showNotification(`⚠️ Warning: Diesel stock exceeds tank capacity (${targetDieselStock.toFixed(2)} L) on modify!`, 'warning');
+    }
+
+    const prevRowString = JSON.stringify(db.daily_ledger[existingIdx]);
+    db.stock.petrol = targetPetrolStock;
+    db.stock.diesel = targetDieselStock;
     db.daily_ledger[existingIdx] = data;
+    
+    window.logAuditTrail('LEDGER_EDIT', prevRowString, JSON.stringify(data), `Modified daily ledger for date ${data.date}`);
     SystemLogger.success('saveDailyReadings', `Reconciliation modified and saved for date ${formatDate(data.date)}. Net Sales: Petrol = ${newNetP.toFixed(2)} L, Diesel = ${newNetD.toFixed(2)} L.`, newCalc.totals);
     showNotification(`✅ Reconciled values saved in local database and synced to Supabase! Updates visible on Sales Cumulative Sheet and Profit charts.`, "success");
   } else {
     // New date log entry: directly subtract sales from stock
-    db.stock.petrol = Math.max(0, db.stock.petrol - newNetP);
-    db.stock.diesel = Math.max(0, db.stock.diesel - newNetD);
+    const targetPetrolStock = db.stock.petrol - newNetP;
+    const targetDieselStock = db.stock.diesel - newNetD;
 
+    if (targetPetrolStock < 0) {
+      SystemLogger.warning('saveDailyReadings', `Petrol stock drops below 0: ${targetPetrolStock.toFixed(2)} L`);
+      window.logAuditTrail('STOCK_NEGATIVE_WARNING', db.stock.petrol, targetPetrolStock, `Petrol stock went negative on logging ledger date ${data.date}`);
+      showNotification(`⚠️ Warning: Petrol stock drops below 0 (${targetPetrolStock.toFixed(2)} L) on log!`, 'warning');
+    } else if (targetPetrolStock > maxP) {
+      SystemLogger.warning('saveDailyReadings', `Petrol stock exceeds tank capacity: ${targetPetrolStock.toFixed(2)} L`);
+      window.logAuditTrail('STOCK_OVERFILL_WARNING', db.stock.petrol, targetPetrolStock, `Petrol stock exceeded tank capacity on logging ledger date ${data.date}`);
+      showNotification(`⚠️ Warning: Petrol stock exceeds tank capacity (${targetPetrolStock.toFixed(2)} L) on log!`, 'warning');
+    }
+
+    if (targetDieselStock < 0) {
+      SystemLogger.warning('saveDailyReadings', `Diesel stock drops below 0: ${targetDieselStock.toFixed(2)} L`);
+      window.logAuditTrail('STOCK_NEGATIVE_WARNING', db.stock.diesel, targetDieselStock, `Diesel stock went negative on logging ledger date ${data.date}`);
+      showNotification(`⚠️ Warning: Diesel stock drops below 0 (${targetDieselStock.toFixed(2)} L) on log!`, 'warning');
+    } else if (targetDieselStock > maxD) {
+      SystemLogger.warning('saveDailyReadings', `Diesel stock exceeds tank capacity: ${targetDieselStock.toFixed(2)} L`);
+      window.logAuditTrail('STOCK_OVERFILL_WARNING', db.stock.diesel, targetDieselStock, `Diesel stock exceeded tank capacity on logging ledger date ${data.date}`);
+      showNotification(`⚠️ Warning: Diesel stock exceeds tank capacity (${targetDieselStock.toFixed(2)} L) on log!`, 'warning');
+    }
+
+    db.stock.petrol = targetPetrolStock;
+    db.stock.diesel = targetDieselStock;
     db.daily_ledger.push(data);
+    
+    window.logAuditTrail('LEDGER_LOG', '', JSON.stringify(data), `Logged new daily readings for date ${data.date}`);
     SystemLogger.success('saveDailyReadings', `Daily readings logged and saved for date ${formatDate(data.date)}. Net Sales: Petrol = ${newNetP.toFixed(2)} L, Diesel = ${newNetD.toFixed(2)} L.`, newCalc.totals);
     showNotification(`✅ Daily readings logged in local database and synced to Supabase! Updates visible on Sales Cumulative Sheet and Profit charts.`, "success");
   }
@@ -852,9 +923,23 @@ function deleteLedgerRow(dateStr) {
     const oldNetP = oldCalc.totals.net_24h.petrol;
     const oldNetD = oldCalc.totals.net_24h.diesel;
 
-    // Refund stock
-    db.stock.petrol += oldNetP;
-    db.stock.diesel += oldNetD;
+    const maxP = db.settings?.petrol_capacity || 25000;
+    const maxD = db.settings?.diesel_capacity || 25000;
+    const targetPetrolStock = db.stock.petrol + oldNetP;
+    const targetDieselStock = db.stock.diesel + oldNetD;
+
+    if (targetPetrolStock > maxP) {
+      SystemLogger.warning('deleteLedgerRow', `Petrol refund exceeds tank capacity: ${targetPetrolStock.toFixed(2)} L`);
+      showNotification(`⚠️ Warning: Stock refund exceeds Petrol tank capacity (${targetPetrolStock.toFixed(2)} L)!`, 'warning');
+    }
+    if (targetDieselStock > maxD) {
+      SystemLogger.warning('deleteLedgerRow', `Diesel refund exceeds tank capacity: ${targetDieselStock.toFixed(2)} L`);
+      showNotification(`⚠️ Warning: Stock refund exceeds Diesel tank capacity (${targetDieselStock.toFixed(2)} L)!`, 'warning');
+    }
+
+    const prevRowString = JSON.stringify(db.daily_ledger[index]);
+    db.stock.petrol = targetPetrolStock;
+    db.stock.diesel = targetDieselStock;
 
     db.daily_ledger.splice(index, 1);
     
@@ -864,6 +949,7 @@ function deleteLedgerRow(dateStr) {
       db.deleted_ledger_dates.push(dateStr);
     }
     
+    window.logAuditTrail('LEDGER_DELETE', prevRowString, '', `Deleted ledger entry for date ${dateStr}`);
     window.markAppStateDirty('stock');
     window.markAppStateDirty('cashflow');
     saveDB();
@@ -876,6 +962,16 @@ function recordTanker(dateStr, timeStr, loadType, customP, customD, priceP, pric
                       petrolInvoiceDensity = 0, petrolObservedDensity = 0, petrolObservedTemp = 0,
                       dieselInvoiceDensity = 0, dieselObservedDensity = 0, dieselObservedTemp = 0,
                       invoiceNo = '', paymentStatus = 'Due') {
+  const invoiceClean = (invoiceNo || '').trim();
+  if (invoiceClean) {
+    const duplicate = db.purchases.find(p => p.invoice_no === invoiceClean);
+    if (duplicate) {
+      showNotification(`❌ Error: Invoice number ${invoiceClean} already exists in database! Duplicate blocked.`, 'danger');
+      SystemLogger.error('recordTanker', `Blocked duplicate tanker entry for invoice: ${invoiceClean}`);
+      return;
+    }
+  }
+
   let petrolQty = 0;
   let dieselQty = 0;
 
@@ -911,6 +1007,20 @@ function recordTanker(dateStr, timeStr, loadType, customP, customD, priceP, pric
   const currentD = db.stock.diesel;
   const oldWacP = db.stock.petrol_cost_wac;
   const oldWacD = db.stock.diesel_cost_wac;
+
+  const maxP = db.settings?.petrol_capacity || 25000;
+  const maxD = db.settings?.diesel_capacity || 25000;
+
+  if (currentP + petrolQty > maxP) {
+    SystemLogger.warning('recordTanker', `Petrol overfill warning: calculated stock ${(currentP + petrolQty).toFixed(2)} L exceeds tank capacity`);
+    window.logAuditTrail('STOCK_OVERFILL_WARNING', currentP, currentP + petrolQty, `Tanker invoice ${invoiceClean} overfills petrol tank`);
+    showNotification(`⚠️ Warning: Tanker receipt overfills Petrol storage tank (${(currentP + petrolQty).toFixed(2)} L)!`, 'warning');
+  }
+  if (currentD + dieselQty > maxD) {
+    SystemLogger.warning('recordTanker', `Diesel overfill warning: calculated stock ${(currentD + dieselQty).toFixed(2)} L exceeds tank capacity`);
+    window.logAuditTrail('STOCK_OVERFILL_WARNING', currentD, currentD + dieselQty, `Tanker invoice ${invoiceClean} overfills diesel tank`);
+    showNotification(`⚠️ Warning: Tanker receipt overfills Diesel storage tank (${(currentD + dieselQty).toFixed(2)} L)!`, 'warning');
+  }
 
   if (petrolQty > 0) {
     db.stock.petrol_cost_wac = ((currentP * oldWacP) + (petrolQty * priceP)) / (currentP + petrolQty);
@@ -969,6 +1079,7 @@ function recordTanker(dateStr, timeStr, loadType, customP, customD, priceP, pric
   };
 
   db.purchases.unshift(purchase);
+  window.logAuditTrail('TANKER_LOG', '', JSON.stringify(purchase), `Recorded tanker delivery invoice ${purchase.invoice_no}`);
   if (purchase.payment_status === 'paid') {
     db.cashflow.bank_balance = Math.max(0, (db.cashflow.bank_balance || 0) - purchase.total_cost);
     window.markAppStateDirty('cashflow');
@@ -989,6 +1100,7 @@ function updateSellingPrice(dateTimeStr, priceP, priceD) {
 
   db.prices.unshift(entry);
   db.prices.sort((a,b) => new Date(b.effective_date) - new Date(a.effective_date));
+  window.logAuditTrail('PRICE_UPDATE', '', JSON.stringify(entry), `Updated selling prices effective: ${entry.effective_date}`);
   window.markAppStateDirty('price_history');
   saveDB();
   SystemLogger.success('updateSellingPrice', `Selling prices updated: Petrol = ₹${entry.petrol.toFixed(2)}/L, Diesel = ₹${entry.diesel.toFixed(2)}/L (Effective: ${entry.effective_date})`, entry);

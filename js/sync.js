@@ -246,7 +246,8 @@ async function syncPull() {
       purchases: [],
       holidays: [],
       users: {},
-      cashflow: {}
+      cashflow: {},
+      audit_trail: []
     };
     
     stateData.forEach(row => {
@@ -257,6 +258,7 @@ async function syncPull() {
       else if (row.key === 'holidays') record.holidays = row.value;
       else if (row.key === 'users') record.users = row.value;
       else if (row.key === 'cashflow') record.cashflow = row.value;
+      else if (row.key === 'audit_trail') record.audit_trail = row.value;
     });
     
     let maxTime = new Date(0);
@@ -311,7 +313,7 @@ async function syncPush(forceAll = false) {
     if (isOwner) {
       let keysToPush = db.dirty_app_state_keys || [];
       if (forceAll) {
-        keysToPush = ['settings', 'stock', 'price_history', 'purchases', 'holidays', 'users', 'cashflow'];
+        keysToPush = ['settings', 'stock', 'price_history', 'purchases', 'holidays', 'users', 'cashflow', 'audit_trail'];
       }
       
       if (keysToPush.length > 0) {
@@ -325,6 +327,7 @@ async function syncPush(forceAll = false) {
           else if (k === 'holidays') appStateRows.push({ key: 'holidays', value: db.holidays || [] });
           else if (k === 'users') appStateRows.push({ key: 'users', value: db.users || {} });
           else if (k === 'cashflow') appStateRows.push({ key: 'cashflow', value: db.cashflow || {} });
+          else if (k === 'audit_trail') appStateRows.push({ key: 'audit_trail', value: db.audit_trail || [] });
         });
         
         if (appStateRows.length > 0) {

@@ -93,6 +93,37 @@ const RKSKSchema = {
     };
   },
 
+  validateNozzleReadings(open, close, name) {
+    const o = Number(open) || 0;
+    const c = Number(close) || 0;
+    if (c < o) {
+      return `Closing meter reading (${c}) cannot be less than opening reading (${o}) for nozzle ${name}.`;
+    }
+    return null;
+  },
+
+  validateDenominations(countedCash, denomsObj) {
+    if (!denomsObj) return true;
+    let sum = 0;
+    const values = {
+      note2000: 2000, note500: 500, note200: 200, note100: 100,
+      note50: 50, note20: 20, note10: 10, note5: 5, note2: 2, note1: 1, coin: 1
+    };
+    for (const key in denomsObj) {
+      const count = Number(denomsObj[key]) || 0;
+      const val = values[key] || 0;
+      sum += count * val;
+    }
+    return Math.abs(sum - countedCash) < 0.01;
+  },
+
+  validateTankCapacity(currentStock, quantity, limit) {
+    const current = Number(currentStock) || 0;
+    const incoming = Number(quantity) || 0;
+    const maxVal = Number(limit) || 25000;
+    return (current + incoming) <= maxVal;
+  },
+
   sanitizeNumber(val, fallback = 0) {
     if (val === null || val === undefined || val === '') return fallback;
     const parsed = Number(val);
