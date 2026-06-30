@@ -651,7 +651,7 @@ function renderUserManagement() {
   const ulistEl  = document.getElementById('user-mgmt-list');
   if (!ulistEl) return;
 
-  const employees = Object.values(users).filter(u => u.role === 'employee');
+  const employees = Object.values(users).filter(u => u.role === 'employee' && !u.deleted);
   ulistEl.innerHTML = employees.length === 0
     ? '<p style="color:#64748b;text-align:center;padding:1rem;">No employees yet. Add one below.</p>'
     : employees.map(u => `
