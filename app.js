@@ -1204,7 +1204,7 @@ function updateEmpLiveCalc() {
     const price  = prices[fuel] || 0;
     const revenue = litres * price;
     totalLitres  += litres;
-    totalRevenue += revenue;
+    totalRevenue += effectiveRevenue;
 
     const manualPriceEl = document.getElementById(previewId + '-manual-price');
     const effectivePrice = (manualPriceEl && parseFloat(manualPriceEl.value) > 0)
