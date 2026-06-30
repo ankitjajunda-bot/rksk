@@ -853,6 +853,13 @@ function deleteLedgerRow(dateStr) {
     db.stock.diesel += oldNetD;
 
     db.daily_ledger.splice(index, 1);
+    
+    // Queue for cloud deletion
+    db.deleted_ledger_dates = db.deleted_ledger_dates || [];
+    if (!db.deleted_ledger_dates.includes(dateStr)) {
+      db.deleted_ledger_dates.push(dateStr);
+    }
+    
     saveDB();
     showNotification(`Daily record for ${formatDate(dateStr)} deleted.`, "info");
     initApp();

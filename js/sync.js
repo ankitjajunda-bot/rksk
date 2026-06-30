@@ -350,7 +350,20 @@ async function syncPush(forceAll = false) {
       }
     }
     
-    // 3. Push daily_ledger (Only push if owner, and only push recent 14 days unless forceAll)
+    // 3. Process daily_ledger deletions if any
+    if (isOwner && db.deleted_ledger_dates && db.deleted_ledger_dates.length > 0) {
+      SystemLogger.info('syncPush', `Attempting to delete ${db.deleted_ledger_dates.length} daily_ledger rows from cloud...`);
+      for (const d of db.deleted_ledger_dates) {
+        const { error: delErr } = await supabaseClient.from('daily_ledger').delete().eq('date', d);
+        if (delErr) {
+          SystemLogger.error('syncPush', `Failed to delete row for ${d} from cloud`, delErr);
+          throw delErr;
+        }
+      }
+      db.deleted_ledger_dates = [];
+    }
+
+    // 4. Push daily_ledger (Only push if owner, and only push recent 14 days unless forceAll)
     if (isOwner && db.daily_ledger && db.daily_ledger.length > 0) {
       let ledgerToPush = db.daily_ledger;
       if (!forceAll) {
@@ -475,12 +488,15 @@ async function initSync() {
 
     // 3. Merge daily_ledger: Keep unsynced local entries, overlay cloud entries
     const unsyncedLedger = (db.daily_ledger || []).filter(e => e._dirty);
+    const deletedDates = db.deleted_ledger_dates || [];
     const mergedLedgerMap = new Map();
     (cloudData.daily_ledger || []).forEach(cloudEntry => {
+      if (deletedDates.includes(cloudEntry.date)) return;
       cloudEntry._dirty = false;
       mergedLedgerMap.set(cloudEntry.date, cloudEntry);
     });
     unsyncedLedger.forEach(localEntry => {
+      if (deletedDates.includes(localEntry.date)) return;
       mergedLedgerMap.set(localEntry.date, localEntry);
     });
     db.daily_ledger = Array.from(mergedLedgerMap.values());
