@@ -256,6 +256,24 @@ function renderEmployeeView(session) {
 }
 
 async function submitEmployeeReading(session) {
+  const numericIds = [
+    'emp-du1p-open', 'emp-du1p-close', 'emp-du1p-tests',
+    'emp-du1d-open', 'emp-du1d-close', 'emp-du1d-tests',
+    'emp-du2p-open', 'emp-du2p-close', 'emp-du2p-tests',
+    'emp-du2d-open', 'emp-du2d-close', 'emp-du2d-tests',
+    'emp-kharcha', 'emp-phonepe', 'emp-card', 'emp-paytm', 'emp-credit-sales',
+    'emp-deposit-amount'
+  ];
+  for (const id of numericIds) {
+    const el = document.getElementById(id);
+    if (el && el.value.trim() !== '') {
+      if (isNaN(Number(el.value.trim()))) {
+        showNotification(`⚠️ Form Error: Invalid numeric value entered in one of the fields. Please check and try again.`, 'danger');
+        return;
+      }
+    }
+  }
+
   const val = id => sanitizeNumber(document.getElementById(id)?.value);
   const int = id => Math.floor(sanitizeNumber(document.getElementById(id)?.value));
 

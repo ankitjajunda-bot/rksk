@@ -1,0 +1,12 @@
+{
+  "name": "rksk-fuel-station-manager",
+  "version": "1.0.0",
+  "description": "Enterprise Robustness Package for Fuel Station Manager",
+  "main": "index.html",
+  "scripts": {
+    "test": "jest --verbose"
+  },
+  "devDependencies": {
+    "jest": "^29.7.0"
+  }
+}

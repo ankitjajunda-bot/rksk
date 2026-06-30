@@ -86,7 +86,7 @@ function loadDB() {
         delete db.active_shift;
       }
       // Ensure structural fields are present
-      db.settings = { ...DEFAULT_DB.settings, ...db.settings };
+      db.settings = RKSKSchema.validateSettings(db.settings);
       db.stock = { ...DEFAULT_DB.stock, ...db.stock };
       db.cashflow = { ...DEFAULT_DB.cashflow, ...db.cashflow };
 
@@ -116,27 +116,14 @@ function loadDB() {
       db.cashflow.iocl_cushion = safeNum(db.cashflow.iocl_cushion);
 
       if (db.daily_ledger && Array.isArray(db.daily_ledger)) {
-        db.daily_ledger.forEach(row => {
-          if (row.prices) {
-            row.prices.petrol = safeNum(row.prices.petrol);
-            row.prices.diesel = safeNum(row.prices.diesel);
+        db.daily_ledger = db.daily_ledger.map(row => {
+          try {
+            return RKSKSchema.validateRow(row);
+          } catch (e) {
+            console.error('Ledger row schema validation failed:', e);
+            return null;
           }
-          ['du1_p', 'du1_d', 'du2_p', 'du2_d'].forEach(n => {
-            if (row[n]) {
-              row[n].open = safeNum(row[n].open);
-              row[n].close_day = safeNum(row[n].close_day);
-              row[n].close_night = safeNum(row[n].close_night);
-              row[n].tests_day = safeNum(row[n].tests_day);
-              row[n].tests_night = safeNum(row[n].tests_night);
-            }
-          });
-          if (row.recon) {
-            row.recon.cash = safeNum(row.recon.cash);
-            row.recon.phonepe = safeNum(row.recon.phonepe);
-            row.recon.credit = safeNum(row.recon.credit);
-            row.recon.total_collection = safeNum(row.recon.total_collection);
-          }
-        });
+        }).filter(Boolean);
       }
       
       if (db.prices && Array.isArray(db.prices)) {

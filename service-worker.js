@@ -6,7 +6,7 @@
 //   - Everything else               → Network First, fallback to cache
 // ============================================================
 
-const CACHE_NAME     = 'octaneflow-v68';
+const CACHE_NAME     = 'octaneflow-v69';
 const FONT_CACHE     = 'octaneflow-fonts-v1';
 
 // Detect base path automatically — works on localhost AND GitHub Pages /octaneflow/
@@ -16,6 +16,7 @@ const BASE = self.registration.scope.replace(/\/$/, '');
 const APP_SHELL = [
   BASE + '/index.html',
   BASE + '/app.js',
+  BASE + '/js/schema.js',
   BASE + '/styles.css',
   BASE + '/favicon.png',
   BASE + '/apple-touch-icon.png',
