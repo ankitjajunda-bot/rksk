@@ -410,6 +410,13 @@ async function processSyncQueue() {
   setSyncStatus('syncing');
 
   for (const tx of pendingItems) {
+    if ((tx.retry_count || 0) >= 5) {
+      SystemLogger.error('syncQueue', `Dropping permanently failed TX ${tx.tx_id} after 5 retries to prevent queue lockup.`);
+      window.logAuditTrail('SYNC_TX_DROPPED', JSON.stringify(tx), '', `Sync transaction dropped due to excessive retries: ${tx.error_details}`);
+      tx.status = 'dropped';
+      db.sync_queue = db.sync_queue.filter(q => q.tx_id !== tx.tx_id);
+      continue;
+    }
     tx.status = 'processing';
     tx.retry_count = (tx.retry_count || 0) + 1;
 
