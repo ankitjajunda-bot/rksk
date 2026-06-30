@@ -305,18 +305,22 @@ async function syncPush(forceAll = false) {
   try {
     setSyncStatus('syncing');
     
-    // 1. Push app_state (always push)
-    const appStateRows = [
-      { key: 'settings', value: db.settings || {} },
-      { key: 'stock', value: db.stock || {} },
-      { key: 'price_history', value: db.price_history || [] },
-      { key: 'purchases', value: db.purchases || [] },
-      { key: 'holidays', value: db.holidays || [] },
-      { key: 'users', value: db.users || {} }
-    ];
-    
-    const { error: stateErr } = await supabaseClient.from('app_state').upsert(appStateRows);
-    if (stateErr) throw stateErr;
+    // 1. Push app_state (Only the owner is permitted to overwrite the master app_state)
+    if (isOwner) {
+      const appStateRows = [
+        { key: 'settings', value: db.settings || {} },
+        { key: 'stock', value: db.stock || {} },
+        { key: 'price_history', value: db.price_history || [] },
+        { key: 'purchases', value: db.purchases || [] },
+        { key: 'holidays', value: db.holidays || [] },
+        { key: 'users', value: db.users || {} }
+      ];
+      
+      const { error: stateErr } = await supabaseClient.from('app_state').upsert(appStateRows);
+      if (stateErr) throw stateErr;
+    } else {
+      SystemLogger.info('syncPush', 'Skipped app_state push (employee devices cannot push app_state)');
+    }
     
     // 2. Push pending_entries (filter to pending or recent if not forceAll)
     if (db.pending_entries && db.pending_entries.length > 0) {
