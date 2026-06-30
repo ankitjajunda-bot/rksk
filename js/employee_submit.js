@@ -75,15 +75,16 @@ function updateEmpLiveCalc() {
 
     const litres = Math.max(0, close - open - tests);
     const price  = prices[fuel] || 0;
-    const revenue = litres * price;
-    totalLitres  += litres;
-    totalRevenue += effectiveRevenue;
-
+    
     const manualPriceEl = document.getElementById(previewId + '-manual-price');
     const effectivePrice = (manualPriceEl && parseFloat(manualPriceEl.value) > 0)
       ? parseFloat(manualPriceEl.value)
       : price;
     const effectiveRevenue = litres * effectivePrice;
+    
+    totalLitres  += litres;
+    totalRevenue += effectiveRevenue;
+
     const isManual = manualPriceEl && parseFloat(manualPriceEl.value) > 0;
 
     previewEl.style.display = 'flex';
