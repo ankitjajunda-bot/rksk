@@ -1092,15 +1092,20 @@ function renderModalExpenses() {
     return;
   }
   
-  container.innerHTML = tempModalExpenses.map((exp, idx) => `
-    <div style="display:flex; justify-content:space-between; align-items:center; background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.05); padding:4px 8px; border-radius:4px; margin-bottom: 2px;">
-      <span>${exp.name}</span>
+  container.innerHTML = '';
+  tempModalExpenses.forEach((exp, idx) => {
+    const div = document.createElement('div');
+    div.style.cssText = "display:flex; justify-content:space-between; align-items:center; background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.05); padding:4px 8px; border-radius:4px; margin-bottom: 2px;";
+    div.innerHTML = `
+      <span class="modal-expense-name"></span>
       <div style="display:flex; gap:10px; align-items:center;">
         <span style="font-weight:700; color:var(--primary);">₹ ${exp.amount.toFixed(0)}</span>
         <button type="button" onclick="deleteModalExpense(${idx})" style="background:none; border:none; color:#ef4444; font-size:1.1rem; line-height:1; cursor:pointer; padding:0 4px;">&times;</button>
       </div>
-    </div>
-  `).join('');
+    `;
+    div.querySelector('.modal-expense-name').textContent = exp.name;
+    container.appendChild(div);
+  });
 }
 
 function addModalExpense() {

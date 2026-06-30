@@ -584,8 +584,9 @@ function approveEntry(entryId, skipRender = false) {
 
     // Merge financial collections
     row.recon.cash = (row.recon.cash || 0) + (ed.cash_sales || 0);
-    row.recon.phonepe = (row.recon.phonepe || 0) + (ed.card_sales || 0);
-    row.recon.total_collection = row.recon.cash + row.recon.phonepe + (row.recon.credit || 0);
+    row.recon.card = (row.recon.card || 0) + (ed.card_sales || 0);
+    row.recon.phonepe = (row.recon.phonepe || 0) + (ed.phonepe_collection || 0);
+    row.recon.total_collection = row.recon.cash + row.recon.card + row.recon.phonepe + (row.recon.credit || 0);
 
     // Apply manual price overrides to the daily ledger if present
     if (ed.manual_prices) {

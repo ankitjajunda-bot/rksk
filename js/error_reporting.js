@@ -1358,12 +1358,13 @@ function renderExpensesList() {
     const row = document.createElement('div');
     row.className = 'ocr-row-item';
     row.innerHTML = `
-      <span style="color:#fff;">${exp.description}</span>
+      <span style="color:#fff;" class="recon-expense-desc"></span>
       <div style="display:flex; align-items:center; gap:0.5rem;">
         <strong style="color:var(--danger);">₹ ${exp.amount.toFixed(2)}</strong>
         <button class="btn btn-secondary btn-sm" onclick="removeExpenseRow(${idx})" style="padding:0.05rem 0.25rem; font-size:0.65rem; border-radius:3px; line-height:1; background:rgba(255,255,255,0.05);">×</button>
       </div>
     `;
+    row.querySelector('.recon-expense-desc').textContent = exp.description;
     container.appendChild(row);
   });
 }
