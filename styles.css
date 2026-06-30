@@ -2246,3 +2246,37 @@ textarea {
 
 
 
+
+/* Employee Mobile Dashboard Layout */
+.emp-nozzle-grid {
+  display: grid;
+  grid-template-columns: 1fr; /* Stack vertically by default */
+  gap: 1rem;
+}
+
+@media (min-width: 768px) {
+  .emp-nozzle-grid {
+    grid-template-columns: 1fr 1fr 1fr; /* Side by side on larger screens */
+  }
+}
+
+.emp-mobile-input {
+  min-height: 48px;
+  font-size: 1rem !important; /* Prevent iOS zoom */
+  padding: 0.8rem !important;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.emp-form-group {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.emp-label {
+  font-size: 0.85rem;
+  color: #94a3b8;
+  margin-bottom: 0.4rem;
+  font-weight: 600;
+}
