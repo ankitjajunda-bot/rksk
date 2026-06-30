@@ -810,6 +810,7 @@ async function renderPendingDeviceApprovals() {
       return;
     }
 
+    const users = getUsers();
     const allEmployees = Object.values(users).filter(u => u.role === 'employee');
     const unapprovedEmployees = allEmployees.filter(u => !u.deviceId);
 
@@ -848,7 +849,7 @@ async function renderPendingDeviceApprovals() {
     }).join('');
   } catch (err) {
     console.error(err);
-    container.innerHTML = '<p style="color:#ef4444;font-size:0.75rem;text-align:center;">Failed to load requests.</p>';
+    container.innerHTML = `<p style="color:#ef4444;font-size:0.75rem;text-align:center;">Failed to load: ${err.message || err}</p>`;
   }
 }
 window.renderPendingDeviceApprovals = renderPendingDeviceApprovals;
