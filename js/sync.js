@@ -423,7 +423,15 @@ async function initSync() {
     db.price_history = cloudData.price_history || db.price_history || [];
     db.purchases = cloudData.purchases || db.purchases || [];
     db.holidays = cloudData.holidays || db.holidays || [];
-    db.users = cloudData.users || db.users || {};
+    
+    // Safely merge users bidirectionally so cloud sync NEVER wipes local users
+    const localU = db.users || {};
+    const cloudU = cloudData.users || {};
+    const safeUsers = { ...localU, ...cloudU };
+    for (const k in localU) {
+      if (!safeUsers[k]) safeUsers[k] = localU[k];
+    }
+    db.users = safeUsers;
 
     // 2. Merge pending_entries: Keep unsynced local entries, overlay cloud entries (deleting resolved ones)
     const unsyncedPending = (db.pending_entries || []).filter(e => e._dirty);

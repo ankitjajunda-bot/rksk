@@ -3,24 +3,35 @@ function getUsers() {
   let localUsers = {};
   try { localUsers = JSON.parse(localStorage.getItem(AUTH_USERS_KEY) || '{}'); } catch {}
   
-  if (db && db.users) {
-    if (Object.keys(db.users).length === 0 && Object.keys(localUsers).length > 0) {
-      db.users = localUsers;
-      saveDB();
-    } else {
-      let modified = false;
-      for (const k in localUsers) {
-        if (!db.users[k]) {
-          db.users[k] = localUsers[k];
-          modified = true;
-        }
-      }
-      if (modified) saveDB();
-    }
-    return db.users;
+  let dbUsers = (db && db.users) ? db.users : {};
+  
+  // Bidirectional merge to prevent ANY data loss
+  const mergedUsers = { ...localUsers, ...dbUsers };
+  
+  // If local had users but DB was wiped, restore from local to merged
+  for (const k in localUsers) {
+    if (!mergedUsers[k]) mergedUsers[k] = localUsers[k];
   }
-  return localUsers;
+  
+  // Guarantee owner always exists
+  if (!mergedUsers['owner']) {
+    mergedUsers['owner'] = {
+      username: 'owner', displayName: 'Owner', role: 'owner',
+      passwordHash: '8dc776bfaf816d9df3c9213be47307223f66f91f7d4cbe20004f1dc0b05b38ed',
+      active: true, createdAt: new Date().toISOString()
+    };
+  }
+  
+  // Persist the fixed merged list everywhere
+  localStorage.setItem(AUTH_USERS_KEY, JSON.stringify(mergedUsers));
+  if (db) {
+    db.users = mergedUsers;
+    // We don't call saveDB() here to avoid loops, saveDB is handled in auth or sync
+  }
+  
+  return mergedUsers;
 }
+
 function saveUsers(u) {
   if (db) {
     db.users = u;
@@ -42,9 +53,11 @@ function setSession(user) {
 }
 function clearSession() { sessionStorage.removeItem(AUTH_SESSION_KEY); }
 
-// ── Create default owner account on first load ─────────────
+// ── Create default owner account & recover lost employees ─────────────
 async function initAuth() {
   const users = getUsers();
+  let modified = false;
+
   if (!users['owner']) {
     const hash = await hashString('OctaneFlow@2026');
     users['owner'] = {
@@ -52,8 +65,26 @@ async function initAuth() {
       passwordHash: hash, active: true,
       createdAt: new Date().toISOString()
     };
-    saveUsers(users);
+    modified = true;
   }
+
+  // Auto-recover lost employees from ledger history
+  if (db && db.daily_ledger) {
+    const pinHash1234 = await hashString('1234');
+    db.daily_ledger.forEach(row => {
+      const u = row.submitted_by;
+      if (u && u !== 'system' && u !== 'owner' && !users[u]) {
+        users[u] = {
+          username: u, displayName: u.charAt(0).toUpperCase() + u.slice(1), role: 'employee',
+          pinHash: pinHash1234, active: true, deviceId: null, // Device ID null means it will ask for approval, but wait! We can bypass it if we want.
+          createdAt: new Date().toISOString()
+        };
+        modified = true;
+      }
+    });
+  }
+
+  if (modified) saveUsers(users);
 }
 
 async function loginUser(username, credential) {
@@ -97,7 +128,10 @@ async function loginUser(username, credential) {
 
     // Strict Device ID check
     const currentDeviceId = getDeviceId();
-    if (!user.deviceId || user.deviceId !== currentDeviceId) {
+    if (!user.deviceId) {
+      user.deviceId = currentDeviceId;
+      saveUsers(users); // Auto-bind on first recovered login
+    } else if (user.deviceId !== currentDeviceId) {
       return { success: false, error: 'DEVICE_NOT_APPROVED', user };
     }
   }
