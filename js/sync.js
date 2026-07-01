@@ -344,8 +344,7 @@ function rebuildSyncQueue() {
             created_at: new Date().toISOString()
           });
         }
-        // Keep _dirty=true until the sync transaction succeeds so a failed/partial sync
-        // does not let stale cloud data overwrite the local approved state on refresh.
+        e._dirty = false;
       }
     });
   }
@@ -431,8 +430,6 @@ async function processSyncQueue() {
         delete cleanPayload._dirty;
         const { error } = await supabaseClient.from('pending_entries').upsert([cleanPayload]);
         if (error) throw error;
-        const localEntry = db.pending_entries?.find(e => e.id === tx.payload.id);
-        if (localEntry) localEntry._dirty = false;
       }
       else if (tx.action === 'delete_ledger') {
         const { error } = await supabaseClient.from('daily_ledger').delete().eq('date', tx.payload.date);
@@ -443,8 +440,6 @@ async function processSyncQueue() {
         delete cleanPayload._dirty;
         const { error } = await supabaseClient.from('daily_ledger').upsert([cleanPayload]);
         if (error) throw error;
-        const localEntry = db.daily_ledger?.find(e => e.date === tx.payload.date);
-        if (localEntry) localEntry._dirty = false;
       }
 
       tx.status = 'success';
