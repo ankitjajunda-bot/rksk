@@ -582,7 +582,33 @@ function initSync() {
       unsyncedPending.forEach((localEntry) => {
         mergedPendingMap.set(localEntry.id, localEntry);
       });
+      const prevPendingCount = (db.pending_entries || []).length;
       db.pending_entries = Array.from(mergedPendingMap.values());
+      
+      // Play a chime if new pending entries were downloaded from the cloud
+      if (db.pending_entries.length > prevPendingCount && typeof getSession === 'function') {
+        const sess = getSession();
+        if (sess && sess.role === 'owner') {
+          try {
+            const ctx = new (window.AudioContext || window.webkitAudioContext)();
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(880, ctx.currentTime);
+            osc.frequency.exponentialRampToValueAtTime(1760, ctx.currentTime + 0.1);
+            gain.gain.setValueAtTime(0.5, ctx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.5);
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.start();
+            osc.stop(ctx.currentTime + 0.5);
+            if (typeof showNotification === 'function') {
+              showNotification("🔔 New submission received from an employee!", "info");
+            }
+          } catch(e) {}
+        }
+      }
+
       const unsyncedLedger = (db.daily_ledger || []).filter((e) => e._dirty);
       const deletedDates = db.deleted_ledger_dates || [];
       const mergedLedgerMap = /* @__PURE__ */ new Map();
