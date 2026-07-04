@@ -575,8 +575,8 @@ Is this an authorized meter replacement or reset? Click OK to submit for owner a
       }
     });
     if (quarantine_reasons.length > 0) {
-      entry.flagged_for_quarantine = true;
-      entry.quarantine_reasons = quarantine_reasons;
+      entry.entryData.flagged_for_quarantine = true;
+      entry.entryData.quarantine_reasons = quarantine_reasons;
     }
 
     const submitBtn = document.getElementById("emp-submit-btn");

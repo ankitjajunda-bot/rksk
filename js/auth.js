@@ -86,6 +86,10 @@ function getUsers() {
 function saveUsers(u) {
   if (db) {
     db.users = u;
+    db.dirty_app_state_keys = db.dirty_app_state_keys || [];
+    if (!db.dirty_app_state_keys.includes('users')) {
+      db.dirty_app_state_keys.push('users');
+    }
     saveDB();
   }
   localStorage.setItem(AUTH_USERS_KEY, JSON.stringify(u));

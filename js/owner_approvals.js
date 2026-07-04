@@ -340,11 +340,11 @@ function renderApprovalsPanel() {
                     </div>
 
                     <!-- Quarantine Alert -->
-                    ${entry.flagged_for_quarantine ? `
+                    ${(entry.flagged_for_quarantine || entry.entryData?.flagged_for_quarantine) ? `
                       <div style="background:rgba(239, 68, 68, 0.1); border-left:4px solid #ef4444; padding:0.75rem; margin-bottom:0.5rem; border-radius:4px;">
                         <strong style="color:#fca5a5; font-size:0.85rem;">⚠️ QUARANTINED (DAILY SAFETY NET)</strong>
                         <ul style="color:#ef4444; font-size:0.75rem; margin:0.25rem 0 0 1rem; padding:0;">
-                          ${entry.quarantine_reasons.map(r => `<li>${r}</li>`).join('')}
+                          ${(entry.quarantine_reasons || entry.entryData?.quarantine_reasons || []).map(r => `<li>${r}</li>`).join('')}
                         </ul>
                       </div>
                     ` : ''}

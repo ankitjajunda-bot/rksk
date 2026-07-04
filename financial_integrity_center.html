@@ -171,7 +171,7 @@
         } catch(e) {}
       }
       
-      const quarantined = pending.filter(e => e.flagged_for_quarantine && e.status === 'pending');
+      const quarantined = pending.filter(e => (e.flagged_for_quarantine || (e.entryData && e.entryData.flagged_for_quarantine)) && e.status === 'pending');
       
       document.getElementById('q-count').textContent = quarantined.length;
       
@@ -189,6 +189,7 @@
       
       let html = '';
       quarantined.forEach(entry => {
+        const reasons = entry.quarantine_reasons || (entry.entryData && entry.entryData.quarantine_reasons) || [];
         html += `
           <div class="q-card">
             <div class="q-card-header">
@@ -201,7 +202,7 @@
             <div>
               <strong style="color: #ef4444; margin-bottom: 0.5rem; display: block;">Identified Errors:</strong>
               <ul class="q-reasons">
-                ${entry.quarantine_reasons.map(r => `<li>${r}</li>`).join('')}
+                ${reasons.map(r => `<li>${r}</li>`).join('')}
               </ul>
             </div>
           </div>
