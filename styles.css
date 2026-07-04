@@ -1034,7 +1034,7 @@ tr:hover td {
 /* Compact forms inside modal for daily logs */
 .modal-ledger-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr;
   gap: 1.25rem;
   margin-bottom: 1.25rem;
 }
@@ -2255,9 +2255,7 @@ textarea {
 }
 
 @media (min-width: 768px) {
-  .emp-nozzle-grid {
-    grid-template-columns: 1fr 1fr 1fr; /* Side by side on larger screens */
-  }
+  /* Removed 1fr 1fr 1fr to ensure inputs have maximum width for large meter readings */
 }
 
 .emp-mobile-input {

@@ -68,7 +68,7 @@ const DEFAULT_DB = {
 
 // Global DB Reference
 let db = null;
-let show24hOnly = false;
+let ledgerShiftFilter = "24h";
 let ledgerViewMode = 'table'; // 'table', 'split', or 'pnl'
 let selectedLedgerDate = null;
 let analystTab = 'flow'; // 'flow' or 'comparison'
@@ -220,16 +220,18 @@ function loadDB() {
     saveDB();
   }
 
-  // Automatically merge clean entries from dsr_data.js into active database
+  // Automatically merge clean entries from dsr_data_certified.js into active database
   if (typeof DSR_DRAFT_DATA !== 'undefined' && DSR_DRAFT_DATA.daily_ledger) {
     let dbModified = false;
     DSR_DRAFT_DATA.daily_ledger.forEach(draftRow => {
       const idx = db.daily_ledger.findIndex(r => r.date === draftRow.date);
       if (idx === -1) {
+        draftRow._dirty = true;
         db.daily_ledger.push(draftRow);
         dbModified = true;
       } else {
         if (JSON.stringify(db.daily_ledger[idx]) !== JSON.stringify(draftRow)) {
+          draftRow._dirty = true;
           db.daily_ledger[idx] = draftRow;
           dbModified = true;
         }
@@ -1705,7 +1707,7 @@ function renderLedger() {
   const table = document.getElementById('ledger-table');
   const tableContainer = document.getElementById('ledger-table-container');
   const splitContainer = document.getElementById('ledger-split-container');
-  const toggleBtn = document.getElementById('toggle-view-btn');
+  const toggleBtn = document.getElementById('shift-filter-selector');
 
   if (db.daily_ledger.length === 0) {
     if (ledgerViewMode === 'table') {
@@ -1944,10 +1946,33 @@ function renderLedger() {
     tableContainer.style.display = 'block';
     splitContainer.style.display = 'none';
     document.getElementById('ledger-pnl-container').style.display = 'none';
-    toggleBtn.style.display = 'inline-flex';
+    if (toggleBtn) toggleBtn.style.display = 'inline-flex';
 
     let headerHtml = '';
     let rowsHtml = '';
+
+    
+
+
+    const getSupplyCellHtml = (dateStr, product, fallbackQtyL) => {
+      let fallbackHtml = (fallbackQtyL > 0) ? `${(fallbackQtyL / 1000).toFixed(1)} KL` : "0 L";
+      if (typeof SUPPLY_BILLS_DATA === 'undefined') return fallbackHtml;
+      
+      const daySupplies = SUPPLY_BILLS_DATA.filter(b => b.invoice_date_iso === dateStr && b.product.toLowerCase() === product.toLowerCase());
+      if (daySupplies.length === 0) return fallbackHtml;
+      
+      let qty = 0; let title = '';
+      daySupplies.forEach(b => {
+        const amt = typeof b.material_total === 'number' ? b.material_total.toLocaleString('en-IN', {style: 'currency', currency: 'INR'}) : '₹0.00';
+        qty += b.quantity_kl;
+        title += (title ? ' & ' : '') + `SAP: ${b.sap_entry_no || b.invoice_no || 'N/A'} | Cost: ${amt}`;
+      });
+      
+      if (qty > 0) {
+        return `<span title="${title}" style="font-weight: 700; color: ${product.toLowerCase() === 'petrol' ? 'var(--color-petrol)' : 'var(--color-diesel)'}; border-bottom: 1px dashed; cursor: help;">${qty} KL</span>`;
+      }
+      return fallbackHtml;
+    };
 
     const getAnomalyStats = (row, index) => {
       if (!row) {
@@ -2030,75 +2055,71 @@ function renderLedger() {
       };
     };
 
-    if (show24hOnly) {
-      // 24HR CONSOLIDATED VIEW HEADERS
+
+    if (ledgerShiftFilter === "24h") {
       headerHtml = `
-        <thead>
-          <tr class="header-group">
-            <th rowspan="2" class="sticky-col-left" style="min-width: 110px;">Date</th>
-            <th colspan="2">Selling Rate</th>
-            <th colspan="4">DU 1 (24Hr Cumulative Readings)</th>
-            <th colspan="4">DU 2 (24Hr Cumulative Readings)</th>
-            <th colspan="2">24hr Net Sales Liters</th>
-            <th colspan="2">24hr Test Liters</th>
-            <th colspan="3">24hr Gross Revenue</th>
-            <th rowspan="2">Estimated Cost</th>
-            <th rowspan="2">Total Profit</th>
-            <th rowspan="2">Net Operating Profit (₹)</th>
-            <th colspan="3" class="col-petrol bg-petrol-group">Petrol Stock Reconciliation</th>
-            <th colspan="3" class="col-diesel bg-diesel-group">Diesel Stock Reconciliation</th>
-            <th rowspan="2">Expenses</th>
-            <th rowspan="2" class="sticky-col-right" style="min-width: 90px;">Actions</th>
-          </tr>
-          <tr class="header-cols">
-            <th class="col-petrol">Petrol</th>
-            <th class="col-diesel">Diesel</th>
+          <thead>
+            <tr class="header-group">
+              <th rowspan="2" class="sticky-col-left" style="min-width: 110px;">Date</th>
+              <th colspan="2">Selling Rate</th>
+              <th colspan="4">DU 1 (24Hr Readings)</th>
+              <th colspan="4">DU 2 (24Hr Readings)</th>
+              <th colspan="2">24hr Net Liters</th>
+              <th colspan="2">Test Liters</th>
+              <th colspan="3">24hr Revenue</th>
+              <th rowspan="2">Estimated Cost</th>
+              <th rowspan="2">Total Profit</th>
+              <th colspan="3" class="col-petrol bg-petrol-group">Petrol Stock Reconciliation</th>
+              <th colspan="3" class="col-diesel bg-diesel-group">Diesel Stock Reconciliation</th>
+                            <th rowspan="2">Expenses</th>
+              <th rowspan="2" class="sticky-col-right" style="min-width: 90px;">Actions</th>
+            </tr>
+            <tr class="header-cols">
+              <th class="col-petrol">Petrol</th>
+              <th class="col-diesel">Diesel</th>
 
-            <th class="bg-petrol-group">MS Open (8 AM Today)</th>
-            <th class="bg-petrol-group">MS Close (8 AM Tomorrow)</th>
-            <th class="bg-diesel-group">HSD Open (8 AM Today)</th>
-            <th class="bg-diesel-group">HSD Close (8 AM Tomorrow)</th>
+              <th class="bg-petrol-group">MS Open</th>
+              <th class="bg-petrol-group">MS Close</th>
+              <th class="bg-diesel-group">HSD Open</th>
+              <th class="bg-diesel-group">HSD Close</th>
 
-            <th class="bg-petrol-group">MS Open (8 AM Today)</th>
-            <th class="bg-petrol-group">MS Close (8 AM Tomorrow)</th>
-            <th class="bg-diesel-group">HSD Open (8 AM Today)</th>
-            <th class="bg-diesel-group">HSD Close (8 AM Tomorrow)</th>
+              <th class="bg-petrol-group">MS Open</th>
+              <th class="bg-petrol-group">MS Close</th>
+              <th class="bg-diesel-group">HSD Open</th>
+              <th class="bg-diesel-group">HSD Close</th>
 
-            <th class="col-petrol bg-petrol-group">MS (Petrol)</th>
-            <th class="col-diesel bg-diesel-group">HSD (Diesel)</th>
+              <th class="col-petrol bg-petrol-group">MS (Petrol)</th>
+              <th class="col-diesel bg-diesel-group">HSD (Diesel)</th>
 
-            <th class="col-petrol bg-petrol-group">MS (Liters)</th>
-            <th class="col-diesel bg-diesel-group">HSD (Liters)</th>
+              <th class="col-petrol bg-petrol-group">MS Tests</th>
+              <th class="col-diesel bg-diesel-group">HSD Tests</th>
 
-            <th class="col-petrol">Petrol</th>
-            <th class="col-diesel">Diesel</th>
-            <th>Total</th>
+              <th class="col-petrol">Petrol</th>
+              <th class="col-diesel">Diesel</th>
+              <th>Total</th>
 
-            <th class="bg-petrol-group">Morning Dip</th>
-            <th class="bg-petrol-group">Supply (L)</th>
-            <th class="bg-petrol-group">Reconciled Close</th>
+              <th class="bg-petrol-group">Morning Dip</th>
+              <th class="bg-petrol-group">Supply (L)</th>
+              <th class="bg-petrol-group">Reconciled Close</th>
 
-            <th class="bg-diesel-group">Morning Dip</th>
-            <th class="bg-diesel-group">Supply (L)</th>
-            <th class="bg-diesel-group">Reconciled Close</th>
-          </tr>
-        </thead>
+              <th class="bg-diesel-group">Morning Dip</th>
+              <th class="bg-diesel-group">Supply (L)</th>
+              <th class="bg-diesel-group">Reconciled Close</th>
+            </tr>
+          </thead>
       `;
-
 
       fullLedgerRows.forEach((row) => {
         if (row._isPending) {
           const stkEst = stockTimeline[row.date];
-          const stkEstHtml = stkEst
-            ? `<span style="color:#10b981; font-size:0.72rem; margin-left:0.5rem;">≈ P: ${stkEst.start_p.toFixed(0)} L | D: ${stkEst.start_d.toFixed(0)} L</span>`
-            : '';
+          const stkEstHtml = stkEst ? `<span style="color:#10b981; font-size:0.72rem; margin-left:0.5rem;">≈ P: ${stkEst.start_p.toFixed(0)} L | D: ${stkEst.start_d.toFixed(0)} L</span>` : "";
           rowsHtml += `
             <tr style="background: rgba(239,68,68,0.05); border-left: 3px solid #ef4444;">
               <td class="sticky-col-left" style="color: #ef4444;">
                 <strong>${formatDate(row.date)}</strong>
                 <span style="display:block; font-size:0.68rem; color:#ef4444; margin-top:2px;">⏳ Pending</span>
               </td>
-              <td colspan="18" style="text-align:center; color: var(--text-muted); font-size:0.78rem; font-style:italic; padding: 0.6rem 0;">
+              <td colspan="25" style="text-align:center; color: var(--text-muted); font-size:0.78rem; font-style:italic; padding: 0.6rem 0;">
                 No readings entered yet${stkEstHtml}
               </td>
               <td class="sticky-col-right">
@@ -2115,11 +2136,8 @@ function renderLedger() {
         const testsP = anomaly.testsP;
         const testsD = anomaly.testsD;
 
-        const stk = stockTimeline[row.date] || {
-          start_p: 0, supply_p: 0, close_p: 0, physical_p: null,
-          start_d: 0, supply_d: 0, close_d: 0, physical_d: null
-        };
-
+        const stk = stockTimeline[row.date] || { start_p:0, supply_p:0, close_p:0, physical_p:null, start_d:0, supply_d:0, close_d:0, physical_d:null };
+        
         let p_dip_html = stk.start_p.toFixed(0);
         if (stk.physical_p !== null) {
           const diff = Math.abs(stk.start_p - stk.physical_p);
@@ -2129,7 +2147,7 @@ function renderLedger() {
             p_dip_html += ` <span class="stock-ok-badge" title="Physical Dip matches reconciled stock">OK</span>`;
           }
         }
-
+        
         let d_dip_html = stk.start_d.toFixed(0);
         if (stk.physical_d !== null) {
           const diff = Math.abs(stk.start_d - stk.physical_d);
@@ -2140,219 +2158,8 @@ function renderLedger() {
           }
         }
 
-        const dayExps = row.expenses || (typeof KC_EXPENSES_DATA !== 'undefined' ? KC_EXPENSES_DATA[row.date] : null) || [];
-        let expenses_html = '&mdash;';
-        const totAmt = dayExps.reduce((sum, item) => sum + (parseFloat(item.amount) || 0), 0);
-        if (totAmt > 0) {
-          expenses_html = `
-            <div class="expense-popover-container">
-              <button class="expense-btn" onclick="toggleExpensePopover(event, '${row.date}')">
-                ₹ ${totAmt.toFixed(0)}
-              </button>
-            </div>
-          `;
-        }
-
-        rowsHtml += `
-          <tr>
-            <td class="sticky-col-left"><strong>${formatDate(row.date)}</strong>${anomaly.badgesHtml}</td>
-            <td class="col-petrol ${anomaly.isPriceChange ? 'cell-anomaly-price-change' : ''}" style="font-weight: 500;">${(row.prices?.petrol ?? 0).toFixed(2)}</td>
-            <td class="col-diesel ${anomaly.isPriceChange ? 'cell-anomaly-price-change' : ''}" style="font-weight: 500;">${(row.prices?.diesel ?? 0).toFixed(2)}</td>
-
-            <!-- DU 1 24Hr -->
-            <td class="bg-petrol-group">${(row.du1_p?.open ?? 0).toFixed(1)}</td>
-            <td class="bg-petrol-group">${(row.du1_p?.close_night ?? 0).toFixed(1)}</td>
-            <td class="bg-diesel-group">${(row.du1_d?.open ?? 0).toFixed(1)}</td>
-            <td class="bg-diesel-group">${(row.du1_d?.close_night ?? 0).toFixed(1)}</td>
-
-            <!-- DU 2 24Hr -->
-            <td class="bg-petrol-group">${(row.du2_p?.open ?? 0).toFixed(1)}</td>
-            <td class="bg-petrol-group">${(row.du2_p?.close_night ?? 0).toFixed(1)}</td>
-            <td class="bg-diesel-group">${(row.du2_d?.open ?? 0).toFixed(1)}</td>
-            <td class="bg-diesel-group">${(row.du2_d?.close_night ?? 0).toFixed(1)}</td>
-
-            <!-- 24hr Net Liters -->
-            <td class="col-petrol bg-petrol-group ${anomaly.isNoSalePetrol ? 'cell-anomaly-no-sale' : ''}" style="font-weight:600;">${(c.totals?.net_24h?.petrol ?? 0).toFixed(1)}</td>
-            <td class="col-diesel bg-diesel-group ${anomaly.isNoSaleDiesel ? 'cell-anomaly-no-sale' : ''}" style="font-weight:600;">${(c.totals?.net_24h?.diesel ?? 0).toFixed(1)}</td>
-
-            <!-- 24hr Tests -->
-            <td class="col-petrol bg-petrol-group ${testsP === 0 ? 'cell-anomaly-no-test' : ''}">${testsP * 5} L</td>
-            <td class="col-diesel bg-diesel-group ${testsD === 0 ? 'cell-anomaly-no-test' : ''}">${testsD * 5} L</td>
-
-            <!-- Revenue -->
-            <td class="col-petrol">${formatCurrency(c.financials?.rev_petrol ?? 0)}</td>
-            <td class="col-diesel">${formatCurrency(c.financials?.rev_diesel ?? 0)}</td>
-            <td style="font-weight:600;">${formatCurrency(c.financials?.total_revenue ?? 0)}</td>
-
-            <!-- Cost & Profit -->
-            <td>${formatCurrency(c.financials?.total_cost ?? 0)}</td>
-            <td class="${(c.financials?.profit ?? 0) >= 0 ? 'text-success' : 'text-danger'} ${anomaly.isNegativeProfit ? 'cell-anomaly-negative-profit' : ''}" style="font-weight: 600;">
-              ${formatCurrency(c.financials?.profit ?? 0)}
-            </td>
-
-            <!-- Plan 21: Net Operating Profit (Commission - Expenses) -->
-            <td style="font-weight:600;" title="Gross Commission: ${formatCurrency(c.financials?.total_commission ?? 0)} | Daily Expenses: ${formatCurrency(totAmt)}">${formatCurrency(c.financials?.net_operating_profit ?? 0)}</td>
-
-            <!-- Plan 21: Stock Reconciliation Petrol -->
-            <td class="bg-petrol-group">${p_dip_html}</td>
-            <td class="bg-petrol-group">${stk.supply_p > 0 ? stk.supply_p.toFixed(0) + ' L' : '0 L'}</td>
-            <td class="bg-petrol-group" style="font-weight:600;">${stk.close_p.toFixed(0)} L</td>
-
-            <!-- Plan 21: Stock Reconciliation Diesel -->
-            <td class="bg-diesel-group">${d_dip_html}</td>
-            <td class="bg-diesel-group">${stk.supply_d > 0 ? stk.supply_d.toFixed(0) + ' L' : '0 L'}</td>
-            <td class="bg-diesel-group" style="font-weight:600;">${stk.close_d.toFixed(0)} L</td>
-
-            <!-- Plan 21: Expenses -->
-            <td>${expenses_html}</td>
-
-            <!-- Action -->
-            <td class="sticky-col-right">
-              <button class="btn btn-secondary btn-sm" onclick="editLedgerEntry(${index})" style="padding: 0.25rem 0.5rem; font-size:0.75rem;">Edit</button>
-              <button class="btn btn-danger btn-sm" onclick="deleteLedgerRow('${row.date}')" style="padding: 0.25rem 0.5rem; font-size:0.75rem;">Del</button>
-            </td>
-          </tr>
-        `;
-      });
-
-    } else {
-      // DETAILED BREAKDOWN VIEW HEADERS
-      headerHtml = `
-        <thead>
-          <tr class="header-group">
-            <th rowspan="2" class="sticky-col-left" style="min-width: 110px;">Date</th>
-            <th colspan="2">Selling Rate</th>
-            <th colspan="4">DU 1 Day Shift Readings</th>
-            <th colspan="4">DU 2 Day Shift Readings</th>
-            <th colspan="4">DU 1 Night Shift Readings</th>
-            <th colspan="4">DU 2 Night Shift Readings</th>
-            <th colspan="4">Morning to Evening Sale (Day L)</th>
-            <th colspan="4">Evening to Next morning (Night L)</th>
-            <th colspan="2">Day Test Liters</th>
-            <th colspan="2">24hr Net Liters</th>
-            <th colspan="3">24hr Gross Revenue</th>
-            <th rowspan="2">Estimated Cost</th>
-            <th rowspan="2">Total Profit</th>
-            <th rowspan="2">Net Operating Profit (₹)</th>
-            <th colspan="3" class="col-petrol bg-petrol-group">Petrol Stock Reconciliation</th>
-            <th colspan="3" class="col-diesel bg-diesel-group">Diesel Stock Reconciliation</th>
-            <th rowspan="2">Expenses</th>
-            <th rowspan="2" class="sticky-col-right" style="min-width: 90px;">Actions</th>
-          </tr>
-          <tr class="header-cols">
-            <th class="col-petrol">Petrol</th>
-            <th class="col-diesel">Diesel</th>
-
-            <th class="bg-petrol-group">MS Open</th>
-            <th class="bg-petrol-group">MS Close</th>
-            <th class="bg-diesel-group">HSD Open</th>
-            <th class="bg-diesel-group">HSD Close</th>
-
-            <th class="bg-petrol-group">MS Open</th>
-            <th class="bg-petrol-group">MS Close</th>
-            <th class="bg-diesel-group">HSD Open</th>
-            <th class="bg-diesel-group">HSD Close</th>
-
-            <th class="bg-petrol-group">MS Open</th>
-            <th class="bg-petrol-group">MS Close</th>
-            <th class="bg-diesel-group">HSD Open</th>
-            <th class="bg-diesel-group">HSD Close</th>
-
-            <th class="bg-petrol-group">MS Open</th>
-            <th class="bg-petrol-group">MS Close</th>
-            <th class="bg-diesel-group">HSD Open</th>
-            <th class="bg-diesel-group">HSD Close</th>
-
-            <th class="col-petrol bg-petrol-group">DU1 MS</th>
-            <th class="col-diesel bg-diesel-group">DU1 HSD</th>
-            <th class="col-petrol bg-petrol-group">DU2 MS</th>
-            <th class="col-diesel bg-diesel-group">DU2 HSD</th>
-
-            <th class="col-petrol bg-petrol-group">DU1 MS</th>
-            <th class="col-diesel bg-diesel-group">DU1 HSD</th>
-            <th class="col-petrol bg-petrol-group">DU2 MS</th>
-            <th class="col-diesel bg-diesel-group">DU2 HSD</th>
-
-            <th class="col-petrol bg-petrol-group">MS (Liters)</th>
-            <th class="col-diesel bg-diesel-group">HSD (Liters)</th>
-
-            <th class="col-petrol bg-petrol-group">MS (Petrol)</th>
-            <th class="col-diesel bg-diesel-group">HSD (Diesel)</th>
-
-            <th class="col-petrol">Petrol</th>
-            <th class="col-diesel">Diesel</th>
-            <th>Total</th>
-
-            <th class="bg-petrol-group">Morning Dip</th>
-            <th class="bg-petrol-group">Supply (L)</th>
-            <th class="bg-petrol-group">Reconciled Close</th>
-
-            <th class="bg-diesel-group">Morning Dip</th>
-            <th class="bg-diesel-group">Supply (L)</th>
-            <th class="bg-diesel-group">Reconciled Close</th>
-          </tr>
-        </thead>
-      `;
-
-
-      // Reuse same fullLedgerRows built above (includes pending placeholders)
-      fullLedgerRows.forEach((row) => {
-        if (row._isPending) {
-          const stkEst = stockTimeline[row.date];
-          const stkEstHtml = stkEst
-            ? `<span style="color:#10b981; font-size:0.72rem; margin-left:0.5rem;">≈ P: ${stkEst.start_p.toFixed(0)} L | D: ${stkEst.start_d.toFixed(0)} L</span>`
-            : '';
-          rowsHtml += `
-            <tr style="background: rgba(239,68,68,0.05); border-left: 3px solid #ef4444;">
-              <td class="sticky-col-left" style="color: #ef4444;">
-                <strong>${formatDate(row.date)}</strong>
-                <span style="display:block; font-size:0.68rem; color:#ef4444; margin-top:2px;">⏳ Pending</span>
-              </td>
-              <td colspan="28" style="text-align:center; color: var(--text-muted); font-size:0.78rem; font-style:italic; padding: 0.6rem 0;">
-                No readings entered yet${stkEstHtml}
-              </td>
-              <td class="sticky-col-right">
-                <button class="btn btn-primary btn-sm" onclick="openLogReadingsModal('${row.date}')" style="padding: 0.25rem 0.5rem; font-size:0.72rem;">Enter Data</button>
-              </td>
-            </tr>
-          `;
-          return;
-        }
-
-        const index = db.daily_ledger.findIndex(r => r.date === row.date);
-        const anomaly = getAnomalyStats(row, index);
-        const c = anomaly.c;
-        const testsP = anomaly.testsP;
-        const testsD = anomaly.testsD;
-
-        const stk = stockTimeline[row.date] || {
-          start_p: 0, supply_p: 0, close_p: 0, physical_p: null,
-          start_d: 0, supply_d: 0, close_d: 0, physical_d: null
-        };
-
-
-        let p_dip_html = stk.start_p.toFixed(0);
-        if (stk.physical_p !== null) {
-          const diff = Math.abs(stk.start_p - stk.physical_p);
-          if (diff > 500) {
-            p_dip_html += ` <span class="stock-mismatch-badge" title="Physical Dip: ${stk.physical_p.toFixed(0)} L (Diff: ${diff.toFixed(0)} L)">⚠️ Mismatch</span>`;
-          } else {
-            p_dip_html += ` <span class="stock-ok-badge" title="Physical Dip matches reconciled stock">OK</span>`;
-          }
-        }
-
-        let d_dip_html = stk.start_d.toFixed(0);
-        if (stk.physical_d !== null) {
-          const diff = Math.abs(stk.start_d - stk.physical_d);
-          if (diff > 500) {
-            d_dip_html += ` <span class="stock-mismatch-badge" title="Physical Dip: ${stk.physical_d.toFixed(0)} L (Diff: ${diff.toFixed(0)} L)">⚠️ Mismatch</span>`;
-          } else {
-            d_dip_html += ` <span class="stock-ok-badge" title="Physical Dip matches reconciled stock">OK</span>`;
-          }
-        }
-
-        const dayExps = (typeof KC_EXPENSES_DATA !== 'undefined') ? KC_EXPENSES_DATA[row.date] : null;
-        let expenses_html = '&mdash;';
+        const dayExps = typeof KC_EXPENSES_DATA !== 'undefined' ? KC_EXPENSES_DATA[row.date] : null;
+        let expenses_html = "&mdash;";
         if (dayExps && dayExps.length > 0) {
           const totAmt = dayExps.reduce((sum, item) => sum + (parseFloat(item.amount) || 0), 0);
           expenses_html = `
@@ -2367,95 +2174,52 @@ function renderLedger() {
         rowsHtml += `
           <tr>
             <td class="sticky-col-left"><strong>${formatDate(row.date)}</strong>${anomaly.badgesHtml}</td>
-            <td class="col-petrol ${anomaly.isPriceChange ? 'cell-anomaly-price-change' : ''}" style="font-weight: 500;">${(row.prices?.petrol ?? 0).toFixed(2)}</td>
-            <td class="col-diesel ${anomaly.isPriceChange ? 'cell-anomaly-price-change' : ''}" style="font-weight: 500;">${(row.prices?.diesel ?? 0).toFixed(2)}</td>
+            <td class="col-petrol ${anomaly.isPriceChange ? "cell-anomaly-price-change" : ""}" style="font-weight: 500;">${(row.prices?.petrol ?? 0).toFixed(2)}</td>
+            <td class="col-diesel ${anomaly.isPriceChange ? "cell-anomaly-price-change" : ""}" style="font-weight: 500;">${(row.prices?.diesel ?? 0).toFixed(2)}</td>
 
-            <!-- DU1 Day -->
-            <td class="bg-petrol-group">${(row.du1_p?.open ?? 0).toFixed(1)}</td>
-            <td class="bg-petrol-group">${(row.du1_p?.close_day ?? 0).toFixed(1)}</td>
-            <td class="bg-diesel-group">${(row.du1_d?.open ?? 0).toFixed(1)}</td>
-            <td class="bg-diesel-group">${(row.du1_d?.close_day ?? 0).toFixed(1)}</td>
+            <!-- DU 1 -->
+            <td class="bg-petrol-group ${ (Number(row.du1_p?.open) > 0 && Number(row.du1_p?.open) === Number(row.du1_p?.close_night)) ? 'cell-anomaly-no-sale' : '' }">${(row.du1_p?.open ?? 0).toFixed(1)}</td>
+            <td class="bg-petrol-group ${ (Number(row.du1_p?.open) > 0 && Number(row.du1_p?.open) === Number(row.du1_p?.close_night)) ? 'cell-anomaly-no-sale' : '' }">${(row.du1_p?.close_night ?? 0).toFixed(1)}</td>
+            <td class="bg-diesel-group ${ (Number(row.du1_d?.open) > 0 && Number(row.du1_d?.open) === Number(row.du1_d?.close_night)) ? 'cell-anomaly-no-sale' : '' }">${(row.du1_d?.open ?? 0).toFixed(1)}</td>
+            <td class="bg-diesel-group ${ (Number(row.du1_d?.open) > 0 && Number(row.du1_d?.open) === Number(row.du1_d?.close_night)) ? 'cell-anomaly-no-sale' : '' }">${(row.du1_d?.close_night ?? 0).toFixed(1)}</td>
 
-            <!-- DU2 Day -->
-            <td class="bg-petrol-group">${(row.du2_p?.open ?? 0).toFixed(1)}</td>
-            <td class="bg-petrol-group">${(row.du2_p?.close_day ?? 0).toFixed(1)}</td>
-            <td class="bg-diesel-group">${(row.du2_d?.open ?? 0).toFixed(1)}</td>
-            <td class="bg-diesel-group">${(row.du2_d?.close_day ?? 0).toFixed(1)}</td>
-
-            <!-- DU1 Night -->
-            <td class="bg-petrol-group">${(row.du1_p?.close_day ?? 0).toFixed(1)}</td>
-            <td class="bg-petrol-group">${(row.du1_p?.close_night ?? 0).toFixed(1)}</td>
-            <td class="bg-diesel-group">${(row.du1_d?.close_day ?? 0).toFixed(1)}</td>
-            <td class="bg-diesel-group">${(row.du1_d?.close_night ?? 0).toFixed(1)}</td>
-
-            <!-- DU2 Night -->
-            <td class="bg-petrol-group">${(row.du2_p?.close_day ?? 0).toFixed(1)}</td>
-            <td class="bg-petrol-group">${(row.du2_p?.close_night ?? 0).toFixed(1)}</td>
-            <td class="bg-diesel-group">${(row.du2_d?.close_day ?? 0).toFixed(1)}</td>
-            <td class="bg-diesel-group">${(row.du2_d?.close_night ?? 0).toFixed(1)}</td>
-
-            <!-- Day Sales Net -->
-            <td class="col-petrol bg-petrol-group">${(c.sales?.du1_p?.day ?? 0).toFixed(1)}</td>
-            <td class="col-diesel bg-diesel-group">${(c.sales?.du1_d?.day ?? 0).toFixed(1)}</td>
-            <td class="col-petrol bg-petrol-group">${(c.sales?.du2_p?.day ?? 0).toFixed(1)}</td>
-            <td class="col-diesel bg-diesel-group">${(c.sales?.du2_d?.day ?? 0).toFixed(1)}</td>
-
-            <!-- Night Sales Net -->
-            <td class="col-petrol bg-petrol-group">${(c.sales?.du1_p?.night ?? 0).toFixed(1)}</td>
-            <td class="col-diesel bg-diesel-group">${(c.sales?.du1_d?.night ?? 0).toFixed(1)}</td>
-            <td class="col-petrol bg-petrol-group">${(c.sales?.du2_p?.night ?? 0).toFixed(1)}</td>
-            <td class="col-diesel bg-diesel-group">${(c.sales?.du2_d?.night ?? 0).toFixed(1)}</td>
-
-            <!-- Day Tests -->
-            <td class="col-petrol bg-petrol-group">
-              ${(() => {
-                const t1 = (row.du1_p && (row.du1_p.close_day ?? 0) > (row.du1_p.open ?? 0)) ? (row.du1_p.tests_day ?? 1) : 0;
-                const t2 = (row.du2_p && (row.du2_p.close_day ?? 0) > (row.du2_p.open ?? 0)) ? (row.du2_p.tests_day ?? 1) : 0;
-                const vol = (t1 + t2) * 5;
-                const amt = vol * (row.prices?.petrol || 0);
-                return vol > 0 ? `${vol} L <span style="font-size:0.75rem; color:var(--text-dim); display:block;">(₹ ${amt.toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 0 })})</span>` : "0 L";
-              })()}
-            </td>
-            <td class="col-diesel bg-diesel-group">
-              ${(() => {
-                const t1 = (row.du1_d && (row.du1_d.close_day ?? 0) > (row.du1_d.open ?? 0)) ? (row.du1_d.tests_day ?? 1) : 0;
-                const t2 = (row.du2_d && (row.du2_d.close_day ?? 0) > (row.du2_d.open ?? 0)) ? (row.du2_d.tests_day ?? 1) : 0;
-                const vol = (t1 + t2) * 5;
-                const amt = vol * (row.prices?.diesel || 0);
-                return vol > 0 ? `${vol} L <span style="font-size:0.75rem; color:var(--text-dim); display:block;">(₹ ${amt.toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 0 })})</span>` : "0 L";
-              })()}
-            </td>
+            <!-- DU 2 -->
+            <td class="bg-petrol-group ${ (Number(row.du2_p?.open) > 0 && Number(row.du2_p?.open) === Number(row.du2_p?.close_night)) ? 'cell-anomaly-no-sale' : '' }">${(row.du2_p?.open ?? 0).toFixed(1)}</td>
+            <td class="bg-petrol-group ${ (Number(row.du2_p?.open) > 0 && Number(row.du2_p?.open) === Number(row.du2_p?.close_night)) ? 'cell-anomaly-no-sale' : '' }">${(row.du2_p?.close_night ?? 0).toFixed(1)}</td>
+            <td class="bg-diesel-group ${ (Number(row.du2_d?.open) > 0 && Number(row.du2_d?.open) === Number(row.du2_d?.close_night)) ? 'cell-anomaly-no-sale' : '' }">${(row.du2_d?.open ?? 0).toFixed(1)}</td>
+            <td class="bg-diesel-group ${ (Number(row.du2_d?.open) > 0 && Number(row.du2_d?.open) === Number(row.du2_d?.close_night)) ? 'cell-anomaly-no-sale' : '' }">${(row.du2_d?.close_night ?? 0).toFixed(1)}</td>
 
             <!-- 24hr Net Liters -->
-            <td class="col-petrol bg-petrol-group ${anomaly.isNoSalePetrol ? 'cell-anomaly-no-sale' : ''}" style="font-weight:600;">${(c.totals?.net_24h?.petrol ?? 0).toFixed(1)}</td>
-            <td class="col-diesel bg-diesel-group ${anomaly.isNoSaleDiesel ? 'cell-anomaly-no-sale' : ''}" style="font-weight:600;">${(c.totals?.net_24h?.diesel ?? 0).toFixed(1)}</td>
+            <td class="col-petrol bg-petrol-group ${anomaly.isNoSalePetrol ? "cell-anomaly-no-sale" : ""}" style="font-weight:600;">${(c.totals?.net_24h?.petrol ?? 0).toFixed(1)} L</td>
+            <td class="col-diesel bg-diesel-group ${anomaly.isNoSaleDiesel ? "cell-anomaly-no-sale" : ""}" style="font-weight:600;">${(c.totals?.net_24h?.diesel ?? 0).toFixed(1)} L</td>
+
+            <!-- Tests -->
+            <td class="col-petrol bg-petrol-group">${testsP > 0 ? testsP * 5 + ' L' : '0 L'}</td>
+            <td class="col-diesel bg-diesel-group">${testsD > 0 ? testsD * 5 + ' L' : '0 L'}</td>
 
             <!-- Revenue -->
-            <td class="col-petrol">${formatCurrency(c.financials?.rev_petrol ?? 0)}</td>
-            <td class="col-diesel">${formatCurrency(c.financials?.rev_diesel ?? 0)}</td>
-            <td style="font-weight:600;">${formatCurrency(c.financials?.total_revenue ?? 0)}</td>
+            <td class="col-petrol font-mono">${formatCurrency(c.financials?.rev_petrol ?? 0)}</td>
+            <td class="col-diesel font-mono">${formatCurrency(c.financials?.rev_diesel ?? 0)}</td>
+            <td class="font-mono fw-700">${formatCurrency(c.financials?.total_revenue ?? 0)}</td>
 
             <!-- Cost & Profit -->
-            <td>${formatCurrency(c.financials?.total_cost ?? 0)}</td>
-            <td class="${(c.financials?.profit ?? 0) >= 0 ? 'text-success' : 'text-danger'} ${anomaly.isNegativeProfit ? 'cell-anomaly-negative-profit' : ''}" style="font-weight: 600;">
+            <td class="font-mono text-muted">${formatCurrency(c.financials?.total_cost ?? 0)}</td>
+            <td class="font-mono ${(c.financials?.profit ?? 0) >= 0 ? "text-success" : "text-danger"} ${anomaly.isNegativeProfit ? "cell-anomaly-negative-profit" : ""}" style="font-weight: 600;">
               ${formatCurrency(c.financials?.profit ?? 0)}
             </td>
 
-            <!-- Plan 21: Net Operating Profit (Commission - Expenses) -->
-            <td style="font-weight:600;" title="Gross Commission: ${formatCurrency(c.financials?.total_commission ?? 0)} | Daily Expenses: ${formatCurrency(c.financials?.total_expenses ?? 0)}">${formatCurrency(c.financials?.net_operating_profit ?? 0)}</td>
-
-            <!-- Plan 21: Stock Reconciliation Petrol -->
+            <!-- Stock Reconciliation Petrol -->
             <td class="bg-petrol-group">${p_dip_html}</td>
-            <td class="bg-petrol-group">${stk.supply_p > 0 ? stk.supply_p.toFixed(0) + ' L' : '0 L'}</td>
+            <td class="bg-petrol-group" style="text-align: center;">${getSupplyCellHtml(row.date, "petrol", stk.supply_p)}</td>
             <td class="bg-petrol-group" style="font-weight:600;">${stk.close_p.toFixed(0)} L</td>
 
-            <!-- Plan 21: Stock Reconciliation Diesel -->
+            <!-- Stock Reconciliation Diesel -->
             <td class="bg-diesel-group">${d_dip_html}</td>
-            <td class="bg-diesel-group">${stk.supply_d > 0 ? stk.supply_d.toFixed(0) + ' L' : '0 L'}</td>
+            <td class="bg-diesel-group" style="text-align: center;">${getSupplyCellHtml(row.date, "diesel", stk.supply_d)}</td>
             <td class="bg-diesel-group" style="font-weight:600;">${stk.close_d.toFixed(0)} L</td>
 
-            <!-- Plan 21: Expenses -->
-            <td>${expenses_html}</td>
+            <!-- Expenses -->
+                        <td>${expenses_html}</td>
 
             <!-- Action -->
             <td class="sticky-col-right">
@@ -2465,9 +2229,173 @@ function renderLedger() {
           </tr>
         `;
       });
+    } else {
+      let shiftLabel = ledgerShiftFilter === 'day' ? 'Day Shift' : 'Night Shift';
+      headerHtml = `
+          <thead>
+            <tr class="header-group">
+              <th rowspan="2" class="sticky-col-left" style="min-width: 110px;">Date</th>
+              <th colspan="2">Selling Rate</th>
+              <th colspan="4">DU 1 (${shiftLabel})</th>
+              <th colspan="4">DU 2 (${shiftLabel})</th>
+              <th colspan="2">${shiftLabel} Net Liters</th>
+              <th colspan="2">${shiftLabel} Tests</th>
+              <th colspan="3">${shiftLabel} Revenue</th>
+              <th rowspan="2">${shiftLabel} Cost</th>
+              <th rowspan="2">${shiftLabel} Profit</th>
+                            <th rowspan="2">Expenses</th>
+              <th rowspan="2" class="sticky-col-right" style="min-width: 90px;">Actions</th>
+            </tr>
+            <tr class="header-cols">
+              <th class="col-petrol">Petrol</th>
+              <th class="col-diesel">Diesel</th>
 
+              <th class="bg-petrol-group">Open</th>
+              <th class="bg-petrol-group">Close</th>
+              <th class="bg-diesel-group">Open</th>
+              <th class="bg-diesel-group">Close</th>
+
+              <th class="bg-petrol-group">Open</th>
+              <th class="bg-petrol-group">Close</th>
+              <th class="bg-diesel-group">Open</th>
+              <th class="bg-diesel-group">Close</th>
+
+              <th class="col-petrol bg-petrol-group">MS (Petrol)</th>
+              <th class="col-diesel bg-diesel-group">HSD (Diesel)</th>
+
+              <th class="col-petrol bg-petrol-group">MS Tests</th>
+              <th class="col-diesel bg-diesel-group">HSD Tests</th>
+
+              <th class="col-petrol">Petrol</th>
+              <th class="col-diesel">Diesel</th>
+              <th>Total</th>
+            </tr>
+          </thead>
+      `;
+
+      fullLedgerRows.forEach((row) => {
+        if (row._isPending) {
+          rowsHtml += `
+            <tr style="background: rgba(239,68,68,0.05); border-left: 3px solid #ef4444;">
+              <td class="sticky-col-left" style="color: #ef4444;">
+                <strong>${formatDate(row.date)}</strong>
+                <span style="display:block; font-size:0.68rem; color:#ef4444; margin-top:2px;">⏳ Pending</span>
+              </td>
+              <td colspan="18" style="text-align:center; color: var(--text-muted); font-size:0.78rem; font-style:italic; padding: 0.6rem 0;">
+                No readings entered yet
+              </td>
+              <td class="sticky-col-right">
+                <button class="btn btn-primary btn-sm" onclick="openLogReadingsModal('${row.date}')" style="padding: 0.25rem 0.5rem; font-size:0.72rem;">Enter Data</button>
+              </td>
+            </tr>
+          `;
+          return;
+        }
+
+        const index = db.daily_ledger.findIndex(r => r.date === row.date);
+        const anomaly = getAnomalyStats(row, index);
+        const c = anomaly.c;
+
+        const isDay = ledgerShiftFilter === 'day';
+
+        let msOpen1 = isDay ? row.du1_p?.open : row.du1_p?.close_day;
+        let msClose1 = isDay ? row.du1_p?.close_day : row.du1_p?.close_night;
+        let hsdOpen1 = isDay ? row.du1_d?.open : row.du1_d?.close_day;
+        let hsdClose1 = isDay ? row.du1_d?.close_day : row.du1_d?.close_night;
+
+        let msOpen2 = isDay ? row.du2_p?.open : row.du2_p?.close_day;
+        let msClose2 = isDay ? row.du2_p?.close_day : row.du2_p?.close_night;
+        let hsdOpen2 = isDay ? row.du2_d?.open : row.du2_d?.close_day;
+        let hsdClose2 = isDay ? row.du2_d?.close_day : row.du2_d?.close_night;
+
+        let msVol = isDay ? (c.sales?.du1_p?.day || 0) + (c.sales?.du2_p?.day || 0) : (c.sales?.du1_p?.night || 0) + (c.sales?.du2_p?.night || 0);
+        let hsdVol = isDay ? (c.sales?.du1_d?.day || 0) + (c.sales?.du2_d?.day || 0) : (c.sales?.du1_d?.night || 0) + (c.sales?.du2_d?.night || 0);
+
+        let pRate = row.prices?.petrol || 0;
+        let dRate = row.prices?.diesel || 0;
+
+        let tP = 0;
+        let tD = 0;
+        if (isDay) {
+          tP = (row.du1_p?.close_day > row.du1_p?.open ? (row.du1_p?.tests_day || 1) : 0) + (row.du2_p?.close_day > row.du2_p?.open ? (row.du2_p?.tests_day || 1) : 0);
+          tD = (row.du1_d?.close_day > row.du1_d?.open ? (row.du1_d?.tests_day || 1) : 0) + (row.du2_d?.close_day > row.du2_d?.open ? (row.du2_d?.tests_day || 1) : 0);
+        } else {
+          tP = (row.du1_p?.close_night > row.du1_p?.close_day ? (row.du1_p?.tests_night || 1) : 0) + (row.du2_p?.close_night > row.du2_p?.close_day ? (row.du2_p?.tests_night || 1) : 0);
+          tD = (row.du1_d?.close_night > row.du1_d?.close_day ? (row.du1_d?.tests_night || 1) : 0) + (row.du2_d?.close_night > row.du2_d?.close_day ? (row.du2_d?.tests_night || 1) : 0);
+        }
+
+        let revP = msVol * pRate;
+        let revD = hsdVol * dRate;
+        let revTotal = revP + revD;
+
+        let dateWac = wacMap[row.date] || { ms: 0, hsd: 0 };
+        let costTotal = (msVol * dateWac.ms) + (hsdVol * dateWac.hsd);
+        let profitTotal = revTotal - costTotal;
+        let marginPerLitre = (msVol + hsdVol) > 0 ? (profitTotal / (msVol + hsdVol)) : 0;
+
+        const dayExps = typeof KC_EXPENSES_DATA !== 'undefined' ? KC_EXPENSES_DATA[row.date] : null;
+        let expenses_html = "&mdash;";
+        if (dayExps && dayExps.length > 0) {
+          const totAmt = dayExps.reduce((sum, item) => sum + (parseFloat(item.amount) || 0), 0);
+          expenses_html = `
+            <div class="expense-popover-container">
+              <button class="expense-btn" onclick="toggleExpensePopover(event, '${row.date}')">
+                ₹ ${totAmt.toFixed(0)}
+              </button>
+            </div>
+          `;
+        }
+
+        rowsHtml += `
+          <tr>
+            <td class="sticky-col-left"><strong>${formatDate(row.date)}</strong>${anomaly.badgesHtml ? `<div style="margin-top: 4px; display: flex; flex-direction: column; gap: 2px;">${anomaly.badgesHtml}</div>` : ""}</td>
+            <td class="col-petrol ${anomaly.isPriceChange ? "cell-anomaly-price-change" : ""}" style="font-weight: 500;">${pRate.toFixed(2)}</td>
+            <td class="col-diesel ${anomaly.isPriceChange ? "cell-anomaly-price-change" : ""}" style="font-weight: 500;">${dRate.toFixed(2)}</td>
+
+            <!-- DU 1 -->
+            <td class="bg-petrol-group ${ (Number(msOpen1) > 0 && Number(msOpen1) === Number(msClose1)) ? 'cell-anomaly-no-sale' : '' }">${msOpen1 ? msOpen1.toFixed(1) : "-"}</td>
+            <td class="bg-petrol-group ${ (Number(msOpen1) > 0 && Number(msOpen1) === Number(msClose1)) ? 'cell-anomaly-no-sale' : '' }">${msClose1 ? msClose1.toFixed(1) : "-"}</td>
+            <td class="bg-diesel-group ${ (Number(hsdOpen1) > 0 && Number(hsdOpen1) === Number(hsdClose1)) ? 'cell-anomaly-no-sale' : '' }">${hsdOpen1 ? hsdOpen1.toFixed(1) : "-"}</td>
+            <td class="bg-diesel-group ${ (Number(hsdOpen1) > 0 && Number(hsdOpen1) === Number(hsdClose1)) ? 'cell-anomaly-no-sale' : '' }">${hsdClose1 ? hsdClose1.toFixed(1) : "-"}</td>
+
+            <!-- DU 2 -->
+            <td class="bg-petrol-group ${ (Number(msOpen2) > 0 && Number(msOpen2) === Number(msClose2)) ? 'cell-anomaly-no-sale' : '' }">${msOpen2 ? msOpen2.toFixed(1) : "-"}</td>
+            <td class="bg-petrol-group ${ (Number(msOpen2) > 0 && Number(msOpen2) === Number(msClose2)) ? 'cell-anomaly-no-sale' : '' }">${msClose2 ? msClose2.toFixed(1) : "-"}</td>
+            <td class="bg-diesel-group ${ (Number(hsdOpen2) > 0 && Number(hsdOpen2) === Number(hsdClose2)) ? 'cell-anomaly-no-sale' : '' }">${hsdOpen2 ? hsdOpen2.toFixed(1) : "-"}</td>
+            <td class="bg-diesel-group ${ (Number(hsdOpen2) > 0 && Number(hsdOpen2) === Number(hsdClose2)) ? 'cell-anomaly-no-sale' : '' }">${hsdClose2 ? hsdClose2.toFixed(1) : "-"}</td>
+
+            <!-- Net Liters -->
+            <td class="col-petrol bg-petrol-group" style="font-weight:600;">${msVol ? msVol.toFixed(1) : "0.0"} L</td>
+            <td class="col-diesel bg-diesel-group" style="font-weight:600;">${hsdVol ? hsdVol.toFixed(1) : "0.0"} L</td>
+
+            <!-- Tests -->
+            <td class="col-petrol bg-petrol-group">${tP > 0 ? tP * 5 + ' L' : '0 L'}</td>
+            <td class="col-diesel bg-diesel-group">${tD > 0 ? tD * 5 + ' L' : '0 L'}</td>
+
+            <!-- Revenue -->
+            <td class="col-petrol font-mono">${formatCurrency(revP)}</td>
+            <td class="col-diesel font-mono">${formatCurrency(revD)}</td>
+            <td class="font-mono fw-700">${formatCurrency(revTotal)}</td>
+
+            <!-- Cost & Profit -->
+            <td class="font-mono text-muted">${formatCurrency(costTotal)}</td>
+            <td class="font-mono ${profitTotal < 0 ? "text-danger" : "text-success"}" style="font-weight: 600;">
+              ${formatCurrency(profitTotal)}
+              <span style="display:block; font-size:0.7rem; color:var(--text-dim); margin-top: 2px;">Avg Margin: ₹${marginPerLitre.toFixed(2)}/L</span>
+            </td>
+
+            <!-- Expenses -->
+                        <td>${expenses_html}</td>
+
+            <!-- Action -->
+            <td class="sticky-col-right">
+              <button class="btn btn-secondary btn-sm" onclick="editLedgerEntry(${index})" style="padding: 0.25rem 0.5rem; font-size:0.75rem;">Edit</button>
+              <button class="btn btn-danger btn-sm" onclick="deleteLedgerRow('${row.date}')" style="padding: 0.25rem 0.5rem; font-size:0.75rem;">Del</button>
+            </td>
+          </tr>
+        `;
+      });
     }
-
     table.innerHTML = headerHtml + '<tbody>' + rowsHtml + '</tbody>';
 
     // Calculate and apply dynamic header group height for sticky offsets
@@ -2483,7 +2411,7 @@ function renderLedger() {
     tableContainer.style.display = 'none';
     splitContainer.style.display = 'none';
     document.getElementById('ledger-pnl-container').style.display = 'block';
-    toggleBtn.style.display = 'none';
+    if (toggleBtn) toggleBtn.style.display = 'none';
     renderPnlReport();
     return;
   } else {
@@ -2491,7 +2419,7 @@ function renderLedger() {
     tableContainer.style.display = 'none';
     splitContainer.style.display = 'block';
     document.getElementById('ledger-pnl-container').style.display = 'none';
-    toggleBtn.style.display = 'none';
+    if (toggleBtn) toggleBtn.style.display = 'none';
 
     // 1. Sort daily ledger descending by date
     const sortedLedger = [...db.daily_ledger].sort((a, b) => b.date.localeCompare(a.date));
@@ -4205,20 +4133,20 @@ document.getElementById('dash-trigger-purchase-btn').addEventListener('click', (
 });
 
 // Toggle view (Detailed shift breakdown vs Consolidated 24hr)
-document.getElementById('toggle-view-btn').addEventListener('click', () => {
-  show24hOnly = !show24hOnly;
-  const btn = document.getElementById('toggle-view-btn');
-  if (show24hOnly) {
-    btn.textContent = "Show Shift Breakdown";
-    btn.classList.add('btn-primary');
-    btn.classList.remove('btn-secondary');
-  } else {
-    btn.textContent = "Show 24Hr Combined";
-    btn.classList.add('btn-secondary');
-    btn.classList.remove('btn-primary');
+
+  function setShiftFilter(filter) {
+    ledgerShiftFilter = filter;
+    document.getElementById("shift-filter-24h-btn").style.background = filter === "24h" ? "var(--primary)" : "transparent";
+    document.getElementById("shift-filter-day-btn").style.background = filter === "day" ? "var(--primary)" : "transparent";
+    document.getElementById("shift-filter-night-btn").style.background = filter === "night" ? "var(--primary)" : "transparent";
+    renderLedger();
   }
-  renderLedger();
-});
+  const btn24 = document.getElementById("shift-filter-24h-btn");
+  if (btn24) btn24.addEventListener("click", () => setShiftFilter("24h"));
+  const btnDay = document.getElementById("shift-filter-day-btn");
+  if (btnDay) btnDay.addEventListener("click", () => setShiftFilter("day"));
+  const btnNight = document.getElementById("shift-filter-night-btn");
+  if (btnNight) btnNight.addEventListener("click", () => setShiftFilter("night"));
 
 // Segmented View Selectors: Spreadsheet vs Split Analyst
 document.getElementById('view-type-table-btn').addEventListener('click', () => {

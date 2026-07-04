@@ -23,7 +23,12 @@
       showGlobalError("JavaScript Error: " + message + "\nLine: " + lineno + "\nFile: " + source);
     };
     window.onunhandledrejection = function(event) {
-      showGlobalError("Unhandled Promise Rejection: " + (event.reason ? event.reason.message || event.reason : "Unknown error"));
+        var msg = event.reason ? event.reason.message || event.reason : "Unknown error";
+        if (typeof msg === 'string' && msg.includes('ServiceWorker')) {
+            console.warn('Ignored ServiceWorker error:', msg);
+            return;
+        }
+        showGlobalError("Unhandled Promise Rejection: " + msg);
     };
     function showGlobalError(msg) {
       var boundary = document.getElementById('global-error-boundary');
@@ -53,7 +58,37 @@
 
   <!-- Stylesheets -->
   <link rel="stylesheet" href="styles.css?v=57">
+
+  <style>
+    .proof-panel { padding: 1.5rem; border-left: 4px solid var(--primary); display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; background: rgba(0,0,0,0.15); box-shadow: inset 0 2px 10px rgba(0,0,0,0.2); margin: 0.5rem 0;}
+    @media (max-width: 768px) { .proof-panel { grid-template-columns: 1fr; } }
+    .proof-section { margin-bottom: 1.5rem; }
+    .proof-section h5 { color: var(--primary); text-transform: uppercase; font-size: 0.75rem; margin-bottom: 0.5rem; letter-spacing: 0.5px; margin-top: 0;}
+    .proof-box { background: rgba(0,0,0,0.2); padding: 1rem; border-radius: var(--radius-sm); border: 1px solid var(--border); font-family: monospace; font-size: 0.9rem; white-space: pre-wrap; margin: 0;}
+    .proof-text { font-size: 0.9rem; color: var(--text-dim); }
+
+    .status-badge { padding: 0.25rem 0.5rem; border-radius: 99px; font-size: 0.75rem; font-weight: 700; display: inline-block; white-space: nowrap; }
+    .status-red { background: rgba(239, 68, 68, 0.15); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.3); }
+    .status-orange { background: rgba(249, 115, 22, 0.15); color: #f97316; border: 1px solid rgba(249, 115, 22, 0.3); }
+    .status-yellow { background: rgba(234, 179, 8, 0.15); color: #eab308; border: 1px solid rgba(234, 179, 8, 0.3); }
+    .status-green { background: rgba(16, 185, 129, 0.15); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.3); }
+
+    .diff-col { font-weight: 700; }
+    .diff-neg { color: #ef4444; }
+    .diff-pos { color: #10b981; }
+
+    .dashboard-summary-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1rem; margin-bottom: 1.5rem; }
+    .dashboard-summary-grid .stat-card { background: var(--surface); padding: 1.5rem; border-radius: var(--radius); text-align: center; box-shadow: var(--shadow-sm); border: 1px solid var(--border); }
+    .dashboard-summary-grid .stat-card h4 { margin: 0; color: var(--text-muted); font-size: 0.85rem; text-transform: uppercase; margin-bottom: 0.5rem; }
+    .dashboard-summary-grid .stat-card .val { font-size: 1.75rem; font-weight: 700; color: var(--text); }
+    .dashboard-summary-grid .stat-card.val-red .val { color: #ef4444; }
+    .dashboard-summary-grid .stat-card.val-orange .val { color: #f97316; }
+    .dashboard-summary-grid .stat-card.val-green .val { color: #10b981; }
+    
+    .filter-input { background:var(--bg); border:1px solid var(--border); color:var(--text); padding:4px; font-size:0.8rem; border-radius:4px; width:100%; box-sizing:border-box; margin-top: 5px; }
+  </style>
 </head>
+
 <body>
   <!-- Global Error Boundary UI -->
   <div id="global-error-boundary">
@@ -395,11 +430,17 @@
             Logistics
           </button>
         </li>
-        <li class="nav-item" data-view="financials">
-          <button>
-            <svg viewBox="0 0 24 24"><path d="M21 18v1c0 1.1-.9 2-2 2H5c-1.11 0-2-.9-2-2V5c0-1.1.89-2 2-2h14c1.1 0 2 .9 2 2v1h-9c-1.11 0-2 .9-2 2v8c0 1.1.89 2 2 2h9zm-9-2h10V8H12v8zm4-2.5c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5z"/></svg>
-            Financials
-          </button>
+        <li class="nav-item">
+          <a href="live_shift_reconciliation_dashboard.html" style="text-decoration: none; color: inherit; display: flex; align-items: center; width: 100%;">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" style="margin-right:0.75rem;"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/></svg>
+            Live Reconciliation
+          </a>
+        </li>
+        <li class="nav-item">
+          <a href="financial_integrity_center.html" style="text-decoration: none; color: inherit; display: flex; align-items: center; width: 100%;">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" style="margin-right:0.75rem;"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm-2 16l-4-4 1.41-1.41L10 14.17l6.59-6.59L18 9l-8 8z"/></svg>
+            Daily Safety Net
+          </a>
         </li>
         <li class="nav-item" data-view="settings">
           <button>
@@ -596,7 +637,37 @@
         </div>
       </section>
 
+
+      <!-- View: Financial Integrity Center -->
+      <section id="view-financial-integrity" class="view-section" style="padding-bottom: 2rem;">
+        <div class="dashboard-summary-grid">
+          <div class="stat-card"><h4 title="Total calculations analyzed">Total Analyzed</h4><div class="val" id="stat-total">0</div></div>
+          <div class="stat-card val-red"><h4 title="Proven mathematically incorrect">Proven Incorrect</h4><div class="val" id="stat-red">0</div></div>
+          <div class="stat-card val-orange"><h4 title="Missing raw data required to calculate">Needs Owner Input</h4><div class="val" id="stat-orange">0</div></div>
+          <div class="stat-card val-yellow"><h4 title="Cascading variance; resolve upstream errors first">Cannot Prove Yet</h4><div class="val" id="stat-yellow">0</div></div>
+          <div class="stat-card val-green"><h4 title="Perfect mathematical alignment with Business Rules">Certified Correct</h4><div class="val" id="stat-green">0</div></div>
+        </div>
+        <div style="background: var(--surface); padding: 1.5rem; border-radius: var(--radius); box-shadow: var(--shadow); border: 1px solid var(--border); overflow-x: auto;">
+          <table class="ledger-table" style="width:100%; white-space: nowrap;">
+            <thead>
+              <tr>
+                <th>Date<br><input type="text" class="filter-input" data-col="0" placeholder="Filter Date"></th>
+                <th>Shift<br><input type="text" class="filter-input" data-col="1" placeholder="Filter Shift"></th>
+                <th>Module<br><input type="text" class="filter-input" data-col="2" placeholder="Filter Module"></th>
+                <th>Calculation<br><input type="text" class="filter-input" data-col="3" placeholder="Filter Calc"></th>
+                <th>Issue Type<br><input type="text" class="filter-input" data-col="4" placeholder="Filter Issue"></th>
+                <th>Rule<br><input type="text" class="filter-input" data-col="5" placeholder="Filter Rule"></th>
+                <th>Difference<br></th>
+                <th>Status<br><input type="text" class="filter-input" data-col="7" placeholder="Filter Status"></th>
+              </tr>
+            </thead>
+            <tbody id="integrity-grid-body"></tbody>
+          </table>
+        </div>
+      </section>
+
       <!-- View 2: Sales Cumulative Sheet (Ledger) -->
+
       <section id="view-ledger" class="view-section">
 
         <div class="panel">
@@ -618,8 +689,12 @@
                 <button class="btn btn-secondary btn-sm" id="view-type-split-btn" style="border:none; border-radius:4px; padding: 0.35rem 0.75rem; background: transparent;">Split Analyst View</button>
                 <button class="btn btn-secondary btn-sm" id="view-type-pnl-btn" style="border:none; border-radius:4px; padding: 0.35rem 0.75rem; background: transparent;">P&amp;L Report</button>
               </div>
-              <button class="btn btn-secondary btn-sm" id="toggle-view-btn">Show 24Hr Combined</button>
-              <button class="btn btn-primary btn-sm" id="log-readings-btn-header" onclick="openLogReadingsModal()">Log Daily Readings</button>
+                <div class="view-mode-selector" id="shift-filter-selector" style="display: flex; gap: 2px; background: rgba(255,255,255,0.03); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 2px;">
+                  <button class="btn btn-secondary btn-sm" id="shift-filter-24h-btn" style="border:none; border-radius:4px; padding: 0.35rem 0.75rem; background: var(--primary);">24-Hour</button>
+                  <button class="btn btn-secondary btn-sm" id="shift-filter-day-btn" style="border:none; border-radius:4px; padding: 0.35rem 0.75rem; background: transparent;">Day Shift</button>
+                  <button class="btn btn-secondary btn-sm" id="shift-filter-night-btn" style="border:none; border-radius:4px; padding: 0.35rem 0.75rem; background: transparent;">Night Shift</button>
+                </div>
+                <button class="btn btn-primary btn-sm" id="log-readings-btn-header" onclick="openLogReadingsModal()">Log Daily Readings</button>
               <button class="btn btn-secondary btn-sm" id="export-ledger-csv-btn">Export Ledger CSV</button>
             </div>
           </div>
@@ -2551,7 +2626,7 @@
   </div>
 
   <!-- Scripts -->
-  <script src="dsr_data.js"></script>
+  <script>document.write('<script src="dsr_data_certified.js?v=' + Date.now() + '"><\/script>');</script>
   <script src="supply_bills_data.js"></script>
   <script src="extracted_kc_expenses.js"></script>
   <script src="ocr_stock_data.js"></script>
@@ -2724,6 +2799,7 @@
         if (label) label.textContent = Math.round(currentLedgerZoom * 100) + '%';
       });
     });
+  </script>
   <!-- OTP Password Reset Overlay -->
   <div id="otp-reset-overlay" style="display:none;position:fixed;inset:0;z-index:20000;background:rgba(15,23,42,0.95);backdrop-filter:blur(10px);align-items:center;justify-content:center;color:var(--text-main);font-family:var(--font-sans);">
     <div style="width:100%;max-width:440px;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-lg);padding:2rem;box-shadow:0 10px 25px -5px rgba(0,0,0,0.5);">
@@ -2784,5 +2860,10 @@
 
     </div>
   </div>
+
+  <script src="js/operational_rule_engine.js"></script>
+  <script src="js/certification_scanner.js"></script>
+  <script src="js/financial_integrity_center_ui.js"></script>
 </body>
+
 </html>

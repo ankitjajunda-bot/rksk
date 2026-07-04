@@ -1,0 +1,80 @@
+Here is the exact data support you requested, showing the actual readings for each day so you can visually see the mathematical jumps.
+
+### Type A: Missed Night Sales (Pump jumped forward overnight)
+*The machine clearly dispensed fuel before the morning shift started, proving night sales occurred but were not recorded.* 
+
+**Conflict Date: 2025-08-28** (Difference: +1037.07 Litres)
+- 2025-08-27 Day Close:   `13831.61` (Assume this was identical to night close)
+- 2025-08-27 Night Close: `12728.7` ➔ *This needs to be updated!*
+- 2025-08-28 Day Open:    `13765.77`
+- 2025-08-28 Day Close:   `13831.61`
+- 2025-08-28 Night Close: `13836.55`
+
+**Conflict Date: 2026-03-11** (Difference: +44.74 Litres)
+- 2026-03-09 Day Close:   `33581.1` (Assume this was identical to night close)
+- 2026-03-09 Night Close: `33440.49` ➔ *This needs to be updated!*
+- 2026-03-11 Day Open:    `33485.23`
+- 2026-03-11 Day Close:   `33581.1`
+- 2026-03-11 Night Close: `33597.69`
+
+**Conflict Date: 2026-05-01** (Difference: +567.59 Litres)
+- 2026-04-26 Day Close:   `38719.48` (Assume this was identical to night close)
+- 2026-04-26 Night Close: `38039.51` ➔ *This needs to be updated!*
+- 2026-05-01 Day Open:    `38607.1`
+- 2026-05-01 Day Close:   `38719.48`
+- 2026-05-01 Night Close: `38728.96`
+
+**Conflict Date: 2026-05-29** (Difference: +1113.22 Litres)
+- 2026-05-20 Day Close:   `42851.7` (Assume this was identical to night close)
+- 2026-05-20 Night Close: `41738.48` ➔ *This needs to be updated!*
+- 2026-05-29 Day Open:    `42851.7`
+- 2026-05-29 Day Close:   `42851.7`
+- 2026-05-29 Night Close: `42851.7`
+
+**Conflict Date: 2026-06-06** (Difference: +40.79 Litres)
+- 2026-06-04 Day Close:   `43420.75` (Assume this was identical to night close)
+- 2026-06-04 Night Close: `43356.19` ➔ *This needs to be updated!*
+- 2026-06-06 Day Open:    `43396.98`
+- 2026-06-06 Day Close:   `43420.75`
+- 2026-06-06 Night Close: `43420.75`
+
+**Conflict Date: 2026-06-11** (Difference: +3.08 Litres)
+- 2026-06-10 Day Close:   `44210.85` (Assume this was identical to night close)
+- 2026-06-10 Night Close: `44048.86` ➔ *This needs to be updated!*
+- 2026-06-11 Day Open:    `44051.94`
+- 2026-06-11 Day Close:   `44210.85`
+- 2026-06-11 Night Close: `44210.85`
+
+**Conflict Date: 2026-06-12** (Difference: +21.34 Litres)
+- 2026-06-11 Day Close:   `44363.72` (Assume this was identical to night close)
+- 2026-06-11 Night Close: `44210.85` ➔ *This needs to be updated!*
+- 2026-06-12 Day Open:    `44232.19`
+- 2026-06-12 Day Close:   `44363.72`
+- 2026-06-12 Night Close: `44363.72`
+
+---
+### Type B: Minor Typo Backwards
+*A physical machine cannot run backwards. This is a human transcription typo.* 
+
+**Conflict Date: 2026-06-17** (Difference: -5.0 Litres)
+- 2026-06-16 Night Close: `45069.88`
+- 2026-06-17 Day Open:    `45064.88` ➔ *This should be pulled up to match Yesterday's Night Close*
+- 2026-06-17 Day Close:   `45198.44`
+- 2026-06-17 Night Close: `45198.44`
+
+---
+### Type C: OCR Zero-Out (Blank Data)
+*The data for the entire day was either totally missing from the physical register, or the OCR scanner hallucinated a blank page.* 
+
+**Conflict Date: 2026-06-19**
+- 2026-06-18 Night Close: `45382.81`
+- 2026-06-19 Day Open:    `0.0` ➔ *Needs to bridge the gap*
+- 2026-06-19 Day Close:   `0.0`
+- 2026-06-19 Night Close: `0.0`
+
+**Conflict Date: 2026-06-23**
+- 2026-06-22 Night Close: `46038.63`
+- 2026-06-23 Day Open:    `0.0` ➔ *Needs to bridge the gap*
+- 2026-06-23 Day Close:   `0.0`
+- 2026-06-23 Night Close: `0.0`
+

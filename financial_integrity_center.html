@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Daily Safety Net | OctaneFlow</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-dark: #0f1117;
+      --bg-card: rgba(30, 41, 59, 0.7);
+      --primary: #3b82f6;
+      --success: #10b981;
+      --danger: #ef4444;
+      --warning: #f59e0b;
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --border: rgba(255, 255, 255, 0.1);
+      --glass-bg: rgba(15, 23, 42, 0.6);
+      --glass-border: rgba(255, 255, 255, 0.05);
+    }
+    
+    body {
+      margin: 0;
+      padding: 0;
+      background: var(--bg-dark);
+      color: var(--text-main);
+      font-family: 'Inter', sans-serif;
+      min-height: 100vh;
+    }
+    
+    .navbar {
+      background: var(--glass-bg);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+      padding: 1rem 2rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      position: sticky;
+      top: 0;
+      z-index: 50;
+    }
+    
+    .navbar h1 {
+      margin: 0;
+      font-size: 1.25rem;
+      font-weight: 700;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    
+    .back-btn {
+      color: var(--text-muted);
+      text-decoration: none;
+      font-size: 0.9rem;
+      font-weight: 600;
+      padding: 0.5rem 1rem;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      transition: all 0.2s;
+    }
+    .back-btn:hover { background: rgba(255,255,255,0.05); color: #fff; }
+    
+    .container { max-width: 1000px; margin: 2rem auto; padding: 0 1.5rem; }
+    
+    .quarantine-hero {
+      background: rgba(239, 68, 68, 0.1);
+      border: 1px solid rgba(239, 68, 68, 0.3);
+      border-radius: 12px;
+      padding: 2rem;
+      text-align: center;
+      margin-bottom: 2rem;
+    }
+    
+    .quarantine-hero h2 { margin: 0 0 0.5rem 0; color: #fca5a5; font-size: 1.5rem; }
+    .quarantine-hero p { margin: 0; color: #f8fafc; font-size: 1.1rem; }
+    .quarantine-hero .count { font-size: 3rem; font-weight: 800; color: #ef4444; margin: 1rem 0; line-height: 1; }
+    
+    .empty-state {
+      text-align: center;
+      padding: 4rem 2rem;
+      background: var(--bg-card);
+      border: 1px dashed var(--border);
+      border-radius: 12px;
+      color: var(--text-muted);
+    }
+    
+    .empty-state h3 { color: var(--success); margin: 0 0 1rem 0; font-size: 1.5rem; }
+    
+    .q-card {
+      background: var(--bg-card);
+      border: 1px solid rgba(239, 68, 68, 0.4);
+      border-left: 4px solid #ef4444;
+      border-radius: 8px;
+      padding: 1.5rem;
+      margin-bottom: 1.5rem;
+      box-shadow: 0 4px 6px -1px rgba(0,0,0,0.2);
+    }
+    
+    .q-card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 1rem;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 1rem;
+    }
+    
+    .q-reasons { margin: 0; padding: 0 0 0 1.25rem; color: #fca5a5; font-size: 0.95rem; line-height: 1.5; }
+    
+    .action-btn {
+      background: #3b82f6;
+      color: #fff;
+      border: none;
+      padding: 0.6rem 1.2rem;
+      border-radius: 6px;
+      font-weight: 600;
+      cursor: pointer;
+      text-decoration: none;
+      font-size: 0.9rem;
+      transition: background 0.2s;
+    }
+    .action-btn:hover { background: #2563eb; }
+    
+  </style>
+</head>
+<body>
+
+  <nav class="navbar">
+    <h1>
+      <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor" style="color:#ef4444;"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm-2 16l-4-4 1.41-1.41L10 14.17l6.59-6.59L18 9l-8 8z"/></svg>
+      Daily Safety Net
+    </h1>
+    <a href="index.html" class="back-btn">← Back to Dashboard</a>
+  </nav>
+
+  <div class="container">
+    
+    <div class="quarantine-hero">
+      <h2>Quarantine Queue</h2>
+      <p>Submissions blocked due to mathematical continuity errors.</p>
+      <div class="count" id="q-count">0</div>
+      <p style="font-size: 0.9rem; color: #94a3b8; margin-top: 0.5rem;">These require owner override to enter the ledger.</p>
+    </div>
+
+    <div id="q-list">
+      <!-- Populated by JS -->
+    </div>
+    
+  </div>
+
+  <!-- Load Realtime Data -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="js/schema.js?v=69"></script>
+  
+  <script>
+    function renderQuarantine() {
+      // Check if db is loaded from sync.js (we assume they open it via Dashboard which loads sync.js into indexedDB/localStorage)
+      // Since this is a separate page, we need to fetch the pending entries from localStorage if available, or just guide them.
+      
+      const raw = localStorage.getItem('rksk_db_cache');
+      let pending = [];
+      if (raw) {
+        try {
+          const db = JSON.parse(raw);
+          pending = db.pending_entries || [];
+        } catch(e) {}
+      }
+      
+      const quarantined = pending.filter(e => e.flagged_for_quarantine && e.status === 'pending');
+      
+      document.getElementById('q-count').textContent = quarantined.length;
+      
+      const listEl = document.getElementById('q-list');
+      
+      if (quarantined.length === 0) {
+        listEl.innerHTML = `
+          <div class="empty-state">
+            <h3>🛡️ System Secure</h3>
+            <p>No continuity errors detected in the current pending submissions.</p>
+          </div>
+        `;
+        return;
+      }
+      
+      let html = '';
+      quarantined.forEach(entry => {
+        html += `
+          <div class="q-card">
+            <div class="q-card-header">
+              <div>
+                <strong style="font-size: 1.1rem;">${entry.entryData.date} · ${entry.entryData.shift === 'day' ? 'Day' : 'Night'} Shift</strong>
+                <div style="font-size: 0.85rem; color: var(--text-muted); margin-top: 0.25rem;">Submitted by ${entry.submittedByName}</div>
+              </div>
+              <a href="index.html" class="action-btn">Review in Approvals</a>
+            </div>
+            <div>
+              <strong style="color: #ef4444; margin-bottom: 0.5rem; display: block;">Identified Errors:</strong>
+              <ul class="q-reasons">
+                ${entry.quarantine_reasons.map(r => `<li>${r}</li>`).join('')}
+              </ul>
+            </div>
+          </div>
+        `;
+      });
+      
+      listEl.innerHTML = html;
+    }
+    
+    document.addEventListener('DOMContentLoaded', renderQuarantine);
+  </script>
+</body>
+</html>

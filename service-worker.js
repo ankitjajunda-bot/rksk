@@ -6,7 +6,7 @@
 //   - Everything else               → Network First, fallback to cache
 // ============================================================
 
-const CACHE_NAME     = 'octaneflow-v69';
+const CACHE_NAME     = 'octaneflow-v74';
 const FONT_CACHE     = 'octaneflow-fonts-v1';
 
 // Detect base path automatically — works on localhost AND GitHub Pages /octaneflow/
@@ -130,7 +130,7 @@ async function cacheFirst(request) {
       cache.put(request, response.clone());
     }
     return response;
-  } catch {
+  } catch (e) {
     return new Response('Offline — resource not cached', { status: 503 });
   }
 }
@@ -143,7 +143,7 @@ async function networkFirst(request) {
       cache.put(request, response.clone());
     }
     return response;
-  } catch {
+  } catch (e) {
     const cached = await caches.match(request);
     return cached || new Response('Offline', { status: 503 });
   }

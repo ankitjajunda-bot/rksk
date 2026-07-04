@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Certification & Owner Review Center</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link href="styles.css" rel="stylesheet">
+  <style>
+    body { padding: 20px; background: var(--bg-body); color: var(--text-main); font-family: 'Inter', sans-serif; }
+    .header-area { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+    .card { background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 8px; padding: 20px; margin-bottom: 20px; }
+    .status-badge { display: inline-block; padding: 4px 8px; border-radius: 4px; font-size: 0.8rem; font-weight: 600; }
+    .status-certified { background: rgba(16,185,129,0.1); color: #10b981; }
+    .status-suggested { background: rgba(245,158,11,0.1); color: #f59e0b; }
+    .status-review { background: rgba(249,115,22,0.1); color: #f97316; }
+    .status-failed { background: rgba(239,68,68,0.1); color: #ef4444; }
+    
+    .diff-table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+    .diff-table th, .diff-table td { padding: 10px; border: 1px solid var(--border-color); text-align: left; }
+    .diff-table th { background: rgba(255,255,255,0.03); }
+    .diff-val-old { color: #ef4444; text-decoration: line-through; }
+    .diff-val-new { color: #10b981; font-weight: bold; }
+    
+    .actions { margin-top: 15px; display: flex; gap: 10px; }
+    .btn { padding: 6px 12px; border: none; border-radius: 4px; cursor: pointer; font-weight: 500; }
+    .btn-accept { background: #10b981; color: white; }
+    .btn-reject { background: #ef4444; color: white; }
+    .btn-postpone { background: #6b7280; color: white; }
+    
+    .log-panel { background: #1e1e2e; color: #a6accd; padding: 15px; border-radius: 8px; font-family: monospace; font-size: 0.85rem; max-height: 250px; overflow-y: auto; }
+  </style>
+</head>
+<body>
+  <div class="header-area">
+    <div>
+      <h1 style="margin:0; font-size: 1.5rem;">Certification & Owner Review Center</h1>
+      <p style="margin: 5px 0 0; color: var(--text-muted);">Stage 5 Historical Reconstruction Workflow</p>
+    </div>
+    <div>
+      <button class="btn btn-primary" id="btn-run-engine" style="padding: 10px 15px; font-size: 1rem;">Run Reconstruction Engine</button>
+      <button class="btn btn-accept" id="btn-preview-updates" style="padding: 10px 15px; font-size: 1rem; display: none;">Preview & Apply Approved Updates</button>
+    </div>
+  </div>
+
+  <div id="engine-logs" class="log-panel" style="display: none;">
+    <div>[System] Ready to run Reconstruction Engine...</div>
+  </div>
+
+  <div id="proposals-container" style="margin-top: 30px;">
+    <!-- Proposals will be dynamically injected here -->
+  </div>
+
+  <script src="js/auth.js"></script>
+  <script src="js/schema.js"></script>
+  <script src="js/core_db_ledger.js"></script>
+  <!-- Load all data sources -->
+  <script src="supply_bills_data.js"></script>
+  <script src="ocr_stock_data.js"></script>
+  <script src="dsr_data_certified.js"></script>
+  
+  <script src="js/reconstruction_engine.js"></script>
+</body>
+</html>

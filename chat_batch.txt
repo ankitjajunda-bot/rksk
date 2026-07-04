@@ -1,0 +1,37 @@
+Here are the first 5 remaining errors from the system. Tell me how you'd like to resolve each one:
+
+### Error 1: DU1 PETROL on 2026-05-01
+**Category:** Minor Typo (Difference: 3542.2 Litres)
+- 2026-04-30 Night Close: `1467662.63`
+- 2026-05-01 Day Open: `1471204.83`
+- 2026-05-01 Day Close: `1471962.14`
+- 2026-05-01 Night Close: `1472164.29`
+
+### Error 2: DU1 DIESEL on 2026-05-01
+**Category:** Minor Typo (Difference: 2492.77 Litres)
+- 2026-04-30 Night Close: `1203328.97`
+- 2026-05-01 Day Open: `1205821.74`
+- 2026-05-01 Day Close: `1206135.59`
+- 2026-05-01 Night Close: `1206316.14`
+
+### Error 3: DU2 DIESEL on 2026-05-01
+**Category:** Minor Typo (Difference: 4534.69 Litres)
+- 2026-04-30 Night Close: `1181531.4`
+- 2026-05-01 Day Open: `1186066.09`
+- 2026-05-01 Day Close: `1186364.09`
+- 2026-05-01 Night Close: `1186481.88`
+
+### Error 4: DU1 PETROL on 2026-06-20
+**Category:** Missing Night Sales (Difference: 455.99 Litres)
+- 2026-06-19 Night Close: `1503471.06`
+- 2026-06-20 Day Open: `1503927.05`
+- 2026-06-20 Day Close: `1504108.39`
+- 2026-06-20 Night Close: `1504564.56`
+
+### Error 5: DU1 DIESEL on 2026-06-20
+**Category:** Missing Night Sales (Difference: 401.21 Litres)
+- 2026-06-19 Night Close: `1251074.55`
+- 2026-06-20 Day Open: `1251475.76`
+- 2026-06-20 Day Close: `1251662.86`
+- 2026-06-20 Night Close: `1252110.41`
+

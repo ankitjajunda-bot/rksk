@@ -34,6 +34,13 @@ Human-entered data must be preserved exactly as entered. Derived or calculated d
 ### 8. Integrity Over Convenience
 Financial integrity is fundamentally more important than user convenience. Workflows like batch approvals for shifts or blind auto-syncing that overwrites offline data in the name of "speed" are expressly forbidden if they introduce the risk of silent financial corruption or fraud.
 
+### 9. Task-Driven Design (Optimise Moments, Not Screens)
+Users do not interact with screens; they complete tasks. Every workflow must be designed around the specific moment (e.g., Opening Shift, Recording Expense, Depositing Cash) with one clear objective. If a UI element does not help the user complete that specific task, it must be removed or moved to a secondary view.
+
+### 10. The Golden Rule of Visibility
+- **Employees**: The software is an assistant, not a form. Provide continuous, live *Operational Calculations* (Liters sold, Cash received, Discrepancies) to reduce mental math and entry errors. Hide all *Business Intelligence* (Profit, WAC, Analytics, Financials).
+- **Owners**: The software must answer questions (e.g., "Is the station healthy?") rather than simply displaying raw data. Surface actionable insights before the owner has to search for them.
+
 ---
 
 *This document is under version control. Any Pull Request or AI modification that violates these principles will be automatically rejected.*

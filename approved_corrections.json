@@ -1,0 +1,209 @@
+[
+  {
+    "date": "2026-04-08",
+    "yesterday_date": "2026-04-07",
+    "machine": "du1_d",
+    "yesterday_close_night": 1191725.19,
+    "today_open": 1191725.19,
+    "today_close_day": 1191987.18,
+    "today_close_night": 1192143.05
+  },
+  {
+    "date": "2026-05-01",
+    "yesterday_date": "2026-04-30",
+    "machine": "du1_p",
+    "yesterday_close_night": 1471204.83,
+    "today_open": 1471204.83,
+    "today_close_day": 1471962.14,
+    "today_close_night": 1472164.29
+  },
+  {
+    "date": "2026-05-01",
+    "yesterday_date": "2026-04-30",
+    "machine": "du1_d",
+    "yesterday_close_night": 1205821.74,
+    "today_open": 1205821.74,
+    "today_close_day": 1206135.59,
+    "today_close_night": 1206316.14
+  },
+  {
+    "date": "2026-05-01",
+    "yesterday_date": "2026-04-30",
+    "machine": "du2_d",
+    "yesterday_close_night": 1186066.09,
+    "today_open": 1186066.09,
+    "today_close_day": 1186364.09,
+    "today_close_night": 1186481.88
+  },
+  {
+    "date": "2026-05-02",
+    "yesterday_date": "2026-05-01",
+    "machine": "du2_p",
+    "yesterday_close_night": 38728.96,
+    "today_open": 38728.96,
+    "today_close_day": 38982.4,
+    "today_close_night": 39004.82
+  },
+  {
+    "date": "2026-06-08",
+    "yesterday_date": "2026-06-07",
+    "machine": "du1_d",
+    "yesterday_close_night": 1240187.19,
+    "today_open": 1240187.19,
+    "today_close_day": 1240763.16,
+    "today_close_night": 1241279.67
+  },
+  {
+    "date": "2026-06-09",
+    "yesterday_date": "2026-06-08",
+    "machine": "du1_d",
+    "yesterday_close_night": 1241279.67,
+    "today_open": 1241279.67,
+    "today_close_day": 1241898.5,
+    "today_close_night": 1242311.93
+  },
+  {
+    "date": "2026-06-11",
+    "yesterday_date": "2026-06-10",
+    "machine": "du1_d",
+    "yesterday_close_night": 1243521.09,
+    "today_open": 1243521.09,
+    "today_close_day": 1244366.96,
+    "today_close_night": 1244640.3
+  },
+  {
+    "date": "2026-06-11",
+    "yesterday_date": "2026-06-10",
+    "machine": "du2_p",
+    "yesterday_close_night": 44068.98,
+    "today_open": 44068.98,
+    "today_close_day": 44210.85,
+    "today_close_night": 44232.19
+  },
+  {
+    "date": "2026-06-12",
+    "yesterday_date": "2026-06-11",
+    "machine": "du2_p",
+    "yesterday_close_night": 44232.19,
+    "today_open": 44232.19,
+    "today_close_day": 44363.72,
+    "today_close_night": 44363.72
+  },
+  {
+    "date": "2026-06-14",
+    "yesterday_date": "2026-06-13",
+    "machine": "du1_d",
+    "yesterday_close_night": 1246074.56,
+    "today_open": 1246074.56,
+    "today_close_day": 1246822.27,
+    "today_close_night": 1247002.63
+  },
+  {
+    "date": "2026-06-15",
+    "yesterday_date": "2026-06-14",
+    "machine": "du1_p",
+    "yesterday_close_night": 1500121.9,
+    "today_open": 1500121.9,
+    "today_close_day": 1500696.73,
+    "today_close_night": 1500865.72
+  },
+  {
+    "date": "2026-06-15",
+    "yesterday_date": "2026-06-14",
+    "machine": "du1_d",
+    "yesterday_close_night": 1247002.63,
+    "today_open": 1247002.63,
+    "today_close_day": 1247546.36,
+    "today_close_night": 1247806.51
+  },
+  {
+    "date": "2026-06-15",
+    "yesterday_date": "2026-06-14",
+    "machine": "du2_d",
+    "yesterday_close_night": 1240216.89,
+    "today_open": 1240216.89,
+    "today_close_day": 1240948.27,
+    "today_close_night": 1241085.43
+  },
+  {
+    "date": "2026-06-17",
+    "yesterday_date": "2026-06-16",
+    "machine": "du2_p",
+    "yesterday_close_night": 45064.88,
+    "today_open": 45064.88,
+    "today_close_day": 45198.44,
+    "today_close_night": 45198.44
+  },
+  {
+    "date": "2026-06-19",
+    "yesterday_date": "2026-06-18",
+    "machine": "du1_p",
+    "yesterday_close_night": 1502774.19,
+    "today_open": 1502774.19,
+    "today_close_day": 1503282.1,
+    "today_close_night": 1503471.06
+  },
+  {
+    "date": "2026-06-19",
+    "yesterday_date": "2026-06-18",
+    "machine": "du1_d",
+    "yesterday_close_night": 1250389.5,
+    "today_open": 1250389.5,
+    "today_close_day": 1250832.53,
+    "today_close_night": 1251074.55
+  },
+  {
+    "date": "2026-06-19",
+    "yesterday_date": "2026-06-18",
+    "machine": "du2_p",
+    "yesterday_close_night": 45398.95,
+    "today_open": 45398.95,
+    "today_close_day": 45616.75,
+    "today_close_night": 45616.75
+  },
+  {
+    "date": "2026-06-19",
+    "yesterday_date": "2026-06-18",
+    "machine": "du2_d",
+    "yesterday_close_night": 1243049.23,
+    "today_open": 1243049.23,
+    "today_close_day": 1243642.47,
+    "today_close_night": 1243979.16
+  },
+  {
+    "date": "2026-06-21",
+    "yesterday_date": "2026-06-20",
+    "machine": "du2_d",
+    "yesterday_close_night": 1244046.73,
+    "today_open": 1244046.73,
+    "today_close_day": 1244594.27,
+    "today_close_night": 1244680.65
+  },
+  {
+    "date": "2026-06-23",
+    "yesterday_date": "2026-06-22",
+    "machine": "du1_p",
+    "yesterday_close_night": 1505443.36,
+    "today_open": 1505443.36,
+    "today_close_day": 1506040.74,
+    "today_close_night": 1506257.79
+  },
+  {
+    "date": "2026-06-23",
+    "yesterday_date": "2026-06-22",
+    "machine": "du1_d",
+    "yesterday_close_night": 1252642.4,
+    "today_open": 1252642.4,
+    "today_close_day": 125311.03,
+    "today_close_night": 1253177.05
+  },
+  {
+    "date": "2026-06-23",
+    "yesterday_date": "2026-06-22",
+    "machine": "du2_p",
+    "yesterday_close_night": 46038.63,
+    "today_open": 46038.63,
+    "today_close_day": 46158.61,
+    "today_close_night": 46169.37
+  }
+]

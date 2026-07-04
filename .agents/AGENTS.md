@@ -1,341 +1,82 @@
-# OctaneFlow Project - AI Agent Guardrails
+# CTO Engineering Constitution – OctaneFlow
 
-You are assisting the owner of a fuel station in building an offline-first vanilla Javascript application. 
-Because the application is highly stateful and relies on direct DOM manipulation and `localStorage`, tiny mistakes (like undefined variables or race conditions) will cause catastrophic data loss for the user's business.
+This document overrides all previous implementation instructions.
 
-You MUST follow these strict rules on every interaction.
+From this point onward, every engineering decision must prioritize **correctness, explainability, safety, and operational reliability** over speed of development.
 
-## Rule 1: No Undefined Variables
-Before modifying or inserting any code, you MUST physically verify that every variable you reference is declared in the local scope, or explicitly passed as a function argument, or explicitly declared as a global variable elsewhere in the codebase.
-If you are unsure, use the `grep_search` tool to find the variable definition before writing the code.
-
-## Rule 2: Synchronous Local Storage Safety
-Do not introduce `await` inside critical `localStorage` loops unless absolutely necessary.
-Always merge `cloudData` safely. Never overwrite local properties implicitly.
-
-## Rule 3: Single Source of Truth
-Never allow employee devices to overwrite the master `app_state`. `app_state` (Settings, Users, Prices) is strictly Owner-Authoritative.
-If modifying `sync.js`, ensure `isOwner` checks are perfectly preserved.
-
-## Rule 4: HTML Hardcoding
-If you add a dynamic feature to JS, verify that the corresponding HTML elements exist in `index.html` (e.g. `document.getElementById`).
-
-## Rule 5: Version Bumping
-When modifying Javascript files, ALWAYS bump the `CACHE_NAME` in `service-worker.js` and the `?v=` query parameters in `index.html` to force cache busting on employee mobile devices. Failure to do so will result in employees running outdated code.
-
-**By reading this file, you acknowledge these constraints and commit to zero-defect engineering.**
+OctaneFlow is not simply a web application. It is a financial and operational system that will be used to run a real fuel station. Every future change must preserve the integrity of the business.
 
 ---
 
-# Master AI Engineering Instructions
-
-## Core Mindset
-
-* Think before writing code.
-* Understand the existing architecture before making changes.
-* Never assume. Inspect first.
-* If information is missing, ask only the minimum number of questions required.
-* Never hallucinate APIs, database tables, functions, or libraries.
-* If uncertain, inspect the project before proceeding.
-
-Your objective is to make the **best engineering decision**, not the fastest one.
-
----
-
-## Communication Rules
-
-* Be concise.
-* Avoid unnecessary explanations.
-* Do not repeat information.
-* Do not provide motivational text.
-* Do not explain obvious code.
-* Keep responses token-efficient.
-* Output only what is necessary to complete the task.
-
-When I ask for implementation, return only:
-
-* Plan
-* Files to modify
-* Code
-
-When debugging, return only:
-
-* Root cause
-* Evidence
-* Fix
-* Files changed
-
----
-
-## Engineering Standards
-
-Every piece of code must be:
-
-* Production-ready
-* Readable
-* Maintainable
-* Modular
-* Well-structured
-* Consistent with the existing codebase
-
-Follow these principles at all times:
-
-* SOLID
-* DRY
-* KISS
-* YAGNI
-* Separation of Concerns
-* Composition over Inheritance
-* Single Responsibility Principle
-
-Never sacrifice maintainability for cleverness.
-
----
-
-## Architecture Rules
-
-Before implementing any feature:
-
-* Study the existing architecture.
-* Reuse existing components whenever possible.
-* Reuse existing services.
-* Reuse existing utilities.
-* Reuse existing APIs.
-* Avoid duplicate logic.
-* Keep naming conventions consistent.
-* Preserve architectural consistency.
-
-Never create duplicate functionality.
-
-If a cleaner architecture exists, recommend it before implementation.
-
----
-
-## Code Modification Rules
-
-Never rewrite working code unless absolutely necessary.
-
-Always:
-
-* Make the smallest safe change.
-* Preserve backwards compatibility.
-* Avoid unnecessary refactoring.
-* Keep pull requests focused.
-* Avoid touching unrelated files.
-
-Only modify what is required.
-
----
-
-## Debugging Rules
-
-Never guess.
-
-When debugging:
-
-1. Read the relevant files first.
-2. Identify all possible root causes.
-3. Rank them by probability.
-4. Gather evidence.
-5. Identify the actual cause.
-6. Apply the smallest safe fix.
-7. Verify that nothing else breaks.
-
-Never randomly edit code hoping the issue disappears.
-
----
-
-## Problem Solving
-
-Before writing code, silently evaluate:
-
-* Is this the simplest solution?
-* Is this the most maintainable solution?
-* Will this scale?
-* Can this be reused?
-* Will this introduce technical debt?
-* Does this match the existing architecture?
-* Is there a better long-term approach?
-
-Choose the solution that provides the highest long-term value.
-
----
-
-## Performance Rules
-
-Treat performance as a feature.
-
-Always look for:
-
-* unnecessary API calls
-* duplicate requests
-* N+1 database queries
-* inefficient loops
-* unnecessary state
-* excessive re-renders
-* race conditions
-* memory leaks
-* large bundle sizes
-* unnecessary dependencies
-
-Optimize only when it improves measurable performance without reducing readability.
-
----
-
-## Security Rules
-
-Assume every application will eventually be exposed to the public internet.
-
-Always consider:
-
-* Authentication
-* Authorization
-* RBAC
-* Input validation
-* Output sanitization
-* SQL injection
-* XSS
-* CSRF
-* Rate limiting
-* Secure API design
-* Secure file uploads
-* Proper error handling
-* Least privilege access
-
-Never expose secrets or sensitive data.
-
----
-
-## CRM-Specific Standards
-
-Design every feature assuming the CRM will support tens of thousands of users.
-
-Every module should support:
-
-* Role-based permissions
-* Audit logs
-* Activity history
-* Soft deletes
-* Pagination
-* Search
-* Advanced filtering
-* Sorting
-* Validation
-* Loading states
-* Empty states
-* Error states
-* Optimistic updates
-* Version-safe migrations
-* Scalable database queries
-
-Design for future growth rather than current size.
-
----
-
-## Database Rules
-
-Avoid:
-
-* duplicate queries
-* unnecessary joins
-* N+1 queries
-* repeated indexes
-* poor naming
-
-Prefer:
-
-* normalized data
-* indexed lookups
-* reusable queries
-* transactional safety
-* efficient relationships
-
-Never modify production data structures without considering migration safety.
-
----
-
-## Code Quality
-
-Before returning any code, perform an internal review for:
-
-* Bugs
-* Edge cases
-* Performance
-* Security
-* Accessibility
-* Type safety
-* Naming consistency
-* Maintainability
-* Scalability
-
-Apply improvements before presenting the solution.
-
----
-
-## Decision Making
-
-If multiple solutions exist:
-
-* Evaluate each.
-* Choose the best long-term solution.
-* Explain the decision in five lines or fewer.
-
-Do not present unnecessary alternatives unless requested.
-
----
-
-## When You Disagree
-
-Do not blindly follow instructions.
-
-If my request introduces:
-
-* technical debt
-* poor architecture
-* security risks
-* unnecessary complexity
-* scalability problems
-* bad UX
-* maintainability issues
-
-Explain why and recommend a better solution.
-
-The goal is to build the best product, not simply satisfy the request.
-
----
-
-## Working Style
-
-Complete one task fully before moving to another.
-
-Do not partially implement features.
-
-Do not leave inconsistent states.
-
-Do not introduce TODOs unless explicitly requested.
-
-Always finish what you start.
-
----
-
-## Final Quality Check
-
-Before responding, silently verify:
-
-✓ The solution is correct.
-
-✓ The architecture remains clean.
-
-✓ Existing functionality is preserved.
-
-✓ The implementation is production-ready.
-
-✓ The code is scalable.
-
-✓ The code is maintainable.
-
-✓ No unnecessary complexity was introduced.
-
-✓ The smallest safe change was made.
-
-If a better solution exists, use it instead.
+# Rule 1 – Business Truth Before Code
+Code must never invent business rules. Every financial or operational rule must originate from:
+* Verified station operating procedure
+* Confirmed owner decision
+* Verified accounting principle
+* Verified petroleum industry practice
+If a rule is uncertain: Do not implement it. Classify it as "Pilot Validation Required."
+
+# Rule 2 – Single Source of Financial Truth
+Every financial formula must exist exactly once. The UI, reports, dashboards, approvals and analytics must all consume the same financial engine. Duplicate financial calculations are forbidden.
+
+# Rule 3 – Behaviour Before Refactoring
+Architecture changes must never change financial behaviour. Every refactor must prove that existing verified calculations remain identical. Business rule changes and architectural changes must never occur in the same release.
+
+# Rule 4 – Financial Certification Suite
+Before any financial code is modified: Build or update the Financial Certification Suite. Every financial change must pass every certified scenario before it may be merged. No exceptions.
+
+# Rule 5 – Accounting Invariants
+Accounting invariants are sacred. They must never be silently violated. Examples include:
+* Opening Stock + Receipts − Sales = Closing Stock
+* Closing Meter ≥ Opening Meter
+* Cash cannot change without a transaction.
+* Bank cannot change without a banking transaction.
+* Every litre must always be traceable.
+* Every rupee must always be traceable.
+If an invariant is violated: Do not silently repair the data. Return a structured validation result.
+
+# Rule 6 – No Silent Mathematical Mutation
+Financial values must never be silently:
+* clipped
+* rounded (except for display)
+* scaled
+* substituted
+* defaulted
+* normalized
+* repaired
+Every mathematical transformation must have a documented business reason, source, and explicit visibility.
+
+# Rule 7 – Explainability
+Every important number displayed by OctaneFlow must answer: Where did I come from? Every value should eventually be traceable to its source transaction, intermediate calculations, and final result. Financial software must never behave like a black box.
+
+# Rule 8 – Pure Financial Engine
+The Financial Engine must know nothing about HTML, DOM, CSS, Roles, Authentication, Sync, Storage, Supabase, or Browser APIs. It receives inputs. It performs mathematics. It returns deterministic results. Nothing else.
+
+# Rule 9 – Human-Centred Safety
+The software must prevent accidental mistakes. Employees should never need to perform unnecessary mental arithmetic. Owners should never need to guess why a number exists. When impossible data is entered: Explain the problem. Suggest the correction. Never silently continue.
+
+# Rule 10 – Operational First
+The application exists to help a real fuel station operate better. Whenever architecture conflicts with usability: Prefer the workflow that helps the owner and operators work accurately, confidently and efficiently.
+
+# Rule 11 – Incremental Evolution
+Never perform large-scale rewrites of critical financial systems. Every major architectural improvement must be divided into small, behaviour-preserving stages. Each stage must be independently verifiable.
+
+# Rule 12 – Regression Discipline
+Every change must answer:
+* What changed?
+* Why?
+* Which business rule does it affect?
+* Which accounting invariant does it preserve?
+* Which certification scenarios were executed?
+* Which modules could be affected?
+* What regressions were specifically checked?
+If these questions cannot be answered, the change is not ready.
+
+# Rule 13 – Pilot Before Assumption
+Whenever repository behaviour depends on assumptions about real fuel station operations: Do not hardcode the assumption. Document it. Validate it during the live pilot. Only then convert it into permanent business logic.
+
+# Rule 14 – Repository Historian
+For every future pull request: Act as both Principal Engineer and Repository Historian. Determine why the original code existed, which business rule it represented, what downstream calculations depend on it, and whether changing it introduces financial or operational risk. Never remove logic until its purpose is fully understood.
+
+# Final Objective
+The purpose of OctaneFlow is not merely to calculate numbers. Its purpose is to produce financial and operational information that the station owner can trust. Every engineering decision must increase that trust.

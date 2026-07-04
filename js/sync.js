@@ -1,389 +1,389 @@
-// OctaneFlow App State and Logic - Daily Ledger Spreadsheet Edition
-
-// ============================================================
-// GITHUB GIST AUTO-SYNC ENGINE
-// Stores data in a private Supabase — no size limit, free.
-// Credentials live in localStorage under 'octaneflow_sync_cfg'
-// (separate from db so they survive a DB reset).
-// ============================================================
-
-const SYNC_CFG_KEY  = 'octaneflow_sync_cfg';
-
+var __defProp = Object.defineProperty;
+var __getOwnPropSymbols = Object.getOwnPropertySymbols;
+var __hasOwnProp = Object.prototype.hasOwnProperty;
+var __propIsEnum = Object.prototype.propertyIsEnumerable;
+var __defNormalProp = (obj, key, value) => key in obj ? __defProp(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
+var __spreadValues = (a, b) => {
+  for (var prop in b || (b = {}))
+    if (__hasOwnProp.call(b, prop))
+      __defNormalProp(a, prop, b[prop]);
+  if (__getOwnPropSymbols)
+    for (var prop of __getOwnPropSymbols(b)) {
+      if (__propIsEnum.call(b, prop))
+        __defNormalProp(a, prop, b[prop]);
+    }
+  return a;
+};
+var __objRest = (source, exclude) => {
+  var target = {};
+  for (var prop in source)
+    if (__hasOwnProp.call(source, prop) && exclude.indexOf(prop) < 0)
+      target[prop] = source[prop];
+  if (source != null && __getOwnPropSymbols)
+    for (var prop of __getOwnPropSymbols(source)) {
+      if (exclude.indexOf(prop) < 0 && __propIsEnum.call(source, prop))
+        target[prop] = source[prop];
+    }
+  return target;
+};
+var __async = (__this, __arguments, generator) => {
+  return new Promise((resolve, reject) => {
+    var fulfilled = (value) => {
+      try {
+        step(generator.next(value));
+      } catch (e) {
+        reject(e);
+      }
+    };
+    var rejected = (value) => {
+      try {
+        step(generator.throw(value));
+      } catch (e) {
+        reject(e);
+      }
+    };
+    var step = (x) => x.done ? resolve(x.value) : Promise.resolve(x.value).then(fulfilled, rejected);
+    step((generator = generator.apply(__this, __arguments)).next());
+  });
+};
+const SYNC_CFG_KEY = "octaneflow_sync_cfg";
 let realtimeChannel = null;
-
 function subscribeToRealtime() {
   if (!supabaseClient) return;
   if (realtimeChannel) {
     try {
       supabaseClient.removeChannel(realtimeChannel);
     } catch (e) {
-      console.warn('Failed to remove channel:', e);
+      console.warn("Failed to remove channel:", e);
     }
   }
-
-  SystemLogger.info('Realtime', 'Subscribing to Supabase Realtime WebSocket...');
-
-  realtimeChannel = supabaseClient
-    .channel('octaneflow-realtime-changes')
-    .on(
-      'postgres_changes',
-      { event: '*', schema: 'public', table: 'pending_entries' },
-      async (payload) => {
-        SystemLogger.success('Realtime', 'Detected table update: pending_entries');
-        await initSync();
-      }
-    )
-    .on(
-      'postgres_changes',
-      { event: '*', schema: 'public', table: 'daily_ledger' },
-      async (payload) => {
-        SystemLogger.success('Realtime', 'Detected table update: daily_ledger');
-        await initSync();
-      }
-    )
-    .on(
-      'postgres_changes',
-      { event: '*', schema: 'public', table: 'app_state' },
-      async (payload) => {
-        SystemLogger.success('Realtime', 'Detected table update: app_state');
-        await initSync();
-      }
-    )
-    .subscribe((status) => {
-      SystemLogger.info('Realtime', `WebSocket status: ${status}`);
-    });
+  SystemLogger.info("Realtime", "Subscribing to Supabase Realtime WebSocket...");
+  realtimeChannel = supabaseClient.channel("octaneflow-realtime-changes").on(
+    "postgres_changes",
+    { event: "*", schema: "public", table: "pending_entries" },
+    (payload) => __async(this, null, function* () {
+      SystemLogger.success("Realtime", "Detected table update: pending_entries");
+      yield initSync();
+    })
+  ).on(
+    "postgres_changes",
+    { event: "*", schema: "public", table: "daily_ledger" },
+    (payload) => __async(this, null, function* () {
+      SystemLogger.success("Realtime", "Detected table update: daily_ledger");
+      yield initSync();
+    })
+  ).on(
+    "postgres_changes",
+    { event: "*", schema: "public", table: "app_state" },
+    (payload) => __async(this, null, function* () {
+      SystemLogger.success("Realtime", "Detected table update: app_state");
+      yield initSync();
+    })
+  ).subscribe((status) => {
+    SystemLogger.info("Realtime", `WebSocket status: ${status}`);
+  });
 }
-
 function initSupabaseClient() {
   const cfg = getSyncCfg();
-  if (cfg.supabaseUrl && cfg.supabaseKey && typeof window.supabase !== 'undefined') {
+  if (cfg.supabaseUrl && cfg.supabaseKey && typeof window.supabase !== "undefined") {
     try {
-      if (cfg.supabaseUrl.startsWith('http://') || cfg.supabaseUrl.startsWith('https://')) {
+      if (cfg.supabaseUrl.startsWith("http://") || cfg.supabaseUrl.startsWith("https://")) {
         supabaseClient = window.supabase.createClient(cfg.supabaseUrl, cfg.supabaseKey);
         subscribeToRealtime();
       } else {
-        SystemLogger.warning('initSupabaseClient', 'Supabase URL is not valid. Skipping initialization.');
+        SystemLogger.warning("initSupabaseClient", "Supabase URL is not valid. Skipping initialization.");
         supabaseClient = null;
       }
     } catch (e) {
-      console.error('Failed to initialize Supabase client:', e);
+      console.error("Failed to initialize Supabase client:", e);
       supabaseClient = null;
     }
   } else {
     supabaseClient = null;
   }
 }
-
 function getSyncCfg() {
   let cfg = {};
   try {
-    cfg = JSON.parse(localStorage.getItem(SYNC_CFG_KEY) || '{}');
-  } catch {
+    cfg = JSON.parse(localStorage.getItem(SYNC_CFG_KEY) || "{}");
+  } catch (e) {
     cfg = {};
   }
-  // Force pre-configured credentials always
-  cfg.supabaseUrl = 'https://tgaunkmbzzrlvdwyuykm.supabase.co';
-  cfg.supabaseKey = 'sb_publishable_YJgYf4bM6Kh5AfqybtbH4g_H5hQN2Sf';
+  cfg.supabaseUrl = "https://tgaunkmbzzrlvdwyuykm.supabase.co";
+  cfg.supabaseKey = "sb_publishable_YJgYf4bM6Kh5AfqybtbH4g_H5hQN2Sf";
   return cfg;
 }
-
 function saveSyncCfg(cfg) {
   localStorage.setItem(SYNC_CFG_KEY, JSON.stringify(cfg));
 }
-
 function formatSyncTime(isoString) {
   if (!isoString) return "";
   const date = new Date(isoString);
   let hours = date.getHours();
-  const minutes = date.getMinutes().toString().padStart(2, '0');
-  const ampm = hours >= 12 ? 'PM' : 'AM';
+  const minutes = date.getMinutes().toString().padStart(2, "0");
+  const ampm = hours >= 12 ? "PM" : "AM";
   hours = hours % 12;
   hours = hours ? hours : 12;
   return `(Sync: ${hours}:${minutes} ${ampm})`;
 }
-
 function setSyncStatus(state) {
-  const el = document.getElementById('sync-status-indicator');
+  const el = document.getElementById("sync-status-indicator");
   if (!el) return;
   const map = {
-    syncing: { icon: '☁️', text: 'Syncing…',   color: '#f97316' },
-    synced:  { icon: '✅', text: 'Synced',      color: '#22c55e' },
-    error:   { icon: '⚠️', text: 'Sync error',  color: '#ef4444' },
-    offline: { icon: '📶', text: 'Offline',     color: '#94a3b8' },
-    off:     { icon: '🔌', text: 'Sync off',    color: '#475569' },
+    syncing: { icon: "\u2601\uFE0F", text: "Syncing\u2026", color: "#f97316" },
+    synced: { icon: "\u2705", text: "Synced", color: "#22c55e" },
+    error: { icon: "\u26A0\uFE0F", text: "Sync error", color: "#ef4444" },
+    offline: { icon: "\u{1F4F6}", text: "Offline", color: "#94a3b8" },
+    off: { icon: "\u{1F50C}", text: "Sync off", color: "#475569" }
   };
   const s = map[state] || map.off;
   let timeStr = "";
-  if (state === 'synced') {
+  if (state === "synced") {
     const cfg = getSyncCfg();
-    const lastSync = cfg.last_push || localStorage.getItem('octaneflow_last_sync');
+    const lastSync = cfg.last_push || localStorage.getItem("octaneflow_last_sync");
     if (lastSync) {
       timeStr = " " + formatSyncTime(lastSync);
     }
   }
   el.innerHTML = `<span style="color:${s.color};font-size:0.75rem;font-weight:600;">${s.icon} ${s.text}${timeStr}</span>`;
 }
-
 function switchView(targetView) {
   const item = document.querySelector(`.nav-item[data-view="${targetView}"]`);
   if (item) {
     item.click();
   }
 }
-
 function updateGlobalAlertBanner() {
-  const banner = document.getElementById('global-alert-banner');
-  const text = document.getElementById('global-alert-text');
-  const actionBtn = document.getElementById('global-alert-action-btn');
+  const banner = document.getElementById("global-alert-banner");
+  const text = document.getElementById("global-alert-text");
+  const actionBtn = document.getElementById("global-alert-action-btn");
   if (!banner || !text || !actionBtn) return;
-
   const cfg = getSyncCfg();
   const isOnline = navigator.onLine;
-
   if (!isOnline) {
-    banner.style.display = 'flex';
-    banner.style.borderColor = 'rgba(239, 68, 68, 0.3)';
-    banner.style.background = 'rgba(239, 68, 68, 0.1)';
-    banner.style.color = '#fca5a5';
-    text.textContent = 'You are currently offline. Operations will be saved locally and synced automatically when back online.';
-    actionBtn.style.display = 'inline-block';
-    actionBtn.textContent = 'Work Offline';
-    actionBtn.onclick = () => { banner.style.display = 'none'; };
-  } else if (!cfg.supabaseUrl || !cfg.supabaseKey) {
-    banner.style.display = 'flex';
-    banner.style.borderColor = 'rgba(234, 179, 8, 0.3)';
-    banner.style.background = 'rgba(234, 179, 8, 0.1)';
-    banner.style.color = '#fef08a';
-    text.textContent = 'Cloud Sync is not configured. Go to Settings to enter Supabase API URL & Anon Key.';
-    actionBtn.style.display = 'inline-block';
-    actionBtn.textContent = 'Configure';
+    banner.style.display = "flex";
+    banner.style.borderColor = "rgba(239, 68, 68, 0.3)";
+    banner.style.background = "rgba(239, 68, 68, 0.1)";
+    banner.style.color = "#fca5a5";
+    text.textContent = "You are currently offline. Operations will be saved locally and synced automatically when back online.";
+    actionBtn.style.display = "inline-block";
+    actionBtn.textContent = "Work Offline";
     actionBtn.onclick = () => {
-      switchView('settings');
+      banner.style.display = "none";
+    };
+  } else if (!cfg.supabaseUrl || !cfg.supabaseKey) {
+    banner.style.display = "flex";
+    banner.style.borderColor = "rgba(234, 179, 8, 0.3)";
+    banner.style.background = "rgba(234, 179, 8, 0.1)";
+    banner.style.color = "#fef08a";
+    text.textContent = "Cloud Sync is not configured. Go to Settings to enter Supabase API URL & Anon Key.";
+    actionBtn.style.display = "inline-block";
+    actionBtn.textContent = "Configure";
+    actionBtn.onclick = () => {
+      switchView("settings");
       setTimeout(() => {
-        const el = document.getElementById('cfg-sync-master-key');
-        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        const el = document.getElementById("cfg-sync-master-key");
+        if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
       }, 100);
     };
   } else {
-    const rateLimit = Number(localStorage.getItem('github_rate_limit_remaining') || '60');
+    const rateLimit = Number(localStorage.getItem("github_rate_limit_remaining") || "60");
     if (rateLimit < 10) {
-      banner.style.display = 'flex';
-      banner.style.borderColor = 'rgba(239, 68, 68, 0.3)';
-      banner.style.background = 'rgba(239, 68, 68, 0.1)';
-      banner.style.color = '#fca5a5';
+      banner.style.display = "flex";
+      banner.style.borderColor = "rgba(239, 68, 68, 0.3)";
+      banner.style.background = "rgba(239, 68, 68, 0.1)";
+      banner.style.color = "#fca5a5";
       text.textContent = `Warning: GitHub API rate limit is very low (${rateLimit} requests left). Sync may pause shortly.`;
-      actionBtn.style.display = 'inline-block';
-      actionBtn.textContent = 'Close';
-      actionBtn.onclick = () => { banner.style.display = 'none'; };
+      actionBtn.style.display = "inline-block";
+      actionBtn.textContent = "Close";
+      actionBtn.onclick = () => {
+        banner.style.display = "none";
+      };
     } else {
-      banner.style.display = 'none';
+      banner.style.display = "none";
     }
   }
 }
-
-// Pull latest data from Supabase
-async function syncPull() {
-  const cfg = getSyncCfg();
-  if (!cfg.supabaseUrl || !cfg.supabaseKey) {
-    setSyncStatus('off');
-    SystemLogger.warning('syncPull', 'Sync skipped: Supabase credentials are not configured.');
-    return null;
-  }
-  if (!supabaseClient) {
-    initSupabaseClient();
-  }
-  if (!supabaseClient) {
-    setSyncStatus('error');
-    SystemLogger.error('syncPull', 'Supabase client failed to initialize.');
-    return null;
-  }
-  
-  SystemLogger.info('syncPull', 'Starting cloud pull from Supabase...');
-  try {
-    setSyncStatus('syncing');
-    
-    // 1. Fetch app_state key-values
-    const { data: stateData, error: stateErr } = await supabaseClient.from('app_state').select('*');
-    if (stateErr) throw stateErr;
-    
-    // 2. Fetch pending_entries
-    const { data: pendingData, error: pendingErr } = await supabaseClient.from('pending_entries').select('*');
-    if (pendingErr) throw pendingErr;
-    
-    // 3. Fetch daily_ledger
-    const { data: ledgerData, error: ledgerErr } = await supabaseClient.from('daily_ledger').select('*');
-    if (ledgerErr) throw ledgerErr;
-    
-    // Construct unified db payload
-    const record = {
-      pending_entries: pendingData.map(e => ({
-        id: e.id,
-        submittedBy: e.submitted_by,
-        submittedByName: e.submitted_by_name,
-        submittedAt: e.submitted_at,
-        submission_type: e.submission_type,
-        status: e.status,
-        entryData: e.entry_data,
-        rejectionReason: e.rejection_reason,
-        reviewedBy: e.reviewed_by,
-        reviewedAt: e.reviewed_at
-      })),
-      daily_ledger: ledgerData.map(e => ({
-        date: e.date,
-        prices: e.prices,
-        du1_p: e.du1_p,
-        du1_d: e.du1_d,
-        du2_p: e.du2_p,
-        du2_d: e.du2_d,
-        recon: e.recon,
-        approved_by: e.approved_by,
-        approved_at: e.approved_at,
-        submitted_by: e.submitted_by
-      })),
-      settings: {},
-      stock: {},
-      price_history: [],
-      purchases: [],
-      holidays: [],
-      users: {},
-      cashflow: {},
-      audit_trail: []
-    };
-    
-    stateData.forEach(row => {
-      if (row.key === 'settings') record.settings = row.value;
-      else if (row.key === 'stock') record.stock = row.value;
-      else if (row.key === 'price_history') record.price_history = row.value;
-      else if (row.key === 'purchases') record.purchases = row.value;
-      else if (row.key === 'holidays') record.holidays = row.value;
-      else if (row.key === 'users') record.users = row.value;
-      else if (row.key === 'cashflow') record.cashflow = row.value;
-      else if (row.key === 'audit_trail') record.audit_trail = row.value;
-    });
-    
-    let maxTime = new Date(0);
-    pendingData.forEach(e => {
-      const t1 = e.submitted_at ? new Date(e.submitted_at) : new Date(0);
-      const t2 = e.reviewed_at ? new Date(e.reviewed_at) : new Date(0);
-      if (t1 > maxTime) maxTime = t1;
-      if (t2 > maxTime) maxTime = t2;
-    });
-    ledgerData.forEach(e => {
-      const t = e.approved_at ? new Date(e.approved_at) : new Date(0);
-      if (t > maxTime) maxTime = t;
-    });
-    
-    record._synced_at = maxTime.toISOString();
-    
-    localStorage.setItem('octaneflow_last_sync', new Date().toISOString());
-    setSyncStatus('synced');
-    SystemLogger.success('syncPull', `Supabase pull succeeded. Retrieved ${ledgerData.length} ledger and ${pendingData.length} pending records.`);
-    return record;
-  } catch (err) {
-    const isOnline = navigator.onLine;
-    setSyncStatus(isOnline ? 'error' : 'offline');
-    SystemLogger.error('syncPull', 'Supabase pull failed', err);
-    return null;
-  }
+function syncPull() {
+  return __async(this, null, function* () {
+    const cfg = getSyncCfg();
+    if (!cfg.supabaseUrl || !cfg.supabaseKey) {
+      setSyncStatus("off");
+      SystemLogger.warning("syncPull", "Sync skipped: Supabase credentials are not configured.");
+      return null;
+    }
+    if (!supabaseClient) {
+      initSupabaseClient();
+    }
+    if (!supabaseClient) {
+      setSyncStatus("error");
+      SystemLogger.error("syncPull", "Supabase client failed to initialize.");
+      return null;
+    }
+    SystemLogger.info("syncPull", "Starting cloud pull from Supabase...");
+    try {
+      setSyncStatus("syncing");
+      const { data: stateData, error: stateErr } = yield supabaseClient.from("app_state").select("*");
+      if (stateErr) throw stateErr;
+      const { data: pendingData, error: pendingErr } = yield supabaseClient.from("pending_entries").select("*");
+      if (pendingErr) throw pendingErr;
+      const { data: ledgerData, error: ledgerErr } = yield supabaseClient.from("daily_ledger").select("*");
+      if (ledgerErr) throw ledgerErr;
+      const record = {
+        pending_entries: pendingData.map((e) => ({
+          id: e.id,
+          submittedBy: e.submitted_by,
+          submittedByName: e.submitted_by_name,
+          submittedAt: e.submitted_at,
+          submission_type: e.submission_type,
+          status: e.status,
+          entryData: e.entry_data,
+          rejectionReason: e.rejection_reason,
+          reviewedBy: e.reviewed_by,
+          reviewedAt: e.reviewed_at
+        })),
+        daily_ledger: ledgerData.map((e) => ({
+          date: e.date,
+          prices: e.prices,
+          du1_p: e.du1_p,
+          du1_d: e.du1_d,
+          du2_p: e.du2_p,
+          du2_d: e.du2_d,
+          recon: e.recon,
+          approved_by: e.approved_by,
+          approved_at: e.approved_at,
+          submitted_by: e.submitted_by
+        })),
+        settings: {},
+        stock: {},
+        price_history: [],
+        purchases: [],
+        holidays: [],
+        users: {},
+        cashflow: {},
+        audit_trail: []
+      };
+      stateData.forEach((row) => {
+        if (row.key === "settings") record.settings = row.value;
+        else if (row.key === "stock") record.stock = row.value;
+        else if (row.key === "price_history") record.price_history = row.value;
+        else if (row.key === "purchases") record.purchases = row.value;
+        else if (row.key === "holidays") record.holidays = row.value;
+        else if (row.key === "users") record.users = row.value;
+        else if (row.key === "cashflow") record.cashflow = row.value;
+        else if (row.key === "audit_trail") record.audit_trail = row.value;
+      });
+      let maxTime = /* @__PURE__ */ new Date(0);
+      pendingData.forEach((e) => {
+        const t1 = e.submitted_at ? new Date(e.submitted_at) : /* @__PURE__ */ new Date(0);
+        const t2 = e.reviewed_at ? new Date(e.reviewed_at) : /* @__PURE__ */ new Date(0);
+        if (t1 > maxTime) maxTime = t1;
+        if (t2 > maxTime) maxTime = t2;
+      });
+      ledgerData.forEach((e) => {
+        const t = e.approved_at ? new Date(e.approved_at) : /* @__PURE__ */ new Date(0);
+        if (t > maxTime) maxTime = t;
+      });
+      record._synced_at = maxTime.toISOString();
+      localStorage.setItem("octaneflow_last_sync", (/* @__PURE__ */ new Date()).toISOString());
+      setSyncStatus("synced");
+      SystemLogger.success("syncPull", `Supabase pull succeeded. Retrieved ${ledgerData.length} ledger and ${pendingData.length} pending records.`);
+      return record;
+    } catch (err) {
+      const isOnline = navigator.onLine;
+      setSyncStatus(isOnline ? "error" : "offline");
+      SystemLogger.error("syncPull", "Supabase pull failed", err);
+      return null;
+    }
+  });
 }
-
 function rebuildSyncQueue() {
   if (!db) return;
   db.sync_queue = db.sync_queue || [];
-  
-  const session = typeof getSession === 'function' ? getSession() : null;
-  const isOwner = session && session.role === 'owner';
-
-  // 1. Stage dirty app_state
+  const session = typeof getSession === "function" ? getSession() : null;
+  const isOwner = session && session.role === "owner";
   if (isOwner && db.dirty_app_state_keys && db.dirty_app_state_keys.length > 0) {
     const keys = [...new Set(db.dirty_app_state_keys)];
-    keys.forEach(k => {
+    keys.forEach((k) => {
       let val = null;
-      if (k === 'settings') val = db.settings || {};
-      else if (k === 'stock') val = db.stock || {};
-      else if (k === 'price_history') val = db.price_history || [];
-      else if (k === 'purchases') val = db.purchases || [];
-      else if (k === 'holidays') val = db.holidays || [];
-      else if (k === 'users') val = db.users || {};
-      else if (k === 'cashflow') val = db.cashflow || {};
-      else if (k === 'audit_trail') val = db.audit_trail || [];
-
-      const existing = db.sync_queue.find(q => q.action === 'upsert_app_state' && q.payload.key === k && q.status === 'pending');
+      if (k === "settings") val = db.settings || {};
+      else if (k === "stock") val = db.stock || {};
+      else if (k === "price_history") val = db.price_history || [];
+      else if (k === "purchases") val = db.purchases || [];
+      else if (k === "holidays") val = db.holidays || [];
+      else if (k === "users") val = db.users || {};
+      else if (k === "cashflow") val = db.cashflow || {};
+      else if (k === "audit_trail") val = db.audit_trail || [];
+      const existing = db.sync_queue.find((q) => q.action === "upsert_app_state" && q.payload.key === k && q.status === "pending");
       if (existing) {
         existing.payload.value = val;
       } else {
         db.sync_queue.push({
-          tx_id: 'tx_state_' + k + '_' + Date.now(),
-          action: 'upsert_app_state',
+          tx_id: "tx_state_" + k + "_" + Date.now(),
+          action: "upsert_app_state",
           payload: { key: k, value: val },
           retry_count: 0,
-          status: 'pending',
-          error_details: '',
-          created_at: new Date().toISOString()
+          status: "pending",
+          error_details: "",
+          created_at: (/* @__PURE__ */ new Date()).toISOString()
         });
       }
     });
-    db.dirty_app_state_keys = []; // Clear local staging marker
+    db.dirty_app_state_keys = [];
   }
-
-  // 2. Stage dirty pending_entries
   if (db.pending_entries) {
-    db.pending_entries.forEach(e => {
+    db.pending_entries.forEach((e) => {
       if (e._dirty) {
-        const existing = db.sync_queue.find(q => q.action === 'upsert_pending' && q.payload.id === e.id && q.status === 'pending');
+        const existing = db.sync_queue.find((q) => q.action === "upsert_pending" && q.payload.id === e.id && q.status === "pending");
         if (existing) {
           existing.payload = e;
         } else {
           db.sync_queue.push({
-            tx_id: 'tx_pending_' + e.id + '_' + Date.now(),
-            action: 'upsert_pending',
+            tx_id: "tx_pending_" + e.id + "_" + Date.now(),
+            action: "upsert_pending",
             payload: JSON.parse(JSON.stringify(e)),
             retry_count: 0,
-            status: 'pending',
-            error_details: '',
-            created_at: new Date().toISOString()
+            status: "pending",
+            error_details: "",
+            created_at: (/* @__PURE__ */ new Date()).toISOString()
           });
         }
         e._dirty = false;
       }
     });
   }
-
-  // 3. Stage deleted daily_ledger dates
   if (isOwner && db.deleted_ledger_dates && db.deleted_ledger_dates.length > 0) {
-    db.deleted_ledger_dates.forEach(d => {
-      const existing = db.sync_queue.find(q => q.action === 'delete_ledger' && q.payload.date === d && q.status === 'pending');
+    db.deleted_ledger_dates.forEach((d) => {
+      const existing = db.sync_queue.find((q) => q.action === "delete_ledger" && q.payload.date === d && q.status === "pending");
       if (!existing) {
         db.sync_queue.push({
-          tx_id: 'tx_delete_' + d + '_' + Date.now(),
-          action: 'delete_ledger',
+          tx_id: "tx_delete_" + d + "_" + Date.now(),
+          action: "delete_ledger",
           payload: { date: d },
           retry_count: 0,
-          status: 'pending',
-          error_details: '',
-          created_at: new Date().toISOString()
+          status: "pending",
+          error_details: "",
+          created_at: (/* @__PURE__ */ new Date()).toISOString()
         });
       }
     });
     db.deleted_ledger_dates = [];
   }
-
-  // 4. Stage dirty daily_ledger
   if (isOwner && db.daily_ledger) {
-    db.daily_ledger.forEach(e => {
+    db.daily_ledger.forEach((e) => {
       if (e._dirty) {
-        const existing = db.sync_queue.find(q => q.action === 'upsert_ledger' && q.payload.date === e.date && q.status === 'pending');
+        const existing = db.sync_queue.find((q) => q.action === "upsert_ledger" && q.payload.date === e.date && q.status === "pending");
         if (existing) {
           existing.payload = e;
         } else {
           db.sync_queue.push({
-            tx_id: 'tx_ledger_' + e.date + '_' + Date.now(),
-            action: 'upsert_ledger',
+            tx_id: "tx_ledger_" + e.date + "_" + Date.now(),
+            action: "upsert_ledger",
             payload: JSON.parse(JSON.stringify(e)),
             retry_count: 0,
-            status: 'pending',
-            error_details: '',
-            created_at: new Date().toISOString()
+            status: "pending",
+            error_details: "",
+            created_at: (/* @__PURE__ */ new Date()).toISOString()
           });
         }
         e._dirty = false;
@@ -391,471 +391,424 @@ function rebuildSyncQueue() {
     });
   }
 }
-
-async function processSyncQueue() {
-  if (!db || !db.sync_queue || db.sync_queue.length === 0) return;
-  
-  if (!supabaseClient) {
-    initSupabaseClient();
-  }
-  if (!supabaseClient) {
-    setSyncStatus('error');
-    return;
-  }
-
-  db.sync_queue = db.sync_queue.filter(q => q.status !== 'success');
-  const pendingItems = db.sync_queue.filter(q => q.status === 'pending' || q.status === 'failed');
-  if (pendingItems.length === 0) return;
-
-  setSyncStatus('syncing');
-
-  for (const tx of pendingItems) {
-    if ((tx.retry_count || 0) >= 5) {
-      SystemLogger.error('syncQueue', `Dropping permanently failed TX ${tx.tx_id} after 5 retries to prevent queue lockup.`);
-      window.logAuditTrail('SYNC_TX_DROPPED', JSON.stringify(tx), '', `Sync transaction dropped due to excessive retries: ${tx.error_details}`);
-      tx.status = 'dropped';
-      db.sync_queue = db.sync_queue.filter(q => q.tx_id !== tx.tx_id);
-      continue;
+function processSyncQueue() {
+  return __async(this, null, function* () {
+    if (!db || !db.sync_queue || db.sync_queue.length === 0) return;
+    if (!supabaseClient) {
+      initSupabaseClient();
     }
-    tx.status = 'processing';
-    tx.retry_count = (tx.retry_count || 0) + 1;
-
-    try {
-      if (tx.action === 'upsert_app_state') {
-        const { error } = await supabaseClient.from('app_state').upsert([tx.payload]);
-        if (error) throw error;
-      }
-      else if (tx.action === 'upsert_pending') {
-        const cleanPayload = { ...tx.payload };
-        delete cleanPayload._dirty;
-        const { error } = await supabaseClient.from('pending_entries').upsert([cleanPayload]);
-        if (error) throw error;
-      }
-      else if (tx.action === 'delete_ledger') {
-        const { error } = await supabaseClient.from('daily_ledger').delete().eq('date', tx.payload.date);
-        if (error) throw error;
-      }
-      else if (tx.action === 'upsert_ledger') {
-        const cleanPayload = { ...tx.payload };
-        delete cleanPayload._dirty;
-        const { error } = await supabaseClient.from('daily_ledger').upsert([cleanPayload]);
-        if (error) throw error;
-      }
-
-      tx.status = 'success';
-      tx.error_details = '';
-      
-      db.sync_history = db.sync_history || [];
-      db.sync_history.unshift({
-        tx_id: tx.tx_id,
-        timestamp: new Date().toISOString(),
-        action: tx.action,
-        retry_count: tx.retry_count,
-        status: tx.status,
-        error_details: ''
-      });
-      if (db.sync_history.length > 50) db.sync_history = db.sync_history.slice(0, 50);
-
-      SystemLogger.success('syncQueue', `Success TX: ${tx.tx_id} (${tx.action})`);
-    } catch (err) {
-      tx.status = 'failed';
-      tx.error_details = err.message || String(err);
-      
-      db.sync_history = db.sync_history || [];
-      db.sync_history.unshift({
-        tx_id: tx.tx_id,
-        timestamp: new Date().toISOString(),
-        action: tx.action,
-        retry_count: tx.retry_count,
-        status: tx.status,
-        error_details: tx.error_details
-      });
-      if (db.sync_history.length > 50) db.sync_history = db.sync_history.slice(0, 50);
-
-      SystemLogger.error('syncQueue', `Failed TX: ${tx.tx_id} (${tx.action})`, err);
-      setSyncStatus('error');
-      
-      const { _idx, ...dbToSave } = db;
-      localStorage.setItem('octaneflow_db', JSON.stringify(dbToSave));
+    if (!supabaseClient) {
+      setSyncStatus("error");
       return;
     }
-  }
-
-  setSyncStatus('synced');
-  db.sync_queue = db.sync_queue.filter(q => q.status !== 'success');
-  const { _idx, ...dbToSave } = db;
-  localStorage.setItem('octaneflow_db', JSON.stringify(dbToSave));
-
-  const cfg = getSyncCfg();
-  cfg.last_push = new Date().toISOString();
-  saveSyncCfg(cfg);
-}
-
-async function syncPush(forceAll = false) {
-  const cfg = getSyncCfg();
-  if (!cfg.supabaseUrl || !cfg.supabaseKey) {
-    SystemLogger.warning('syncPush', 'Sync push skipped: Supabase credentials are not configured.');
-    return false;
-  }
-  if (!supabaseClient) {
-    initSupabaseClient();
-  }
-  if (!supabaseClient) {
-    setSyncStatus('error');
-    SystemLogger.error('syncPush', 'Supabase client failed to initialize.');
-    return false;
-  }
-
-  SystemLogger.info('syncPush', `Staging modifications to sync queue (forceAll: ${forceAll})...`);
-  rebuildSyncQueue();
-  await processSyncQueue();
-  return true;
-}
-
-async function initSync() {
-  const cfg = getSyncCfg();
-  if (!cfg.supabaseUrl || !cfg.supabaseKey) {
-    setSyncStatus('off');
-    SystemLogger.info('initSync', 'Auto-sync is disabled (no credentials).');
-    return;
-  }
-  SystemLogger.info('initSync', 'Initializing cloud sync checks...');
-  const cloudData = await syncPull();
-  if (!cloudData || !cloudData.daily_ledger) {
-    SystemLogger.warning('initSync', 'Could not fetch cloud data.');
-    return;
-  }
-
-  if (!db) {
-    db = cloudData;
-  } else {
-    // Conflict Detection during cloud merge
-    const keysToCheck = ['settings', 'stock', 'price_history', 'purchases', 'holidays', 'users', 'cashflow'];
-    db.conflicts = db.conflicts || {};
-    
-    keysToCheck.forEach(k => {
-      const localVal = db[k];
-      const cloudVal = cloudData[k];
-      const isDirty = db.dirty_app_state_keys && db.dirty_app_state_keys.includes(k);
-      const isQueued = db.sync_queue && db.sync_queue.some(q => q.action === 'upsert_app_state' && q.payload.key === k && q.status === 'pending');
-      
-      if ((isDirty || isQueued) && cloudVal) {
-        if (JSON.stringify(localVal) !== JSON.stringify(cloudVal)) {
-          db.conflicts[k] = {
-            cloud: JSON.parse(JSON.stringify(cloudVal)),
-            local: JSON.parse(JSON.stringify(localVal)),
-            timestamp: new Date().toISOString()
-          };
-          SystemLogger.warning('initSync', `Sync Conflict detected on settings key: ${k}. Cloud changes preserved in db.conflicts.`);
-          showNotification(`⚠️ Sync Conflict: Concurrent edits found on ${k}. Cloud data saved in conflicts.`, 'warning');
-        }
+    db.sync_queue = db.sync_queue.filter((q) => q.status !== "success");
+    const pendingItems = db.sync_queue.filter((q) => q.status === "pending" || q.status === "failed");
+    if (pendingItems.length === 0) return;
+    setSyncStatus("syncing");
+    for (const tx of pendingItems) {
+      if ((tx.retry_count || 0) >= 5) {
+        SystemLogger.error("syncQueue", `Dropping permanently failed TX ${tx.tx_id} after 5 retries to prevent queue lockup.`);
+        window.logAuditTrail("SYNC_TX_DROPPED", JSON.stringify(tx), "", `Sync transaction dropped due to excessive retries: ${tx.error_details}`);
+        tx.status = "dropped";
+        db.sync_queue = db.sync_queue.filter((q) => q.tx_id !== tx.tx_id);
+        continue;
       }
-    });
-
-    // 1. Merge settings, stock, price_history, purchases, holidays, users from cloud (cloud is source of truth)
-    db.settings = cloudData.settings || db.settings || {};
-    db.stock = cloudData.stock || db.stock || {};
-    db.price_history = cloudData.price_history || db.price_history || [];
-    db.purchases = cloudData.purchases || db.purchases || [];
-    db.holidays = cloudData.holidays || db.holidays || [];
-    
-    // Safely merge users bidirectionally and respect tombstones (deleted: true)
-    const localU = db.users || {};
-    const cloudU = cloudData.users || {};
-    const safeUsers = { ...localU, ...cloudU };
-    
-    // Ensure local-only users aren't wiped, and enforce deleted flags
-    for (const k in localU) {
-      if (!safeUsers[k]) safeUsers[k] = localU[k];
-      
-      const localDeleted = localU[k].deleted;
-      const cloudDeleted = cloudU[k] && cloudU[k].deleted;
-      
-      if (localDeleted || cloudDeleted) {
-        if (localDeleted) {
-          safeUsers[k].deleted = true;
-        } else if (cloudDeleted) {
-          // If cloud says deleted, but local was recreated AFTER cloud's creation, do NOT resurrect tombstone
-          const localT = localU[k].createdAt ? new Date(localU[k].createdAt).getTime() : 0;
-          const cloudT = cloudU[k].createdAt ? new Date(cloudU[k].createdAt).getTime() : 0;
-          if (localT > cloudT) {
-             safeUsers[k].deleted = false; // Local is a fresh recreation, ignore old cloud tombstone
-          } else {
-             safeUsers[k].deleted = true;
+      tx.status = "processing";
+      tx.retry_count = (tx.retry_count || 0) + 1;
+      try {
+        if (tx.action === "upsert_app_state") {
+          const { error } = yield supabaseClient.from("app_state").upsert([tx.payload]);
+          if (error) throw error;
+        } else if (tx.action === "upsert_pending") {
+          const cleanPayload = __spreadValues({}, tx.payload);
+          delete cleanPayload._dirty;
+          const { error } = yield supabaseClient.from("pending_entries").upsert([cleanPayload]);
+          if (error) throw error;
+        } else if (tx.action === "delete_ledger") {
+          const { error } = yield supabaseClient.from("daily_ledger").delete().eq("date", tx.payload.date);
+          if (error) throw error;
+        } else if (tx.action === "upsert_ledger") {
+          const cleanPayload = __spreadValues({}, tx.payload);
+          delete cleanPayload._dirty;
+          const { error } = yield supabaseClient.from("daily_ledger").upsert([cleanPayload]);
+          if (error) throw error;
+        }
+        tx.status = "success";
+        tx.error_details = "";
+        db.sync_history = db.sync_history || [];
+        db.sync_history.unshift({
+          tx_id: tx.tx_id,
+          timestamp: (/* @__PURE__ */ new Date()).toISOString(),
+          action: tx.action,
+          retry_count: tx.retry_count,
+          status: tx.status,
+          error_details: ""
+        });
+        if (db.sync_history.length > 50) db.sync_history = db.sync_history.slice(0, 50);
+        SystemLogger.success("syncQueue", `Success TX: ${tx.tx_id} (${tx.action})`);
+      } catch (err) {
+        tx.status = "failed";
+        tx.error_details = err.message || String(err);
+        db.sync_history = db.sync_history || [];
+        db.sync_history.unshift({
+          tx_id: tx.tx_id,
+          timestamp: (/* @__PURE__ */ new Date()).toISOString(),
+          action: tx.action,
+          retry_count: tx.retry_count,
+          status: tx.status,
+          error_details: tx.error_details
+        });
+        if (db.sync_history.length > 50) db.sync_history = db.sync_history.slice(0, 50);
+        SystemLogger.error("syncQueue", `Failed TX: ${tx.tx_id} (${tx.action})`, err);
+        setSyncStatus("error");
+        const _a = db, { _idx: _idx2 } = _a, dbToSave2 = __objRest(_a, ["_idx"]);
+        localStorage.setItem("octaneflow_db", JSON.stringify(dbToSave2));
+        return;
+      }
+    }
+    setSyncStatus("synced");
+    db.sync_queue = db.sync_queue.filter((q) => q.status !== "success");
+    const _b = db, { _idx } = _b, dbToSave = __objRest(_b, ["_idx"]);
+    localStorage.setItem("octaneflow_db", JSON.stringify(dbToSave));
+    const cfg = getSyncCfg();
+    cfg.last_push = (/* @__PURE__ */ new Date()).toISOString();
+    saveSyncCfg(cfg);
+  });
+}
+function syncPush(forceAll = false) {
+  return __async(this, null, function* () {
+    const cfg = getSyncCfg();
+    if (!cfg.supabaseUrl || !cfg.supabaseKey) {
+      SystemLogger.warning("syncPush", "Sync push skipped: Supabase credentials are not configured.");
+      return false;
+    }
+    if (!supabaseClient) {
+      initSupabaseClient();
+    }
+    if (!supabaseClient) {
+      setSyncStatus("error");
+      SystemLogger.error("syncPush", "Supabase client failed to initialize.");
+      return false;
+    }
+    SystemLogger.info("syncPush", `Staging modifications to sync queue (forceAll: ${forceAll})...`);
+    rebuildSyncQueue();
+    yield processSyncQueue();
+    return true;
+  });
+}
+function initSync() {
+  return __async(this, null, function* () {
+    var _a;
+    const cfg = getSyncCfg();
+    if (!cfg.supabaseUrl || !cfg.supabaseKey) {
+      setSyncStatus("off");
+      SystemLogger.info("initSync", "Auto-sync is disabled (no credentials).");
+      return;
+    }
+    SystemLogger.info("initSync", "Initializing cloud sync checks...");
+    const cloudData = yield syncPull();
+    if (!cloudData || !cloudData.daily_ledger) {
+      SystemLogger.warning("initSync", "Could not fetch cloud data.");
+      return;
+    }
+    if (!db) {
+      db = cloudData;
+    } else {
+      const keysToCheck = ["settings", "stock", "price_history", "purchases", "holidays", "users", "cashflow"];
+      db.conflicts = db.conflicts || {};
+      keysToCheck.forEach((k) => {
+        const localVal = db[k];
+        const cloudVal = cloudData[k];
+        const isDirty = db.dirty_app_state_keys && db.dirty_app_state_keys.includes(k);
+        const isQueued = db.sync_queue && db.sync_queue.some((q) => q.action === "upsert_app_state" && q.payload.key === k && q.status === "pending");
+        if ((isDirty || isQueued) && cloudVal) {
+          if (JSON.stringify(localVal) !== JSON.stringify(cloudVal)) {
+            db.conflicts[k] = {
+              cloud: JSON.parse(JSON.stringify(cloudVal)),
+              local: JSON.parse(JSON.stringify(localVal)),
+              timestamp: (/* @__PURE__ */ new Date()).toISOString()
+            };
+            SystemLogger.warning("initSync", `Sync Conflict detected on settings key: ${k}. Cloud changes preserved in db.conflicts.`);
+            showNotification(`\u26A0\uFE0F Sync Conflict: Concurrent edits found on ${k}. Cloud data saved in conflicts.`, "warning");
+          }
+        }
+      });
+      const stateKeys = [
+        { key: "settings", default: {} },
+        { key: "stock", default: {} },
+        { key: "price_history", default: [] },
+        { key: "purchases", default: [] },
+        { key: "holidays", default: [] },
+        { key: "cashflow", default: {} }
+      ];
+      stateKeys.forEach(({ key, default: def }) => {
+        const isDirty = db.dirty_app_state_keys && db.dirty_app_state_keys.includes(key);
+        const isQueued = db.sync_queue && db.sync_queue.some((q) => q.action === "upsert_app_state" && q.payload.key === key && q.status === "pending");
+        if (!isDirty && !isQueued) {
+          db[key] = cloudData[key] || db[key] || def;
+        }
+      });
+      const localU = db.users || {};
+      const cloudU = cloudData.users || {};
+      const safeUsers = __spreadValues(__spreadValues({}, localU), cloudU);
+      for (const k in localU) {
+        if (!safeUsers[k]) safeUsers[k] = localU[k];
+        const localDeleted = localU[k].deleted;
+        const cloudDeleted = cloudU[k] && cloudU[k].deleted;
+        if (localDeleted || cloudDeleted) {
+          if (localDeleted) {
+            safeUsers[k].deleted = true;
+          } else if (cloudDeleted) {
+            const localT = localU[k].createdAt ? new Date(localU[k].createdAt).getTime() : 0;
+            const cloudT = cloudU[k].createdAt ? new Date(cloudU[k].createdAt).getTime() : 0;
+            if (localT > cloudT) {
+              safeUsers[k].deleted = false;
+            } else {
+              safeUsers[k].deleted = true;
+            }
           }
         }
       }
+      for (const k in cloudU) {
+        if (cloudU[k].deleted && !localU[k]) safeUsers[k].deleted = true;
+      }
+      db.users = safeUsers;
+      const unsyncedPending = (db.pending_entries || []).filter((e) => e._dirty);
+      const mergedPendingMap = /* @__PURE__ */ new Map();
+      (cloudData.pending_entries || []).forEach((cloudEntry) => {
+        cloudEntry._dirty = false;
+        mergedPendingMap.set(cloudEntry.id, cloudEntry);
+      });
+      unsyncedPending.forEach((localEntry) => {
+        mergedPendingMap.set(localEntry.id, localEntry);
+      });
+      db.pending_entries = Array.from(mergedPendingMap.values());
+      const unsyncedLedger = (db.daily_ledger || []).filter((e) => e._dirty);
+      const deletedDates = db.deleted_ledger_dates || [];
+      const mergedLedgerMap = /* @__PURE__ */ new Map();
+      (cloudData.daily_ledger || []).forEach((cloudEntry) => {
+        if (deletedDates.includes(cloudEntry.date)) return;
+        cloudEntry._dirty = false;
+        mergedLedgerMap.set(cloudEntry.date, cloudEntry);
+      });
+      unsyncedLedger.forEach((localEntry) => {
+        if (deletedDates.includes(localEntry.date)) return;
+        mergedLedgerMap.set(localEntry.date, localEntry);
+      });
+      db.daily_ledger = Array.from(mergedLedgerMap.values());
     }
-    for (const k in cloudU) {
-      if (cloudU[k].deleted && !localU[k]) safeUsers[k].deleted = true;
+    localStorage.setItem("octaneflow_db", JSON.stringify(db));
+    if (db.users) {
+      localStorage.setItem(AUTH_USERS_KEY, JSON.stringify(db.users));
     }
-    
-    db.users = safeUsers;
-
-    // 2. Merge pending_entries: Keep unsynced local entries, overlay cloud entries (deleting resolved ones)
-    const unsyncedPending = (db.pending_entries || []).filter(e => e._dirty);
-    const mergedPendingMap = new Map();
-    (cloudData.pending_entries || []).forEach(cloudEntry => {
-      cloudEntry._dirty = false;
-      mergedPendingMap.set(cloudEntry.id, cloudEntry);
-    });
-    unsyncedPending.forEach(localEntry => {
-      mergedPendingMap.set(localEntry.id, localEntry);
-    });
-    db.pending_entries = Array.from(mergedPendingMap.values());
-
-    // 3. Merge daily_ledger: Keep unsynced local entries, overlay cloud entries
-    const unsyncedLedger = (db.daily_ledger || []).filter(e => e._dirty);
-    const deletedDates = db.deleted_ledger_dates || [];
-    const mergedLedgerMap = new Map();
-    (cloudData.daily_ledger || []).forEach(cloudEntry => {
-      if (deletedDates.includes(cloudEntry.date)) return;
-      cloudEntry._dirty = false;
-      mergedLedgerMap.set(cloudEntry.date, cloudEntry);
-    });
-    unsyncedLedger.forEach(localEntry => {
-      if (deletedDates.includes(localEntry.date)) return;
-      mergedLedgerMap.set(localEntry.date, localEntry);
-    });
-    db.daily_ledger = Array.from(mergedLedgerMap.values());
-  }
-
-  // Save the merged database locally
-  localStorage.setItem('octaneflow_db', JSON.stringify(db));
-  if (db.users) {
-    localStorage.setItem(AUTH_USERS_KEY, JSON.stringify(db.users));
-  }
-
-  cfg.last_push = cloudData._synced_at || new Date().toISOString();
-  saveSyncCfg(cfg);
-
-  buildIndexes();
-  
-  // Re-draw current view if settings or ledger changes
-  const activeView = document.querySelector('.view-panel.active')?.id || '';
-  if (activeView === 'view-dashboard') {
-    if (typeof initApp === 'function') initApp();
-  } else if (activeView === 'view-approvals') {
-    if (typeof renderApprovalsPanel === 'function') renderApprovalsPanel();
-  }
-
-  SystemLogger.success('initSync', `Sync complete. Merged ${db.daily_ledger.length} ledger days and ${db.pending_entries.length} pending items.`);
+    cfg.last_push = cloudData._synced_at || (/* @__PURE__ */ new Date()).toISOString();
+    saveSyncCfg(cfg);
+    buildIndexes();
+    const activeView = ((_a = document.querySelector(".view-panel.active")) == null ? void 0 : _a.id) || "";
+    if (activeView === "view-dashboard") {
+      if (typeof initApp === "function") initApp();
+    } else if (activeView === "view-approvals") {
+      if (typeof renderApprovalsPanel === "function") renderApprovalsPanel();
+    }
+    SystemLogger.success("initSync", `Sync complete. Merged ${db.daily_ledger.length} ledger days and ${db.pending_entries.length} pending items.`);
+  });
 }
-
-
-// ============================================================
-// DIAGNOSTICS & SYSTEM ACTIVITY LOGGER
-// ============================================================
-const LOGS_STORAGE_KEY = 'octaneflow_system_logs';
-
+const LOGS_STORAGE_KEY = "octaneflow_system_logs";
 const SystemLogger = {
   getLogs() {
     try {
-      return JSON.parse(localStorage.getItem(LOGS_STORAGE_KEY) || '[]');
-    } catch {
+      return JSON.parse(localStorage.getItem(LOGS_STORAGE_KEY) || "[]");
+    } catch (e) {
       return [];
     }
   },
-
   saveLogs(logs) {
     try {
       localStorage.setItem(LOGS_STORAGE_KEY, JSON.stringify(logs));
     } catch (e) {
-      console.error('Failed to save logs to localStorage:', e);
+      console.error("Failed to save logs to localStorage:", e);
     }
   },
-
-  log(level, context, message, details = '') {
-    const timestamp = new Date().toISOString();
+  log(level, context, message, details = "") {
+    var _a;
+    const timestamp = (/* @__PURE__ */ new Date()).toISOString();
     const newLog = {
       timestamp,
-      level: level.toUpperCase(), // INFO, SUCCESS, WARNING, ERROR
+      level: level.toUpperCase(),
+      // INFO, SUCCESS, WARNING, ERROR
       context,
       message,
-      details: typeof details === 'object' ? JSON.stringify(details) : String(details)
+      details: typeof details === "object" ? JSON.stringify(details) : String(details)
     };
-
     let logs = this.getLogs();
-    logs.unshift(newLog); // Newest first
+    logs.unshift(newLog);
     if (logs.length > 100) {
       logs = logs.slice(0, 100);
     }
     this.saveLogs(logs);
-
-    const consoleMsg = `[${newLog.level}] [${context}] ${message} ${details ? '| ' + details : ''}`;
-    if (newLog.level === 'ERROR') {
+    const consoleMsg = `[${newLog.level}] [${context}] ${message} ${details ? "| " + details : ""}`;
+    if (newLog.level === "ERROR") {
       console.error(consoleMsg);
-    } else if (newLog.level === 'WARNING') {
+    } else if (newLog.level === "WARNING") {
       console.warn(consoleMsg);
     } else {
       console.log(consoleMsg);
     }
-
     this.appendLogToUI(newLog);
-    
-    if (document.getElementById('view-settings')?.classList.contains('active')) {
+    if ((_a = document.getElementById("view-settings")) == null ? void 0 : _a.classList.contains("active")) {
       renderDiagnostics();
     }
   },
-
-  info(context, message, details = '') { this.log('INFO', context, message, details); },
-  success(context, message, details = '') { this.log('SUCCESS', context, message, details); },
-  warning(context, message, details = '') { this.log('WARNING', context, message, details); },
-  error(context, message, details = '') { this.log('ERROR', context, message, details); },
-
+  info(context, message, details = "") {
+    this.log("INFO", context, message, details);
+  },
+  success(context, message, details = "") {
+    this.log("SUCCESS", context, message, details);
+  },
+  warning(context, message, details = "") {
+    this.log("WARNING", context, message, details);
+  },
+  error(context, message, details = "") {
+    this.log("ERROR", context, message, details);
+  },
   clear() {
     this.saveLogs([]);
-    const container = document.getElementById('diagnostic-logs-list');
+    const container = document.getElementById("diagnostic-logs-list");
     if (container) {
       container.innerHTML = `<div style="color: var(--text-dim); text-align: center; padding: 1rem;">Logs cleared.</div>`;
     }
     renderDiagnostics();
   },
-
   getLevelColor(level) {
     switch (level) {
-      case 'SUCCESS': return '#22c55e';
-      case 'ERROR':   return '#ef4444';
-      case 'WARNING': return '#f59e0b';
-      case 'INFO':
-      default:        return '#3b82f6';
+      case "SUCCESS":
+        return "#22c55e";
+      case "ERROR":
+        return "#ef4444";
+      case "WARNING":
+        return "#f59e0b";
+      case "INFO":
+      default:
+        return "#3b82f6";
     }
   },
-
   appendLogToUI(log) {
-    const container = document.getElementById('diagnostic-logs-list');
+    const container = document.getElementById("diagnostic-logs-list");
     if (!container) return;
-
-    // Check if the placeholder "No activity logged yet" is present
-    if (container.children.length === 1 && container.children[0].textContent.includes('No activity logged yet')) {
-      container.innerHTML = '';
+    if (container.children.length === 1 && container.children[0].textContent.includes("No activity logged yet")) {
+      container.innerHTML = "";
     }
-
-    const logEl = document.createElement('div');
-    logEl.className = 'log-item';
-    logEl.style.borderBottom = '1px solid rgba(255,255,255,0.02)';
-    logEl.style.paddingBottom = '4px';
-    logEl.style.wordBreak = 'break-all';
-
+    const logEl = document.createElement("div");
+    logEl.className = "log-item";
+    logEl.style.borderBottom = "1px solid rgba(255,255,255,0.02)";
+    logEl.style.paddingBottom = "4px";
+    logEl.style.wordBreak = "break-all";
     const t = new Date(log.timestamp);
-    const timeStr = t.toLocaleTimeString([], { hour12: false }) + '.' + String(t.getMilliseconds()).padStart(3, '0');
+    const timeStr = t.toLocaleTimeString([], { hour12: false }) + "." + String(t.getMilliseconds()).padStart(3, "0");
     const color = this.getLevelColor(log.level);
-
     logEl.innerHTML = `
       <span style="color: var(--text-dim); font-size: 0.7rem;">[${timeStr}]</span>
       <span style="color: ${color}; font-weight: bold; font-size: 0.7rem;">[${log.level}]</span>
       <span style="color: #cbd5e1; font-weight: 600;">[${log.context}]</span>
       <span style="color: #f1f5f9;">${log.message}</span>
-      ${log.details ? `<span style="color: #64748b; font-size: 0.7rem; display: block; margin-left: 1.5rem; white-space: pre-wrap;">Details: ${log.details}</span>` : ''}
+      ${log.details ? `<span style="color: #64748b; font-size: 0.7rem; display: block; margin-left: 1.5rem; white-space: pre-wrap;">Details: ${log.details}</span>` : ""}
     `;
     container.appendChild(logEl);
     container.scrollTop = container.scrollHeight;
   },
-
   renderAll() {
-    const container = document.getElementById('diagnostic-logs-list');
+    const container = document.getElementById("diagnostic-logs-list");
     if (!container) return;
-
     const logs = this.getLogs();
     if (logs.length === 0) {
       container.innerHTML = `<div style="color: var(--text-dim); text-align: center; padding: 1rem;">No activity logged yet. Perform some actions to see diagnostic data.</div>`;
       return;
     }
-
-    container.innerHTML = '';
+    container.innerHTML = "";
     const displayLogs = [...logs].reverse();
-    displayLogs.forEach(log => {
-      const logEl = document.createElement('div');
-      logEl.className = 'log-item';
-      logEl.style.borderBottom = '1px solid rgba(255,255,255,0.02)';
-      logEl.style.paddingBottom = '4px';
-      logEl.style.wordBreak = 'break-all';
-
+    displayLogs.forEach((log) => {
+      const logEl = document.createElement("div");
+      logEl.className = "log-item";
+      logEl.style.borderBottom = "1px solid rgba(255,255,255,0.02)";
+      logEl.style.paddingBottom = "4px";
+      logEl.style.wordBreak = "break-all";
       const t = new Date(log.timestamp);
-      const timeStr = t.toLocaleTimeString([], { hour12: false }) + '.' + String(t.getMilliseconds()).padStart(3, '0');
+      const timeStr = t.toLocaleTimeString([], { hour12: false }) + "." + String(t.getMilliseconds()).padStart(3, "0");
       const color = this.getLevelColor(log.level);
-
       logEl.innerHTML = `
         <span style="color: var(--text-dim); font-size: 0.7rem;">[${timeStr}]</span>
         <span style="color: ${color}; font-weight: bold; font-size: 0.7rem;">[${log.level}]</span>
         <span style="color: #cbd5e1; font-weight: 600;">[${log.context}]</span>
         <span style="color: #f1f5f9;">${log.message}</span>
-        ${log.details ? `<span style="color: #64748b; font-size: 0.7rem; display: block; margin-left: 1.5rem; white-space: pre-wrap;">Details: ${log.details}</span>` : ''}
+        ${log.details ? `<span style="color: #64748b; font-size: 0.7rem; display: block; margin-left: 1.5rem; white-space: pre-wrap;">Details: ${log.details}</span>` : ""}
       `;
       container.appendChild(logEl);
     });
     container.scrollTop = container.scrollHeight;
   }
 };
-
 function renderDiagnostics() {
-  let dbSizeStr = '0 KB';
+  let dbSizeStr = "0 KB";
   let quotaPct = 0;
   let isDbAvailable = false;
   try {
-    const dbStr = localStorage.getItem('octaneflow_db') || '';
+    const dbStr = localStorage.getItem("octaneflow_db") || "";
     const bytes = new Blob([dbStr]).size;
     isDbAvailable = true;
-    dbSizeStr = (bytes / 1024).toFixed(2) + ' KB';
-    quotaPct = Math.min((bytes / (5 * 1024 * 1024)) * 100, 100);
+    dbSizeStr = (bytes / 1024).toFixed(2) + " KB";
+    quotaPct = Math.min(bytes / (5 * 1024 * 1024) * 100, 100);
   } catch (e) {
-    dbSizeStr = 'Unavailable';
+    dbSizeStr = "Unavailable";
     isDbAvailable = false;
   }
-
-  const dbStatusEl = document.getElementById('diag-db-status');
+  const dbStatusEl = document.getElementById("diag-db-status");
   if (dbStatusEl) {
-    dbStatusEl.textContent = isDbAvailable ? 'Available' : 'Write Failed / Locked';
-    dbStatusEl.style.color = isDbAvailable ? '#22c55e' : '#ef4444';
+    dbStatusEl.textContent = isDbAvailable ? "Available" : "Write Failed / Locked";
+    dbStatusEl.style.color = isDbAvailable ? "#22c55e" : "#ef4444";
   }
-  const dbSizeEl = document.getElementById('diag-db-size');
+  const dbSizeEl = document.getElementById("diag-db-size");
   if (dbSizeEl) dbSizeEl.textContent = dbSizeStr;
-  
-  const quotaBar = document.getElementById('diag-db-quota-bar');
+  const quotaBar = document.getElementById("diag-db-quota-bar");
   if (quotaBar) {
-    quotaBar.style.width = quotaPct + '%';
-    quotaBar.style.background = quotaPct > 80 ? 'var(--danger)' : quotaPct > 50 ? 'var(--warning)' : 'var(--primary)';
+    quotaBar.style.width = quotaPct + "%";
+    quotaBar.style.background = quotaPct > 80 ? "var(--danger)" : quotaPct > 50 ? "var(--warning)" : "var(--primary)";
   }
-  const quotaText = document.getElementById('diag-db-quota-text');
+  const quotaText = document.getElementById("diag-db-quota-text");
   if (quotaText) quotaText.textContent = `${quotaPct.toFixed(2)}% of 5MB browser quota`;
-
-  const ledgerCount = (db && db.daily_ledger) ? db.daily_ledger.length : 0;
-  const purchaseCount = (db && db.purchases) ? db.purchases.length : 0;
-  const pendingCount = (db && db.pending_entries) ? db.pending_entries.filter(e => e.submission_type !== 'device_registration').length : 0;
-
-  const dbRecordsEl = document.getElementById('diag-db-records');
+  const ledgerCount = db && db.daily_ledger ? db.daily_ledger.length : 0;
+  const purchaseCount = db && db.purchases ? db.purchases.length : 0;
+  const pendingCount = db && db.pending_entries ? db.pending_entries.filter((e) => e.submission_type !== "device_registration").length : 0;
+  const dbRecordsEl = document.getElementById("diag-db-records");
   if (dbRecordsEl) dbRecordsEl.textContent = `${ledgerCount} Ledger Days`;
-  const dbPurchasesEl = document.getElementById('diag-db-purchases');
+  const dbPurchasesEl = document.getElementById("diag-db-purchases");
   if (dbPurchasesEl) dbPurchasesEl.textContent = `${purchaseCount} Purchases`;
-  const dbPendingEl = document.getElementById('diag-db-pending');
+  const dbPendingEl = document.getElementById("diag-db-pending");
   if (dbPendingEl) dbPendingEl.textContent = `${pendingCount} Pending Submissions`;
-
   const cfg = getSyncCfg();
-  const syncStatusEl = document.getElementById('diag-sync-status');
-  const syncTimeEl = document.getElementById('diag-sync-time');
-  const syncSupabaseIdEl = document.getElementById('diag-sync-gist-id');
-
+  const syncStatusEl = document.getElementById("diag-sync-status");
+  const syncTimeEl = document.getElementById("diag-sync-time");
+  const syncSupabaseIdEl = document.getElementById("diag-sync-gist-id");
   if (cfg.supabaseUrl && cfg.supabaseKey) {
     if (syncStatusEl) {
-      const activeStateEl = document.getElementById('sync-status-indicator');
-      const activeState = activeStateEl ? activeStateEl.textContent : '';
-      if (activeState.includes('Sync error') || activeState.includes('Offline')) {
-        syncStatusEl.textContent = 'Sync Failure';
-        syncStatusEl.style.color = '#ef4444';
-      } else if (activeState.includes('Syncing')) {
-        syncStatusEl.textContent = 'Syncing...';
-        syncStatusEl.style.color = '#f97316';
+      const activeStateEl = document.getElementById("sync-status-indicator");
+      const activeState = activeStateEl ? activeStateEl.textContent : "";
+      if (activeState.includes("Sync error") || activeState.includes("Offline")) {
+        syncStatusEl.textContent = "Sync Failure";
+        syncStatusEl.style.color = "#ef4444";
+      } else if (activeState.includes("Syncing")) {
+        syncStatusEl.textContent = "Syncing...";
+        syncStatusEl.style.color = "#f97316";
       } else {
-        syncStatusEl.textContent = 'Connected';
-        syncStatusEl.style.color = '#22c55e';
+        syncStatusEl.textContent = "Connected";
+        syncStatusEl.style.color = "#22c55e";
       }
     }
     if (syncTimeEl) {
       if (cfg.last_push) {
         const d = new Date(cfg.last_push);
-        syncTimeEl.textContent = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) + ' ' + d.toLocaleDateString([], { month: 'short', day: 'numeric' });
+        syncTimeEl.textContent = d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) + " " + d.toLocaleDateString([], { month: "short", day: "numeric" });
       } else {
-        syncTimeEl.textContent = 'Never Synced';
+        syncTimeEl.textContent = "Never Synced";
       }
     }
     if (syncSupabaseIdEl) {
@@ -864,177 +817,132 @@ function renderDiagnostics() {
     }
   } else {
     if (syncStatusEl) {
-      syncStatusEl.textContent = 'Disabled';
-      syncStatusEl.style.color = 'var(--text-dim)';
+      syncStatusEl.textContent = "Disabled";
+      syncStatusEl.style.color = "var(--text-dim)";
     }
-    if (syncTimeEl) syncTimeEl.textContent = 'N/A';
-    if (syncSupabaseIdEl) syncSupabaseIdEl.textContent = 'Database: Not Configured';
+    if (syncTimeEl) syncTimeEl.textContent = "N/A";
+    if (syncSupabaseIdEl) syncSupabaseIdEl.textContent = "Database: Not Configured";
   }
 }
-
 function getPreviousShift(dateStr, shift) {
-  if (shift === 'night') {
-    return { date: dateStr, shift: 'day' };
+  if (shift === "night") {
+    return { date: dateStr, shift: "day" };
   } else {
-    const d = new Date(dateStr + "T12:00:00");
+    const d = /* @__PURE__ */ new Date(dateStr + "T12:00:00");
     d.setDate(d.getDate() - 1);
-    return { date: d.toISOString().split('T')[0], shift: 'night' };
+    return { date: d.toISOString().split("T")[0], shift: "night" };
   }
 }
-
 function getNozzleOpeningReading(nozzle, dateStr, shift) {
-  let curr = { date: dateStr, shift: shift };
-  for (let i = 0; i < 60; i++) { // trace back up to 60 shifts (approx 30 operating days)
+  let curr = { date: dateStr, shift };
+  for (let i = 0; i < 60; i++) {
     curr = getPreviousShift(curr.date, curr.shift);
-    
-    // 1. Look in unapproved pending submissions (newest first)
-    const pending = (db.pending_entries || []).find(e => 
-      e.entryData.date === curr.date && 
-      e.entryData.shift === curr.shift && 
-      e.status === 'pending'
+    const pending = (db.pending_entries || []).find(
+      (e) => e.entryData.date === curr.date && e.entryData.shift === curr.shift && e.status === "pending"
     );
     if (pending && pending.entryData[nozzle]) {
-      const val = curr.shift === 'day' 
-        ? pending.entryData[nozzle].close_day 
-        : pending.entryData[nozzle].close_night;
+      const val = curr.shift === "day" ? pending.entryData[nozzle].close_day : pending.entryData[nozzle].close_night;
       if (val && val > 0) return val;
     }
-
-    // 2. Look in the approved daily ledger
-    const ledger = db.daily_ledger.find(r => r.date === curr.date);
+    const ledger = db.daily_ledger.find((r) => r.date === curr.date);
     if (ledger && ledger[nozzle]) {
-      const val = curr.shift === 'day' 
-        ? ledger[nozzle].close_day 
-        : ledger[nozzle].close_night;
+      const val = curr.shift === "day" ? ledger[nozzle].close_day : ledger[nozzle].close_night;
       if (val && val > 0) return val;
-      // If closing is not recorded, check opening for this date
       if (ledger[nozzle].open && ledger[nozzle].open > 0) return ledger[nozzle].open;
     }
   }
-
-  // 3. Fallback: find the earliest approved ledger entry
   const sorted = [...db.daily_ledger].sort((a, b) => a.date.localeCompare(b.date));
   if (sorted.length > 0 && sorted[0][nozzle]) {
     const val = sorted[0][nozzle].open;
     if (val && val > 0) return val;
   }
-  
-  // 4. Default hardcoded fallbacks
-  const fallbacks = { du1_p: 15400.00, du2_p: 12900.00, du1_d: 21250.00, du2_d: 18600.00 };
+  const fallbacks = { du1_p: 15400, du2_p: 12900, du1_d: 21250, du2_d: 18600 };
   return fallbacks[nozzle] || 0;
 }
-
-
-// ============================================================
-// AUTHENTICATION — Login · Roles · Device Binding
-// ============================================================
-
-const AUTH_USERS_KEY   = 'octaneflow_users';
-const AUTH_SESSION_KEY = 'octaneflow_session';
-const DEVICE_ID_KEY    = 'octaneflow_device_id';
-
-// Permanent device fingerprint — generated once per browser install
+const AUTH_USERS_KEY = "octaneflow_users";
+const AUTH_SESSION_KEY = "octaneflow_session";
+const DEVICE_ID_KEY = "octaneflow_device_id";
 function getDeviceId() {
   let id = localStorage.getItem(DEVICE_ID_KEY);
   if (!id) {
-    id = (typeof crypto.randomUUID === 'function')
-      ? crypto.randomUUID()
-      : 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
-          const r = crypto.getRandomValues(new Uint8Array(1))[0] % 16;
-          return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
-        });
+    id = typeof crypto.randomUUID === "function" ? crypto.randomUUID() : "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
+      const r = crypto.getRandomValues(new Uint8Array(1))[0] % 16;
+      return (c === "x" ? r : r & 3 | 8).toString(16);
+    });
     localStorage.setItem(DEVICE_ID_KEY, id);
   }
   return id;
 }
-
-// Pure JS SHA-256 fallback if crypto.subtle is not available (e.g. non-secure contexts)
 function sha256_js(ascii) {
   function rightRotate(value, amount) {
-    return (value >>> amount) | (value << (32 - amount));
+    return value >>> amount | value << 32 - amount;
   }
-
   const mathPow = Math.pow;
   const maxWord = mathPow(2, 32);
-  let result = '';
-
+  let result = "";
   const words = [];
   const asciiLength = ascii.length * 8;
-
   let hash = [], k = [];
   let primeCounter = 0;
   const isPrime = {};
-
   for (let candidate = 2; primeCounter < 64; candidate++) {
     if (!isPrime[candidate]) {
       for (let i = 0; i < 313; i += candidate) {
         isPrime[i] = 1;
       }
-      hash[primeCounter] = (mathPow(candidate, .5) * maxWord) | 0;
-      k[primeCounter++] = (mathPow(candidate, 1 / 3) * maxWord) | 0;
+      hash[primeCounter] = mathPow(candidate, 0.5) * maxWord | 0;
+      k[primeCounter++] = mathPow(candidate, 1 / 3) * maxWord | 0;
     }
   }
-
-  ascii += '\x80';
-  while (ascii.length % 64 - 56) ascii += '\x00';
-
+  ascii += "\x80";
+  while (ascii.length % 64 - 56) ascii += "\0";
   for (let i = 0; i < ascii.length; i++) {
     const j = ascii.charCodeAt(i);
-    words[i >> 2] |= j << ((3 - i) % 4) * 8;
+    words[i >> 2] |= j << (3 - i) % 4 * 8;
   }
-
-  words[words.length] = ((asciiLength / maxWord) | 0);
-  words[words.length] = (asciiLength | 0);
-
-  for (let j = 0; j < words.length;) {
+  words[words.length] = asciiLength / maxWord | 0;
+  words[words.length] = asciiLength | 0;
+  for (let j = 0; j < words.length; ) {
     const w = words.slice(j, j += 16);
     const oldHash = hash.slice(0);
-
     for (let i = 0; i < 64; i++) {
       let wItem = w[i];
       if (i >= 16) {
-        const s0 = rightRotate(w[i - 15], 7) ^ rightRotate(w[i - 15], 18) ^ (w[i - 15] >>> 3);
-        const s1 = rightRotate(w[i - 2], 17) ^ rightRotate(w[i - 2], 19) ^ (w[i - 2] >>> 10);
-        wItem = w[i] = (w[i - 16] + s0 + w[i - 7] + s1) | 0;
+        const s0 = rightRotate(w[i - 15], 7) ^ rightRotate(w[i - 15], 18) ^ w[i - 15] >>> 3;
+        const s1 = rightRotate(w[i - 2], 17) ^ rightRotate(w[i - 2], 19) ^ w[i - 2] >>> 10;
+        wItem = w[i] = w[i - 16] + s0 + w[i - 7] + s1 | 0;
       }
-
-      const ch = (hash[4] & hash[5]) ^ (~hash[4] & hash[6]);
-      const maj = (hash[0] & hash[1]) ^ (hash[0] & hash[2]) ^ (hash[1] & hash[2]);
+      const ch = hash[4] & hash[5] ^ ~hash[4] & hash[6];
+      const maj = hash[0] & hash[1] ^ hash[0] & hash[2] ^ hash[1] & hash[2];
       const s0_h = rightRotate(hash[0], 2) ^ rightRotate(hash[0], 13) ^ rightRotate(hash[0], 22);
       const s1_h = rightRotate(hash[4], 6) ^ rightRotate(hash[4], 11) ^ rightRotate(hash[4], 25);
-
-      const temp1 = (hash[7] + s1_h + ch + k[i] + wItem) | 0;
-      const temp2 = (s0_h + maj) | 0;
-
-      hash = [(temp1 + temp2) | 0].concat(hash);
-      hash[4] = (hash[4] + temp1) | 0;
+      const temp1 = hash[7] + s1_h + ch + k[i] + wItem | 0;
+      const temp2 = s0_h + maj | 0;
+      hash = [temp1 + temp2 | 0].concat(hash);
+      hash[4] = hash[4] + temp1 | 0;
     }
-
     for (let i = 0; i < 8; i++) {
-      hash[i] = (hash[i] + oldHash[i]) | 0;
+      hash[i] = hash[i] + oldHash[i] | 0;
     }
   }
-
   for (let i = 0; i < 8; i++) {
     for (let j = 3; j + 1; j--) {
-      const b = (hash[i] >> (j * 8)) & 255;
-      result += (b < 16 ? '0' : '') + b.toString(16);
+      const b = hash[i] >> j * 8 & 255;
+      result += (b < 16 ? "0" : "") + b.toString(16);
     }
   }
-
   return result;
 }
-
-// SHA-256 hash with pure JS fallback
-async function hashString(str) {
-  try {
-    if (window.crypto && crypto.subtle) {
-      const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
-      return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,'0')).join('');
+function hashString(str) {
+  return __async(this, null, function* () {
+    try {
+      if (window.crypto && crypto.subtle) {
+        const buf = yield crypto.subtle.digest("SHA-256", new TextEncoder().encode(str));
+        return Array.from(new Uint8Array(buf)).map((b) => b.toString(16).padStart(2, "0")).join("");
+      }
+    } catch (e) {
+      console.warn("crypto.subtle failed, falling back to JS SHA-256:", e);
     }
-  } catch (e) {
-    console.warn('crypto.subtle failed, falling back to JS SHA-256:', e);
-  }
-  return sha256_js(str);
+    return sha256_js(str);
+  });
 }
-

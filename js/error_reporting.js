@@ -1,143 +1,132 @@
-// ── GLOBAL RUNTIME ERROR REPORTING ──────────────────────────
-// Intercept uncaught javascript errors
-window.addEventListener('error', (event) => {
-  const msg = event.message || 'Unknown runtime error';
-  const source = event.filename ? event.filename.split('/').pop() : 'unknown';
+var __async = (__this, __arguments, generator) => {
+  return new Promise((resolve, reject) => {
+    var fulfilled = (value) => {
+      try {
+        step(generator.next(value));
+      } catch (e) {
+        reject(e);
+      }
+    };
+    var rejected = (value) => {
+      try {
+        step(generator.throw(value));
+      } catch (e) {
+        reject(e);
+      }
+    };
+    var step = (x) => x.done ? resolve(x.value) : Promise.resolve(x.value).then(fulfilled, rejected);
+    step((generator = generator.apply(__this, __arguments)).next());
+  });
+};
+window.addEventListener("error", (event) => {
+  const msg = event.message || "Unknown runtime error";
+  const source = event.filename ? event.filename.split("/").pop() : "unknown";
   const lineno = event.lineno || 0;
   const colno = event.colno || 0;
-  const stack = event.error ? event.error.stack : '';
-  
-  SystemLogger.error('RuntimeError', `${msg} (at ${source}:${lineno}:${colno})`, stack);
+  const stack = event.error ? event.error.stack : "";
+  SystemLogger.error("RuntimeError", `${msg} (at ${source}:${lineno}:${colno})`, stack);
 });
-
-// Intercept unhandled promise rejections
-window.addEventListener('unhandledrejection', (event) => {
+window.addEventListener("unhandledrejection", (event) => {
   const reason = event.reason;
-  const msg = reason ? (reason.message || String(reason)) : 'Promise rejected without reason';
-  const stack = (reason && reason.stack) ? reason.stack : '';
-  
-  SystemLogger.error('UnhandledPromiseRejection', msg, stack);
+  const msg = reason ? reason.message || String(reason) : "Promise rejected without reason";
+  const stack = reason && reason.stack ? reason.stack : "";
+  SystemLogger.error("UnhandledPromiseRejection", msg, stack);
 });
-
-window.addEventListener('DOMContentLoaded', () => {
-  // 1. Check for configuration invite/setup link in URL hash
+window.addEventListener("DOMContentLoaded", () => {
   const hash = window.location.hash;
-  if (hash && hash.startsWith('#setup=')) {
+  if (hash && hash.startsWith("#setup=")) {
     try {
-      const encoded = hash.substring(7); // remove '#setup='
-      const decoded = atob(encoded); // decode base64
-      const [supabaseUrl, supabaseKey, inviteUser] = decoded.split('|');
+      const encoded = hash.substring(7);
+      const decoded = atob(encoded);
+      const [supabaseUrl, supabaseKey, inviteUser] = decoded.split("|");
       if (supabaseUrl && supabaseKey) {
         saveSyncCfg({ supabaseUrl, supabaseKey });
         if (inviteUser) {
-          localStorage.setItem('octaneflow_invited_user', inviteUser);
+          localStorage.setItem("octaneflow_invited_user", inviteUser);
         }
-        // Clear hash from URL immediately so it doesn't linger in navigation history
         history.replaceState(null, document.title, window.location.pathname + window.location.search);
-        console.log('[Sync] Setup configuration successfully applied from link.');
+        console.log("[Sync] Setup configuration successfully applied from link.");
       }
     } catch (e) {
-      console.error('[Sync] Failed to parse setup link:', e);
+      console.error("[Sync] Failed to parse setup link:", e);
     }
   }
-
-  // 2. Unconditionally load database so 'db' is always defined
   loadDB();
   initSupabaseClient();
-
-  // Wire up Manual Refresh button
-  const refreshBtn = document.getElementById('manual-refresh-btn');
+  const refreshBtn = document.getElementById("manual-refresh-btn");
   if (refreshBtn) {
-    refreshBtn.addEventListener('click', async () => {
+    refreshBtn.addEventListener("click", () => __async(this, null, function* () {
       refreshBtn.disabled = true;
       const originalHtml = refreshBtn.innerHTML;
-      refreshBtn.innerHTML = `<span style="font-size:0.75rem;">⌛ Syncing...</span>`;
-      showNotification('Refreshing cloud database...', 'info');
+      refreshBtn.innerHTML = `<span style="font-size:0.75rem;">\u231B Syncing...</span>`;
+      showNotification("Refreshing cloud database...", "info");
       try {
-        await initSync();
+        yield initSync();
         updateGlobalAlertBanner();
-        showNotification('✅ Database refreshed successfully!', 'success');
+        showNotification("\u2705 Database refreshed successfully!", "success");
       } catch (err) {
-        showNotification('⚠️ Sync failed. Please check network connection.', 'danger');
+        showNotification("\u26A0\uFE0F Sync failed. Please check network connection.", "danger");
       } finally {
         refreshBtn.disabled = false;
         refreshBtn.innerHTML = originalHtml;
       }
-    });
+    }));
   }
-
-  // Register online/offline network listeners
-  window.addEventListener('online', () => {
+  window.addEventListener("online", () => {
     updateGlobalAlertBanner();
-    showNotification('📶 Back online! Syncing local changes with cloud...', 'success');
+    showNotification("\u{1F4F6} Back online! Syncing local changes with cloud...", "success");
     syncPush();
   });
-  window.addEventListener('offline', () => {
+  window.addEventListener("offline", () => {
     updateGlobalAlertBanner();
-    showNotification('📶 Device is offline. All data will be saved locally.', 'warning');
+    showNotification("\u{1F4F6} Device is offline. All data will be saved locally.", "warning");
   });
-
-  // Check sync alert banner initially
   updateGlobalAlertBanner();
-
-  // Wire up Collapsible Help Drawer in Sidebar
-  const helpToggleBtn = document.getElementById('sidebar-help-toggle-btn');
-  const helpContent = document.getElementById('sidebar-help-content');
-  const helpArrow = document.getElementById('sidebar-help-arrow');
+  const helpToggleBtn = document.getElementById("sidebar-help-toggle-btn");
+  const helpContent = document.getElementById("sidebar-help-content");
+  const helpArrow = document.getElementById("sidebar-help-arrow");
   if (helpToggleBtn && helpContent && helpArrow) {
-    helpToggleBtn.addEventListener('click', () => {
-      const isHidden = helpContent.style.display === 'none';
-      helpContent.style.display = isHidden ? 'block' : 'none';
-      helpArrow.textContent = isHidden ? '▲' : '▼';
+    helpToggleBtn.addEventListener("click", () => {
+      const isHidden = helpContent.style.display === "none";
+      helpContent.style.display = isHidden ? "block" : "none";
+      helpArrow.textContent = isHidden ? "\u25B2" : "\u25BC";
     });
   }
-
-  // Wire up Take a Tour button
-  const tourBtn = document.getElementById('take-tour-btn');
-  if (tourBtn) tourBtn.addEventListener('click', () => startTour());
-
-  // Wire up Cold Restart / Repair button
-  const restartBtn = document.getElementById('cold-restart-btn');
+  const tourBtn = document.getElementById("take-tour-btn");
+  if (tourBtn) tourBtn.addEventListener("click", () => startTour());
+  const restartBtn = document.getElementById("cold-restart-btn");
   if (restartBtn) {
-    restartBtn.addEventListener('click', async () => {
+    restartBtn.addEventListener("click", () => __async(this, null, function* () {
       if (!confirm("Are you sure you want to force a cold restart?\n\nThis will clear the browser's asset cache, unregister the service worker, and force a fresh page reload from the network. Your saved database will NOT be deleted.")) {
         return;
       }
       showNotification("Cold restarting app... clearing caches.", "info");
-
-      // 1. Unregister service worker(s)
       if (navigator.serviceWorker) {
         try {
-          const regs = await navigator.serviceWorker.getRegistrations();
+          const regs = yield navigator.serviceWorker.getRegistrations();
           for (let reg of regs) {
-            await reg.unregister();
+            yield reg.unregister();
           }
         } catch (e) {
           console.error("Failed to unregister service worker:", e);
         }
       }
-
-      // 2. Clear browser cache storage
       if (window.caches) {
         try {
-          const keys = await caches.keys();
+          const keys = yield caches.keys();
           for (let key of keys) {
-            await caches.delete(key);
+            yield caches.delete(key);
           }
         } catch (e) {
           console.error("Failed to clear cache storage:", e);
         }
       }
-
-      // 3. Perform a full page reload from network
       window.location.reload(true);
-    });
+    }));
   }
-
-  // Wire up Diagnostics buttons
-  const testErrorBtn = document.getElementById('test-diag-error-btn');
+  const testErrorBtn = document.getElementById("test-diag-error-btn");
   if (testErrorBtn) {
-    testErrorBtn.addEventListener('click', () => {
+    testErrorBtn.addEventListener("click", () => {
       try {
         throw new Error("Simulated diagnostic exception. This is a test error to verify real-time log reporting!");
       } catch (err) {
@@ -146,158 +135,141 @@ window.addEventListener('DOMContentLoaded', () => {
       }
     });
   }
-
-  const clearLogsBtn = document.getElementById('clear-diag-logs-btn');
+  const clearLogsBtn = document.getElementById("clear-diag-logs-btn");
   if (clearLogsBtn) {
-    clearLogsBtn.addEventListener('click', () => {
+    clearLogsBtn.addEventListener("click", () => {
       if (confirm("Are you sure you want to clear all diagnostics activity logs?")) {
         SystemLogger.clear();
         showNotification("Diagnostics logs cleared.", "info");
       }
     });
   }
-
-  // Auto-configure sync status
   const cfg = getSyncCfg();
   if (cfg.supabaseUrl && cfg.supabaseKey) {
-    console.log('[Sync] Supabase credentials found — auto-sync enabled');
+    console.log("[Sync] Supabase credentials found \u2014 auto-sync enabled");
   }
-
-  // ── AUTH INIT ──────────────────────────────────────────
   initAuth().then(() => {
-    initLoginForm();   // wire the login form submit
-
-    // Sync database with cloud (if credentials exist) so employee/device databases are updated
-    const syncPromise = (cfg.supabaseUrl && cfg.supabaseKey) ? initSync() : Promise.resolve();
-
+    initLoginForm();
+    const syncPromise = cfg.supabaseUrl && cfg.supabaseKey ? initSync() : Promise.resolve();
     syncPromise.then(() => {
-      const session = checkAuth(); // show login screen or app
-      if (session && session.role === 'owner') {
-        // Already logged in as owner — init the full app
-        try { initApp(); } catch(err) { console.error('App init failed:', err); }
+      const session = checkAuth();
+      if (session && session.role === "owner") {
+        try {
+          initApp();
+        } catch (err) {
+          console.error("App init failed:", err);
+        }
       }
-    }).catch(err => {
-      console.error('Initial sync failed:', err);
-      // Fallback
+    }).catch((err) => {
+      console.error("Initial sync failed:", err);
       checkAuth();
     });
   });
-
-  // 3. Background Auto-Sync: Check for cloud updates every 15 seconds
   setInterval(() => {
     const currentCfg = getSyncCfg();
     const session = getSession();
-    if (currentCfg.supabaseUrl && currentCfg.supabaseKey && session && document.visibilityState === 'visible') {
+    if (currentCfg.supabaseUrl && currentCfg.supabaseKey && session && document.visibilityState === "visible") {
       initSync().then(() => {
         buildIndexes();
-        if (session.role === 'owner') {
+        if (session.role === "owner") {
           renderCurrentView();
         } else {
           renderEmployeeView(session);
         }
-      }).catch(() => {});
+      }).catch(() => {
+      });
     }
-  }, 8000);
+  }, 8e3);
 });
-
-
-// -------------------------------------------------------------
-// INTERACTIVE ONBOARDING WALKTHROUGH TOUR
-// -------------------------------------------------------------
 let currentTourStep = 0;
 let activeHighlightElement = null;
-
 const tourSteps = [
   {
-    target: '.tanks-container',
+    target: ".tanks-container",
     setup: () => {
       const tab = document.querySelector('[data-view="dashboard"]');
       if (tab) tab.click();
     },
-    align: 'bottom',
+    align: "bottom",
     text: `<h3>Horizontal UST Tanks</h3><p>Your underground storage tanks are now rendered as <strong>horizontal cylinders</strong>. Fuel volume is calculated dynamically from depth measurements using exact horizontal cylinder segment formulas.</p>`
   },
   {
-    target: '#dash-capital-card',
+    target: "#dash-capital-card",
     setup: () => {
       const tab = document.querySelector('[data-view="dashboard"]');
       if (tab) tab.click();
     },
-    align: 'bottom',
+    align: "bottom",
     text: `<h3>Inventory & Locked Capital</h3><p>We separately track <strong>Usable Inventory</strong> (sellable) and <strong>Locked Capital Assets</strong> (permanent dead stock below the suction pipes, e.g., 600L Petrol / 40L Diesel), providing a precise view of working capital.</p>`
   },
   {
     target: '[data-subview="ledger"]',
     setup: () => {
-      // Step 1: Open Sales Cumulative tab under operations
       const tab = document.querySelector('[data-view="operations"]');
       if (tab) {
         tab.click();
-        switchSubview('operations', 'ledger');
+        switchSubview("operations", "ledger");
       }
     },
-    align: 'bottom',
+    align: "bottom",
     text: `<h3>Sales Cumulative Tab</h3><p>We are now in the <strong>Sales Cumulative</strong> section, which serves as your daily operations ledger. Here, shift totalizers, calibration tests, and daily profit margins are unified in a single database.</p>`
   },
   {
-    target: '#view-mode-selector-parent',
+    target: "#view-mode-selector-parent",
     setup: () => {
-      // Force spreadsheet view
-      const tblBtn = document.getElementById('view-type-table-btn');
+      const tblBtn = document.getElementById("view-type-table-btn");
       if (tblBtn) tblBtn.click();
     },
-    align: 'bottom',
-    text: `<h3>Ledger View Switcher</h3><p>This control lets you toggle between:<br>• <strong>Spreadsheet View</strong>: A complete, scrollable Excel-style daily table.<br>• <strong>Split Analyst View</strong>: An interactive visual dashboard of your operations.</p>`
+    align: "bottom",
+    text: `<h3>Ledger View Switcher</h3><p>This control lets you toggle between:<br>\u2022 <strong>Spreadsheet View</strong>: A complete, scrollable Excel-style daily table.<br>\u2022 <strong>Split Analyst View</strong>: An interactive visual dashboard of your operations.</p>`
   },
   {
-    target: '#view-type-split-btn',
+    target: "#view-type-split-btn",
     setup: () => {
-      // Force Split View to expose the carousel
-      const spltBtn = document.getElementById('view-type-split-btn');
+      const spltBtn = document.getElementById("view-type-split-btn");
       if (spltBtn) spltBtn.click();
     },
-    align: 'bottom',
+    align: "bottom",
     text: `<h3>Visual Operations Dashboard</h3><p>Let's click <strong>Split Analyst View</strong> to explore the physical operations diagram of your station.</p>`
   },
   {
-    target: '#ledger-date-carousel',
+    target: "#ledger-date-carousel",
     setup: () => {
-      const spltBtn = document.getElementById('view-type-split-btn');
+      const spltBtn = document.getElementById("view-type-split-btn");
       if (spltBtn) spltBtn.click();
     },
-    align: 'bottom',
+    align: "bottom",
     text: `<h3>Horizontal Date Carousel</h3><p>This swipeable calendar bar lets you select different reporting days. Each card displays sales volume and estimated profit. Clicking a card instantly swaps the visual dashboard below.</p>`
   },
   {
-    target: '.analyst-tabs',
+    target: ".analyst-tabs",
     setup: () => {
-      window.switchAnalystTab('flow');
+      window.switchAnalystTab("flow");
     },
-    align: 'bottom',
-    text: `<h3>Operations Inspector Tabs</h3><p>Inside the analyst panel, you can choose between:<br>• <strong>Station Flow Diagram</strong>: Visual fuel outflow from tanks to pumps.<br>• <strong>Day vs Night Comparison</strong>: Shift metrics analysis side-by-side.</p>`
+    align: "bottom",
+    text: `<h3>Operations Inspector Tabs</h3><p>Inside the analyst panel, you can choose between:<br>\u2022 <strong>Station Flow Diagram</strong>: Visual fuel outflow from tanks to pumps.<br>\u2022 <strong>Day vs Night Comparison</strong>: Shift metrics analysis side-by-side.</p>`
   },
   {
-    target: '.station-flow-container',
+    target: ".station-flow-container",
     setup: () => {
-      window.switchAnalystTab('flow');
+      window.switchAnalystTab("flow");
     },
-    align: 'top',
-    text: `<h3>Visual Station Flow Schema</h3><p>This schematic represents your station's operations:<br>• <strong>UST Tanks</strong> showing starting/ending stock heights.<br>• <strong>DU Pumps (1 & 2)</strong> showing opening/closing totalizer flows.<br>• <strong>Test Beakers</strong> displaying calibration fuel recirculated back into tanks (Day shift only).<br>• <strong>Checkout</strong> displaying revenue, WAC costs, and margins.</p>`
+    align: "top",
+    text: `<h3>Visual Station Flow Schema</h3><p>This schematic represents your station's operations:<br>\u2022 <strong>UST Tanks</strong> showing starting/ending stock heights.<br>\u2022 <strong>DU Pumps (1 & 2)</strong> showing opening/closing totalizer flows.<br>\u2022 <strong>Test Beakers</strong> displaying calibration fuel recirculated back into tanks (Day shift only).<br>\u2022 <strong>Checkout</strong> displaying revenue, WAC costs, and margins.</p>`
   },
   {
-    target: '.comparison-grid',
+    target: ".comparison-grid",
     setup: () => {
-      window.switchAnalystTab('comparison');
+      window.switchAnalystTab("comparison");
     },
-    align: 'top',
+    align: "top",
     text: `<h3>Day vs Night Comparison</h3><p>Switching to this tab displays shift performance side-by-side with interactive progress bars. Note that calibration quality tests are constrained strictly to the Day shift (testing is 0 for Night shift).</p>`
   },
   {
-    target: '#log-readings-btn-header',
+    target: "#log-readings-btn-header",
     setup: () => {
-      // Keep on comparison
     },
-    align: 'bottom',
+    align: "bottom",
     text: `<h3>Quality Calibration Tests</h3><p>Click <strong>Log Daily Readings</strong> to record totalizer readings. The entry form focuses on day-only tests. Night tests are automatically hardcoded to 0, eliminating redundant data entries.</p>`
   },
   {
@@ -306,77 +278,57 @@ const tourSteps = [
       const tab = document.querySelector('[data-view="financials"]');
       if (tab) {
         tab.click();
-        switchSubview('financials', 'cashflow');
+        switchSubview("financials", "cashflow");
       }
     },
-    align: 'bottom',
+    align: "bottom",
     text: `<h3>Cash Flow & Orders Solver</h3><p>Click here to access your new automated Excel-like dashboard. Input your current bank balance, unsettled PhonePe payments, cash, and cushions to view live 7-day cash forecasts, dry run indicators, and order deadlines.</p>`
   }
 ];
-
 function startTour() {
   currentTourStep = 0;
-  document.getElementById('tour-overlay').style.display = 'block';
-  document.getElementById('tour-bubble').style.display = 'flex';
+  document.getElementById("tour-overlay").style.display = "block";
+  document.getElementById("tour-bubble").style.display = "flex";
   showTourStep(0);
 }
-
 function showTourStep(index) {
   if (index < 0 || index >= tourSteps.length) return;
-
-  // Clean up previous highlight
   if (activeHighlightElement) {
-    activeHighlightElement.classList.remove('tour-highlight');
+    activeHighlightElement.classList.remove("tour-highlight");
   }
-
   currentTourStep = index;
   const step = tourSteps[index];
-
-  // Run step setup
-  if (typeof step.setup === 'function') {
+  if (typeof step.setup === "function") {
     step.setup();
   }
-
-  // Find target element
   const targetEl = document.querySelector(step.target);
-  const bubble = document.getElementById('tour-bubble');
-
+  const bubble = document.getElementById("tour-bubble");
   if (targetEl) {
-    // Add highlight
-    targetEl.classList.add('tour-highlight');
+    targetEl.classList.add("tour-highlight");
     activeHighlightElement = targetEl;
-
-    // Position the bubble relative to the target element
     setTimeout(() => {
       const rect = targetEl.getBoundingClientRect();
       const bubbleRect = bubble.getBoundingClientRect();
-
       let top = 0;
       let left = 0;
-
-      // Adjust for scroll offset
       const scrollY = window.scrollY || window.pageYOffset;
       const scrollX = window.scrollX || window.pageXOffset;
-
-      if (step.align === 'bottom') {
+      if (step.align === "bottom") {
         top = rect.bottom + scrollY + 12;
         left = rect.left + scrollX + (rect.width - bubbleRect.width) / 2;
-      } else if (step.align === 'top') {
+      } else if (step.align === "top") {
         top = rect.top + scrollY - bubbleRect.height - 12;
         left = rect.left + scrollX + (rect.width - bubbleRect.width) / 2;
-      } else if (step.align === 'right') {
+      } else if (step.align === "right") {
         top = rect.top + scrollY + (rect.height - bubbleRect.height) / 2;
         left = rect.right + scrollX + 12;
-      } else if (step.align === 'left') {
+      } else if (step.align === "left") {
         top = rect.top + scrollY + (rect.height - bubbleRect.height) / 2;
         left = rect.left + scrollX - bubbleRect.width - 12;
       }
-
-      // Viewport bounds checking to keep bubble inside screen
       const margin = 16;
       const viewportWidth = window.innerWidth;
       const viewportHeight = window.innerHeight;
-
       if (left < margin) left = margin;
       if (left + bubbleRect.width > viewportWidth - margin) {
         left = viewportWidth - bubbleRect.width - margin;
@@ -385,38 +337,29 @@ function showTourStep(index) {
       if (top + bubbleRect.height > viewportHeight + scrollY - margin) {
         top = rect.top + scrollY - bubbleRect.height - 12;
       }
-
       bubble.style.top = `${top}px`;
       bubble.style.left = `${left}px`;
-    }, 200); // 200ms delay to let animations settle
+    }, 200);
   } else {
-    // Center of screen if target is missing
-    bubble.style.top = '50%';
-    bubble.style.left = '50%';
-    bubble.style.transform = 'translate(-50%, -50%)';
+    bubble.style.top = "50%";
+    bubble.style.left = "50%";
+    bubble.style.transform = "translate(-50%, -50%)";
   }
-
-  // Update text and buttons
-  document.getElementById('tour-step-counter').textContent = `Step ${index + 1} of ${tourSteps.length}`;
-  document.getElementById('tour-body-text').innerHTML = step.text;
-
-  // Back button display
-  const prevBtn = document.getElementById('tour-prev-btn');
+  document.getElementById("tour-step-counter").textContent = `Step ${index + 1} of ${tourSteps.length}`;
+  document.getElementById("tour-body-text").innerHTML = step.text;
+  const prevBtn = document.getElementById("tour-prev-btn");
   if (index === 0) {
-    prevBtn.style.visibility = 'hidden';
+    prevBtn.style.visibility = "hidden";
   } else {
-    prevBtn.style.visibility = 'visible';
+    prevBtn.style.visibility = "visible";
   }
-
-  // Next button text
-  const nextBtn = document.getElementById('tour-next-btn');
+  const nextBtn = document.getElementById("tour-next-btn");
   if (index === tourSteps.length - 1) {
-    nextBtn.textContent = 'Finish';
+    nextBtn.textContent = "Finish";
   } else {
-    nextBtn.textContent = 'Next';
+    nextBtn.textContent = "Next";
   }
 }
-
 function nextTourStep() {
   if (currentTourStep === tourSteps.length - 1) {
     endTour();
@@ -424,597 +367,504 @@ function nextTourStep() {
     showTourStep(currentTourStep + 1);
   }
 }
-
 function prevTourStep() {
   if (currentTourStep > 0) {
     showTourStep(currentTourStep - 1);
   }
 }
-
 function endTour() {
-  document.getElementById('tour-overlay').style.display = 'none';
-  document.getElementById('tour-bubble').style.display = 'none';
-
+  document.getElementById("tour-overlay").style.display = "none";
+  document.getElementById("tour-bubble").style.display = "none";
   if (activeHighlightElement) {
-    activeHighlightElement.classList.remove('tour-highlight');
+    activeHighlightElement.classList.remove("tour-highlight");
     activeHighlightElement = null;
   }
-
-  // Re-render ledger to restore defaults
   renderLedger();
 }
-
-// -------------------------------------------------------------
-// DIP CALCULATOR CONTROLLER
-// -------------------------------------------------------------
 function openDipCalculator(tankType) {
-  const dia = tankType === 'petrol' ? db.settings.petrol_tank_dia : db.settings.diesel_tank_dia;
-  const len = tankType === 'petrol' ? db.settings.petrol_tank_len : db.settings.diesel_tank_len;
-  const cap = tankType === 'petrol' ? db.settings.petrol_capacity : db.settings.diesel_capacity;
-
-  document.getElementById('dip-tank-type').value = tankType;
-  document.getElementById('dip-tank-label').textContent = tankType === 'petrol' ? 'Petrol (E2) Storage Tank' : 'Diesel (HSD) Storage Tank';
-  document.getElementById('dip-tank-dims').textContent = `Diameter: ${dia} cm | Length: ${len} cm | Capacity: ${cap} L`;
-
-  // Reset fields
-  document.getElementById('dip-value').value = '';
-  document.getElementById('dip-result-total').textContent = '0.00 L';
-  document.getElementById('dip-result-dead').textContent = formatVol(tankType === 'petrol' ? db.settings.petrol_dead_stock : db.settings.diesel_dead_stock);
-  document.getElementById('dip-result-usable').textContent = '0.00 L';
-  document.getElementById('dip-warning').style.display = 'none';
-
-  openModal('dip-calculator-modal');
+  const dia = tankType === "petrol" ? db.settings.petrol_tank_dia : db.settings.diesel_tank_dia;
+  const len = tankType === "petrol" ? db.settings.petrol_tank_len : db.settings.diesel_tank_len;
+  const cap = tankType === "petrol" ? db.settings.petrol_capacity : db.settings.diesel_capacity;
+  document.getElementById("dip-tank-type").value = tankType;
+  document.getElementById("dip-tank-label").textContent = tankType === "petrol" ? "Petrol (E2) Storage Tank" : "Diesel (HSD) Storage Tank";
+  document.getElementById("dip-tank-dims").textContent = `Diameter: ${dia} cm | Length: ${len} cm | Capacity: ${cap} L`;
+  document.getElementById("dip-value").value = "";
+  document.getElementById("dip-result-total").textContent = "0.00 L";
+  document.getElementById("dip-result-dead").textContent = formatVol(tankType === "petrol" ? db.settings.petrol_dead_stock : db.settings.diesel_dead_stock);
+  document.getElementById("dip-result-usable").textContent = "0.00 L";
+  document.getElementById("dip-warning").style.display = "none";
+  openModal("dip-calculator-modal");
 }
-
 function updateDipCalculation() {
-  const tankType = document.getElementById('dip-tank-type').value;
-  const dipValStr = document.getElementById('dip-value').value;
-  const unit = document.getElementById('dip-unit').value;
-
-  const dia = tankType === 'petrol' ? db.settings.petrol_tank_dia : db.settings.diesel_tank_dia;
-  const len = tankType === 'petrol' ? db.settings.petrol_tank_len : db.settings.diesel_tank_len;
-  const dead = tankType === 'petrol' ? db.settings.petrol_dead_stock : db.settings.diesel_dead_stock;
-
+  const tankType = document.getElementById("dip-tank-type").value;
+  const dipValStr = document.getElementById("dip-value").value;
+  const unit = document.getElementById("dip-unit").value;
+  const dia = tankType === "petrol" ? db.settings.petrol_tank_dia : db.settings.diesel_tank_dia;
+  const len = tankType === "petrol" ? db.settings.petrol_tank_len : db.settings.diesel_tank_len;
+  const dead = tankType === "petrol" ? db.settings.petrol_dead_stock : db.settings.diesel_dead_stock;
   let dipVal = parseFloat(dipValStr) || 0;
   let maxDip = dia;
-  if (unit === 'mm') {
+  if (unit === "mm") {
     maxDip = dia * 10;
   }
-
-  const warningEl = document.getElementById('dip-warning');
+  const warningEl = document.getElementById("dip-warning");
   if (dipVal > maxDip) {
     warningEl.textContent = `Warning: Dip height exceeds tank diameter (${maxDip} ${unit})!`;
-    warningEl.style.display = 'block';
+    warningEl.style.display = "block";
   } else {
-    warningEl.style.display = 'none';
+    warningEl.style.display = "none";
   }
-
   const totalVol = calculateHorizontalTankVolume(dia / 2, len, dipVal, unit);
   const usableVol = Math.max(0, totalVol - dead);
-
-  document.getElementById('dip-result-total').textContent = formatVol(totalVol);
-  document.getElementById('dip-result-dead').textContent = formatVol(dead);
-  document.getElementById('dip-result-usable').textContent = formatVol(usableVol);
+  document.getElementById("dip-result-total").textContent = formatVol(totalVol);
+  document.getElementById("dip-result-dead").textContent = formatVol(dead);
+  document.getElementById("dip-result-usable").textContent = formatVol(usableVol);
 }
-
-// Bind live events for dip calculator modal
-document.getElementById('dip-value').addEventListener('input', updateDipCalculation);
-document.getElementById('dip-unit').addEventListener('change', updateDipCalculation);
-
-document.getElementById('dip-calculator-form').addEventListener('submit', (e) => {
+document.getElementById("dip-value").addEventListener("input", updateDipCalculation);
+document.getElementById("dip-unit").addEventListener("change", updateDipCalculation);
+document.getElementById("dip-calculator-form").addEventListener("submit", (e) => {
   e.preventDefault();
-  const tankType = document.getElementById('dip-tank-type').value;
-  const dipValStr = document.getElementById('dip-value').value;
-  const unit = document.getElementById('dip-unit').value;
-
-  const dia = tankType === 'petrol' ? db.settings.petrol_tank_dia : db.settings.diesel_tank_dia;
-  const len = tankType === 'petrol' ? db.settings.petrol_tank_len : db.settings.diesel_tank_len;
-
+  const tankType = document.getElementById("dip-tank-type").value;
+  const dipValStr = document.getElementById("dip-value").value;
+  const unit = document.getElementById("dip-unit").value;
+  const dia = tankType === "petrol" ? db.settings.petrol_tank_dia : db.settings.diesel_tank_dia;
+  const len = tankType === "petrol" ? db.settings.petrol_tank_len : db.settings.diesel_tank_len;
   const dipVal = parseFloat(dipValStr) || 0;
   const totalVol = calculateHorizontalTankVolume(dia / 2, len, dipVal, unit);
-
-  // Apply to stock
-  if (tankType === 'petrol') {
+  if (tankType === "petrol") {
     db.stock.petrol = Math.round(totalVol);
   } else {
     db.stock.diesel = Math.round(totalVol);
   }
-
   saveDB();
-  closeModal('dip-calculator-modal');
-  showNotification(`${tankType === 'petrol' ? 'Petrol' : 'Diesel'} stock updated to ${formatVol(totalVol)} based on dip reading.`, "success");
+  closeModal("dip-calculator-modal");
+  showNotification(`${tankType === "petrol" ? "Petrol" : "Diesel"} stock updated to ${formatVol(totalVol)} based on dip reading.`, "success");
   initApp();
 });
-
-// -------------------------------------------------------------
-// CASH FLOW & TANKER ORDERING SOLVER
-// -------------------------------------------------------------
-
-// =============================================================
-// CBI BANK HOLIDAY CALENDAR — Central Bank of India holidays
-// Includes RBI mandatory holidays + 2nd & 4th Saturdays
-// =============================================================
 const CBI_HOLIDAYS_2025_2026 = [
-  "2025-01-26","2025-03-14","2025-03-31","2025-04-10","2025-04-14",
-  "2025-04-18","2025-05-01","2025-06-07","2025-07-06","2025-08-15",
-  "2025-08-16","2025-09-05","2025-10-02","2025-10-22",
-  "2025-10-23","2025-11-05","2025-12-25",
+  "2025-01-26",
+  "2025-03-14",
+  "2025-03-31",
+  "2025-04-10",
+  "2025-04-14",
+  "2025-04-18",
+  "2025-05-01",
+  "2025-06-07",
+  "2025-07-06",
+  "2025-08-15",
+  "2025-08-16",
+  "2025-09-05",
+  "2025-10-02",
+  "2025-10-22",
+  "2025-10-23",
+  "2025-11-05",
+  "2025-12-25",
   // 2026
-  "2026-01-26","2026-03-03","2026-03-04","2026-03-20","2026-04-03",
-  "2026-04-14","2026-04-17","2026-05-01","2026-06-27","2026-07-17",
-  "2026-08-15","2026-09-19","2026-10-02","2026-10-09","2026-10-29",
-  "2026-11-25","2026-12-25",
+  "2026-01-26",
+  "2026-03-03",
+  "2026-03-04",
+  "2026-03-20",
+  "2026-04-03",
+  "2026-04-14",
+  "2026-04-17",
+  "2026-05-01",
+  "2026-06-27",
+  "2026-07-17",
+  "2026-08-15",
+  "2026-09-19",
+  "2026-10-02",
+  "2026-10-09",
+  "2026-10-29",
+  "2026-11-25",
+  "2026-12-25"
 ];
-
 function isCBIHoliday(dateStr) {
-  // Check static list
   if (CBI_HOLIDAYS_2025_2026.includes(dateStr)) return true;
-  // Check db custom holidays
-  if (db.holidays && db.holidays.some(h => h.date === dateStr)) return true;
-  const d = new Date(dateStr + "T12:00:00");
-  const dow = d.getDay(); // 0=Sun
-  if (dow === 0) return true; // All Sundays
+  if (db.holidays && db.holidays.some((h) => h.date === dateStr)) return true;
+  const d = /* @__PURE__ */ new Date(dateStr + "T12:00:00");
+  const dow = d.getDay();
+  if (dow === 0) return true;
   if (dow === 6) {
-    // 2nd and 4th Saturdays
     const dayOfMonth = d.getDate();
     const weekNum = Math.ceil(dayOfMonth / 7);
     if (weekNum === 2 || weekNum === 4) return true;
   }
   return false;
 }
-
 function nextBankingDay(dateStr) {
-  let d = new Date(dateStr + "T12:00:00");
+  let d = /* @__PURE__ */ new Date(dateStr + "T12:00:00");
   d.setDate(d.getDate() + 1);
   for (let i = 0; i < 10; i++) {
-    const s = d.toISOString().split('T')[0];
+    const s = d.toISOString().split("T")[0];
     if (!isCBIHoliday(s)) return s;
     d.setDate(d.getDate() + 1);
   }
-  return d.toISOString().split('T')[0];
+  return d.toISOString().split("T")[0];
 }
-
 function prevBankingDay(dateStr) {
-  let d = new Date(dateStr + "T12:00:00");
+  let d = /* @__PURE__ */ new Date(dateStr + "T12:00:00");
   d.setDate(d.getDate() - 1);
   for (let i = 0; i < 10; i++) {
-    const s = d.toISOString().split('T')[0];
+    const s = d.toISOString().split("T")[0];
     if (!isCBIHoliday(s)) return s;
     d.setDate(d.getDate() - 1);
   }
-  return d.toISOString().split('T')[0];
+  return d.toISOString().split("T")[0];
 }
-
-// =============================================================
-// SMART FORECAST ENGINE
-// =============================================================
-
-// Load cost constants from IOCL bills (confirmed purchase prices)
-const LOAD_MS_COST  = 102.10;  // ₹/L for MS (weighted avg from bills)
-const LOAD_HSD_COST = 88.78;   // ₹/L for HSD (weighted avg from bills)
-
+const LOAD_MS_COST = 102.1;
+const LOAD_HSD_COST = 88.78;
 function getLoadCosts() {
-  // 4kL MS + 8kL HSD
-  const cost4ms8hsd = 4000 * LOAD_MS_COST + 8000 * LOAD_HSD_COST;
-  // 8kL MS + 4kL HSD
-  const cost8ms4hsd = 8000 * LOAD_MS_COST + 4000 * LOAD_HSD_COST;
+  const cost4ms8hsd = 4e3 * LOAD_MS_COST + 8e3 * LOAD_HSD_COST;
+  const cost8ms4hsd = 8e3 * LOAD_MS_COST + 4e3 * LOAD_HSD_COST;
   return { cost4ms8hsd, cost8ms4hsd };
 }
-
 function getADS14() {
   if (!db.daily_ledger || db.daily_ledger.length === 0) return { ms: 625, hsd: 1093 };
-  const sorted = [...db.daily_ledger].sort((a,b) => b.date.localeCompare(a.date));
+  const sorted = [...db.daily_ledger].sort((a, b) => b.date.localeCompare(a.date));
   const recent = sorted.slice(0, 14);
-  const msTotal  = recent.reduce((s,r) => s + nozzleSale(r.du1_p) + nozzleSale(r.du2_p), 0);
-  const hsdTotal = recent.reduce((s,r) => s + nozzleSale(r.du1_d) + nozzleSale(r.du2_d), 0);
+  const msTotal = recent.reduce((s, r) => s + nozzleSale(r.du1_p) + nozzleSale(r.du2_p), 0);
+  const hsdTotal = recent.reduce((s, r) => s + nozzleSale(r.du1_d) + nozzleSale(r.du2_d), 0);
   const n = recent.length || 1;
   return { ms: msTotal / n, hsd: hsdTotal / n };
 }
-
 function getSellingPriceNow() {
   if (!db.prices || db.prices.length === 0) return { petrol: 105.58, diesel: 90.98 };
-  const sorted = [...db.prices].sort((a,b) => b.effective_date.localeCompare(a.effective_date));
+  const sorted = [...db.prices].sort((a, b) => b.effective_date.localeCompare(a.effective_date));
   return sorted[0];
 }
-
 function getPendingIOCL() {
   if (!db.purchases) return 0;
-  return db.purchases.filter(p => p.payment_status === 'unpaid').reduce((s,p) => s + p.total_cost, 0);
+  return db.purchases.filter((p) => p.payment_status === "unpaid").reduce((s, p) => s + p.total_cost, 0);
 }
-
 function computeOrderForecast(msStock, hsdStock, cashReserves, pendingIOCL, ads, sp, dayOffset) {
-  // Days of stock left
-  const msDays  = ads.ms  > 0 ? msStock  / ads.ms  : 30;
+  const msDays = ads.ms > 0 ? msStock / ads.ms : 30;
   const hsdDays = ads.hsd > 0 ? hsdStock / ads.hsd : 30;
   const bottleneck = Math.min(msDays, hsdDays);
-
-  // Buy day = when first fuel hits minimum (dead stock buffer ~500L)
   const safetyDays = Math.max(0, Math.floor(bottleneck) - 1);
-
-  // Check end-of-month pressure: must buy on last day of current month
-  const today = new Date();
+  const today = /* @__PURE__ */ new Date();
   today.setDate(today.getDate() + dayOffset);
   const lastDayOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0);
-  const daysToEOM = Math.ceil((lastDayOfMonth - today) / 86400000);
-  const eomPressure = daysToEOM <= safetyDays; // EOM is before we'd naturally buy
-
+  const daysToEOM = Math.ceil((lastDayOfMonth - today) / 864e5);
+  const eomPressure = daysToEOM <= safetyDays;
   const buyDayNum = eomPressure ? daysToEOM : safetyDays;
-  const todayStr = today.toISOString().split('T')[0];
+  const todayStr = today.toISOString().split("T")[0];
   const buyDateStr = addDays(todayStr, buyDayNum);
-
-  // Projected cash collection over buyDayNum days from selling fuel
-  const projMsCash  = ads.ms  * buyDayNum * sp.petrol;
+  const projMsCash = ads.ms * buyDayNum * sp.petrol;
   const projHsdCash = ads.hsd * buyDayNum * sp.diesel;
   const totalProjected = cashReserves + projMsCash + projHsdCash;
   const netCash = totalProjected - pendingIOCL;
-
-  // Load decision
   const { cost4ms8hsd, cost8ms4hsd } = getLoadCosts();
-
-  // Which fuel needs more replenishment?
-  const msNeedMore  = msDays <= hsdDays;
-  const preferredMS = msNeedMore ? 8000 : 4000;
-  const preferredHSD= msNeedMore ? 4000 : 8000;
+  const msNeedMore = msDays <= hsdDays;
+  const preferredMS = msNeedMore ? 8e3 : 4e3;
+  const preferredHSD = msNeedMore ? 4e3 : 8e3;
   const preferredCost = msNeedMore ? cost8ms4hsd : cost4ms8hsd;
-  const fallbackMS  = msNeedMore ? 4000 : 8000;
-  const fallbackHSD = msNeedMore ? 8000 : 4000;
-  const fallbackCost= msNeedMore ? cost4ms8hsd : cost8ms4hsd;
-
+  const fallbackMS = msNeedMore ? 4e3 : 8e3;
+  const fallbackHSD = msNeedMore ? 8e3 : 4e3;
+  const fallbackCost = msNeedMore ? cost4ms8hsd : cost8ms4hsd;
   let chosenMS, chosenHSD, chosenCost, loadLabel, shortfall = 0;
-
-  // Also add 2-day grace: can afford if cash in (buyDay + 2 days) covers cost
   const projCashPlus2 = totalProjected + 2 * (ads.ms * sp.petrol + ads.hsd * sp.diesel);
   const canAffordPreferred = netCash >= preferredCost;
-  const canAffordFallback  = netCash >= fallbackCost || (projCashPlus2 - pendingIOCL) >= fallbackCost;
-
+  const canAffordFallback = netCash >= fallbackCost || projCashPlus2 - pendingIOCL >= fallbackCost;
   if (canAffordPreferred) {
-    chosenMS = preferredMS; chosenHSD = preferredHSD; chosenCost = preferredCost;
-    loadLabel = `${preferredMS/1000}kL MS + ${preferredHSD/1000}kL HSD`;
+    chosenMS = preferredMS;
+    chosenHSD = preferredHSD;
+    chosenCost = preferredCost;
+    loadLabel = `${preferredMS / 1e3}kL MS + ${preferredHSD / 1e3}kL HSD`;
   } else if (canAffordFallback) {
-    chosenMS = fallbackMS; chosenHSD = fallbackHSD; chosenCost = fallbackCost;
-    loadLabel = `${fallbackMS/1000}kL MS + ${fallbackHSD/1000}kL HSD (cash-constrained)`;
+    chosenMS = fallbackMS;
+    chosenHSD = fallbackHSD;
+    chosenCost = fallbackCost;
+    loadLabel = `${fallbackMS / 1e3}kL MS + ${fallbackHSD / 1e3}kL HSD (cash-constrained)`;
     shortfall = Math.max(0, fallbackCost - netCash);
   } else {
-    // Minimum viable — smaller load
-    chosenMS = 4000; chosenHSD = 4000; chosenCost = 4000 * LOAD_MS_COST + 4000 * LOAD_HSD_COST;
+    chosenMS = 4e3;
+    chosenHSD = 4e3;
+    chosenCost = 4e3 * LOAD_MS_COST + 4e3 * LOAD_HSD_COST;
     loadLabel = "4kL MS + 4kL HSD (emergency minimum)";
     shortfall = Math.max(0, chosenCost - netCash);
   }
-
-  // RTGS: must be filed at bank by last banking day BEFORE the 2-day payment deadline.
-  // Correct logic: deadline = buyDate + 2 calendar days; RTGS = last banking day <= deadline.
   const ioclDeadline = addDays(buyDateStr, 2);
   let rtgsDeadline = ioclDeadline;
   let rtgsSafety = 0;
   while (isCBIHoliday(rtgsDeadline) && rtgsSafety++ < 10) {
     rtgsDeadline = addDays(rtgsDeadline, -1);
   }
-
-  // Stock after this load
-  const msAfter  = Math.max(0, msStock  - (ads.ms  * buyDayNum)) + chosenMS;
-  const hsdAfter = Math.max(0, hsdStock - (ads.hsd * buyDayNum)) + chosenHSD;
-
+  const msAfter = Math.max(0, msStock - ads.ms * buyDayNum) + chosenMS;
+  const hsdAfter = Math.max(0, hsdStock - ads.hsd * buyDayNum) + chosenHSD;
   return {
-    buyDateStr, buyDayNum, msDays, hsdDays, bottleneck,
-    projMsCash, projHsdCash, totalProjected,
-    pendingIOCL, netCash,
-    chosenMS, chosenHSD, chosenCost, loadLabel, shortfall,
-    rtgsDeadline, eomPressure, daysToEOM,
-    msAfter, hsdAfter
+    buyDateStr,
+    buyDayNum,
+    msDays,
+    hsdDays,
+    bottleneck,
+    projMsCash,
+    projHsdCash,
+    totalProjected,
+    pendingIOCL,
+    netCash,
+    chosenMS,
+    chosenHSD,
+    chosenCost,
+    loadLabel,
+    shortfall,
+    rtgsDeadline,
+    eomPressure,
+    daysToEOM,
+    msAfter,
+    hsdAfter
   };
 }
-
 function saveCashInputsAndForecast() {
-  db.cashflow.bank_balance  = parseFloat(document.getElementById('cf-bank-balance').value)  || 0;
-  db.cashflow.phonepe_balance = parseFloat(document.getElementById('cf-phonepe-balance').value) || 0;
-  db.cashflow.cash_drawer   = parseFloat(document.getElementById('cf-cash-drawer').value)   || 0;
-  db.cashflow.iocl_cushion  = parseFloat(document.getElementById('cf-iocl-cushion').value)  || 0;
-  db.cashflow.ppcc_balance  = parseFloat(document.getElementById('cf-ppcc-balance').value)  || 0;
+  db.cashflow.bank_balance = parseFloat(document.getElementById("cf-bank-balance").value) || 0;
+  db.cashflow.phonepe_balance = parseFloat(document.getElementById("cf-phonepe-balance").value) || 0;
+  db.cashflow.cash_drawer = parseFloat(document.getElementById("cf-cash-drawer").value) || 0;
+  db.cashflow.iocl_cushion = parseFloat(document.getElementById("cf-iocl-cushion").value) || 0;
+  db.cashflow.ppcc_balance = parseFloat(document.getElementById("cf-ppcc-balance").value) || 0;
   saveDB();
   renderCashFlow();
-  showNotification('Cash inputs saved. Forecast updated.', 'success');
+  showNotification("Cash inputs saved. Forecast updated.", "success");
 }
-
 function renderCashFlow() {
-  // Populate inputs from saved db
-  const el = id => document.getElementById(id);
-  el('cf-bank-balance').value    = db.cashflow.bank_balance    || 0;
-  el('cf-phonepe-balance').value = db.cashflow.phonepe_balance || 0;
-  el('cf-cash-drawer').value     = db.cashflow.cash_drawer     || 0;
-  el('cf-iocl-cushion').value    = db.cashflow.iocl_cushion    || 0;
-  if (el('cf-ppcc-balance')) el('cf-ppcc-balance').value = db.cashflow.ppcc_balance || 0;
-
+  const el = (id) => document.getElementById(id);
+  el("cf-bank-balance").value = db.cashflow.bank_balance || 0;
+  el("cf-phonepe-balance").value = db.cashflow.phonepe_balance || 0;
+  el("cf-cash-drawer").value = db.cashflow.cash_drawer || 0;
+  el("cf-iocl-cushion").value = db.cashflow.iocl_cushion || 0;
+  if (el("cf-ppcc-balance")) el("cf-ppcc-balance").value = db.cashflow.ppcc_balance || 0;
   const ads = getADS14();
-  const sp  = getSellingPriceNow();
+  const sp = getSellingPriceNow();
   const { cost4ms8hsd, cost8ms4hsd } = getLoadCosts();
-
-  // Update load cost references
-  el('load-cost-4-8').textContent = formatCurrency(cost4ms8hsd);
-  el('load-cost-8-4').textContent = formatCurrency(cost8ms4hsd);
-  el('cf-avg-ms').textContent  = ads.ms.toFixed(0);
-  el('cf-avg-hsd').textContent = ads.hsd.toFixed(0);
-
-  // Current state
-  const msStock   = db.stock.petrol  || 0;
-  const hsdStock  = db.stock.diesel  || 0;
+  el("load-cost-4-8").textContent = formatCurrency(cost4ms8hsd);
+  el("load-cost-8-4").textContent = formatCurrency(cost8ms4hsd);
+  el("cf-avg-ms").textContent = ads.ms.toFixed(0);
+  el("cf-avg-hsd").textContent = ads.hsd.toFixed(0);
+  const msStock = db.stock.petrol || 0;
+  const hsdStock = db.stock.diesel || 0;
   const pendingIOCL = getPendingIOCL();
-  const cashReserves = (db.cashflow.bank_balance || 0)
-                     + (db.cashflow.phonepe_balance || 0)
-                     + (db.cashflow.cash_drawer || 0)
-                     + (db.cashflow.ppcc_balance || 0)
-                     + (db.cashflow.iocl_cushion || 0);
-
-  // ---- UPCOM forecast ----
+  const cashReserves = (db.cashflow.bank_balance || 0) + (db.cashflow.phonepe_balance || 0) + (db.cashflow.cash_drawer || 0) + (db.cashflow.ppcc_balance || 0) + (db.cashflow.iocl_cushion || 0);
   const upcom = computeOrderForecast(msStock, hsdStock, cashReserves, pendingIOCL, ads, sp, 0);
-
-  // ---- NEXT TO UP forecast (starts from stock + load after UPCOM) ----
-  const ntuCashStart = cashReserves
-    + upcom.projMsCash + upcom.projHsdCash    // collected during upcom wait
-    - pendingIOCL                              // paid existing pending
-    - upcom.chosenCost;                        // paid for upcom load (grace: actual RTGS)
-  const ntuPending = upcom.chosenCost;         // the upcom load is now pending
+  const ntuCashStart = cashReserves + upcom.projMsCash + upcom.projHsdCash - pendingIOCL - upcom.chosenCost;
+  const ntuPending = upcom.chosenCost;
   const ntu = computeOrderForecast(
-    upcom.msAfter, upcom.hsdAfter,
+    upcom.msAfter,
+    upcom.hsdAfter,
     Math.max(0, ntuCashStart),
-    0,  // previous pending already accounted
-    ads, sp,
-    upcom.buyDayNum  // offset from today
+    0,
+    // previous pending already accounted
+    ads,
+    sp,
+    upcom.buyDayNum
+    // offset from today
   );
-
-  // ---- Render 21-day calendar strip ----
-  const strip = el('cf-calendar-strip');
+  const strip = el("cf-calendar-strip");
   if (strip) {
-    const todayStr = new Date().toISOString().split('T')[0];
-    strip.innerHTML = '';
+    const todayStr = (/* @__PURE__ */ new Date()).toISOString().split("T")[0];
+    strip.innerHTML = "";
     for (let i = 0; i < 21; i++) {
       const ds = addDays(todayStr, i);
-      const isHol   = isCBIHoliday(ds);
+      const isHol = isCBIHoliday(ds);
       const isUpcom = ds === upcom.buyDateStr;
-      const isNtu   = ds === ntu.buyDateStr;
-      const isEOM   = new Date(ds + "T12:00:00").getDate() === new Date(new Date(ds + "T12:00:00").getFullYear(), new Date(ds + "T12:00:00").getMonth() + 1, 0).getDate();
-      const d = new Date(ds + "T12:00:00");
-      const dayNames = ['Su','Mo','Tu','We','Th','Fr','Sa'];
-      let bg = isHol ? 'rgba(244,114,182,0.25)' : 'rgba(99,102,241,0.18)';
-      let border = isHol ? '1px solid rgba(244,114,182,0.5)' : '1px solid rgba(99,102,241,0.3)';
-      let color  = isHol ? '#f472b6' : 'var(--text-dim)';
-      let title  = isHol ? 'Bank Holiday' : 'Banking Day';
-      if (isUpcom || isNtu) { bg = 'rgba(250,204,21,0.25)'; border = '1px solid rgba(250,204,21,0.7)'; color = '#fbbf24'; title = isUpcom ? 'UPCOM Buy Day' : 'NTU Buy Day'; }
-      if (isEOM && !isUpcom && !isNtu) { bg = 'rgba(239,68,68,0.2)'; border = '1px solid rgba(239,68,68,0.5)'; color = '#ef4444'; title += ' + Month-End'; }
+      const isNtu = ds === ntu.buyDateStr;
+      const isEOM = (/* @__PURE__ */ new Date(ds + "T12:00:00")).getDate() === new Date((/* @__PURE__ */ new Date(ds + "T12:00:00")).getFullYear(), (/* @__PURE__ */ new Date(ds + "T12:00:00")).getMonth() + 1, 0).getDate();
+      const d = /* @__PURE__ */ new Date(ds + "T12:00:00");
+      const dayNames = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
+      let bg = isHol ? "rgba(244,114,182,0.25)" : "rgba(99,102,241,0.18)";
+      let border = isHol ? "1px solid rgba(244,114,182,0.5)" : "1px solid rgba(99,102,241,0.3)";
+      let color = isHol ? "#f472b6" : "var(--text-dim)";
+      let title = isHol ? "Bank Holiday" : "Banking Day";
+      if (isUpcom || isNtu) {
+        bg = "rgba(250,204,21,0.25)";
+        border = "1px solid rgba(250,204,21,0.7)";
+        color = "#fbbf24";
+        title = isUpcom ? "UPCOM Buy Day" : "NTU Buy Day";
+      }
+      if (isEOM && !isUpcom && !isNtu) {
+        bg = "rgba(239,68,68,0.2)";
+        border = "1px solid rgba(239,68,68,0.5)";
+        color = "#ef4444";
+        title += " + Month-End";
+      }
       strip.innerHTML += `<div title="${title} (${ds})" style="min-width:36px; padding:0.3rem 0.2rem; border-radius:4px; text-align:center; background:${bg}; border:${border}; cursor:default;">
         <div style="font-size:0.6rem; color:${color}; font-weight:600;">${dayNames[d.getDay()]}</div>
-        <div style="font-size:0.72rem; color:#fff; font-weight:${isUpcom||isNtu?'700':'400'};">${d.getDate()}</div>
-        ${isUpcom ? '<div style="font-size:0.5rem; color:#fbbf24; font-weight:700;">BUY</div>' : ''}
-        ${isNtu   ? '<div style="font-size:0.5rem; color:#a78bfa; font-weight:700;">NXT</div>' : ''}
-        ${isEOM && !isUpcom && !isNtu ? '<div style="font-size:0.5rem; color:#ef4444;">EOM</div>' : ''}
+        <div style="font-size:0.72rem; color:#fff; font-weight:${isUpcom || isNtu ? "700" : "400"};">${d.getDate()}</div>
+        ${isUpcom ? '<div style="font-size:0.5rem; color:#fbbf24; font-weight:700;">BUY</div>' : ""}
+        ${isNtu ? '<div style="font-size:0.5rem; color:#a78bfa; font-weight:700;">NXT</div>' : ""}
+        ${isEOM && !isUpcom && !isNtu ? '<div style="font-size:0.5rem; color:#ef4444;">EOM</div>' : ""}
       </div>`;
     }
   }
-
-  // ---- EOM pressure alert ----
-  const eomBar = el('eom-pressure-bar');
+  const eomBar = el("eom-pressure-bar");
   if (eomBar) {
     if (upcom.eomPressure) {
-      eomBar.style.display = 'block';
+      eomBar.style.display = "block";
       eomBar.innerHTML = `<div class="panel" style="border-left:4px solid #ef4444; padding:0.75rem 1rem; background:rgba(239,68,68,0.08);">
         <strong style="color:#ef4444;">&#9888; IOCL End-of-Month Pressure</strong> &mdash;
-        You must place a tanker order by <strong>${formatDate(addDays(new Date().toISOString().split('T')[0], upcom.daysToEOM))}</strong>
+        You must place a tanker order by <strong>${formatDate(addDays((/* @__PURE__ */ new Date()).toISOString().split("T")[0], upcom.daysToEOM))}</strong>
         (${upcom.daysToEOM} days, last day of month). Plan your RTGS filing accordingly.
       </div>`;
     } else {
-      eomBar.style.display = 'none';
+      eomBar.style.display = "none";
     }
   }
-
-  // ---- Fill UPCOM card ----
   function fillCard(prefix, f, currentMs, currentHsd) {
     const fc = (v) => formatCurrency(v);
-    const pnlColor = (v) => v >= 0 ? '#4ade80' : '#ef4444';
-
+    const pnlColor = (v) => v >= 0 ? "#4ade80" : "#ef4444";
     const setText = (idSuffix, text) => {
       const element = el(`${prefix}-${idSuffix}`);
       if (element) element.textContent = text;
     };
-
-    setText('date', `${formatDate(f.buyDateStr)} (Day ${f.buyDayNum})`);
-    setText('load-badge', f.loadLabel);
-
-    setText('ms-stock', `${currentMs.toFixed(0)} L`);
-    setText('ms-remaining', `${f.msDays.toFixed(1)} days left`);
-    setText('hsd-stock', `${currentHsd.toFixed(0)} L`);
-    setText('hsd-remaining', `${f.hsdDays.toFixed(1)} days left`);
-
-    setText('avg-ms', ads.ms.toFixed(0));
-    setText('avg-hsd', ads.hsd.toFixed(0));
-    setText('days', `${f.buyDayNum} days`);
-
-    setText('proj-ms', fc(f.projMsCash));
-    setText('proj-hsd', fc(f.projHsdCash));
-    setText('total-reserves', fc(f.totalProjected));
-
-    setText('iocl-pending', fc(f.pendingIOCL));
+    setText("date", `${formatDate(f.buyDateStr)} (Day ${f.buyDayNum})`);
+    setText("load-badge", f.loadLabel);
+    setText("ms-stock", `${currentMs.toFixed(0)} L`);
+    setText("ms-remaining", `${f.msDays.toFixed(1)} days left`);
+    setText("hsd-stock", `${currentHsd.toFixed(0)} L`);
+    setText("hsd-remaining", `${f.hsdDays.toFixed(1)} days left`);
+    setText("avg-ms", ads.ms.toFixed(0));
+    setText("avg-hsd", ads.hsd.toFixed(0));
+    setText("days", `${f.buyDayNum} days`);
+    setText("proj-ms", fc(f.projMsCash));
+    setText("proj-hsd", fc(f.projHsdCash));
+    setText("total-reserves", fc(f.totalProjected));
+    setText("iocl-pending", fc(f.pendingIOCL));
     const nc = el(`${prefix}-net-cash`);
     if (nc) {
       nc.textContent = fc(f.netCash);
       nc.style.color = pnlColor(f.netCash);
     }
-
-    setText('load-cost', fc(f.chosenCost));
-
+    setText("load-cost", fc(f.chosenCost));
     const sfRow = el(`${prefix}-shortfall-row`);
     if (sfRow) {
       if (f.shortfall > 0) {
-        sfRow.style.display = 'flex';
-        setText('shortfall', fc(f.shortfall));
+        sfRow.style.display = "flex";
+        setText("shortfall", fc(f.shortfall));
       } else {
-        sfRow.style.display = 'none';
+        sfRow.style.display = "none";
       }
     }
-
-    setText('rtgs-day', formatDate(f.rtgsDeadline) +
-      (isCBIHoliday(f.rtgsDeadline) ? ' ⚠️' : ' ✓'));
-
+    setText("rtgs-day", formatDate(f.rtgsDeadline) + (isCBIHoliday(f.rtgsDeadline) ? " \u26A0\uFE0F" : " \u2713"));
     const decEl = el(`${prefix}-decision`);
     if (decEl) {
       if (f.shortfall > 0) {
-        decEl.style.background = 'rgba(239,68,68,0.1)';
-        decEl.style.color = '#f87171';
-        decEl.style.border = '1px solid rgba(239,68,68,0.3)';
-        decEl.innerHTML = `&#9888; Cash shortfall &#8377;${fc(f.shortfall)} &mdash; ${f.loadLabel}. Collect ${f.buyDayNum+2} days revenue &amp; file RTGS by ${formatDate(f.rtgsDeadline)}`;
+        decEl.style.background = "rgba(239,68,68,0.1)";
+        decEl.style.color = "#f87171";
+        decEl.style.border = "1px solid rgba(239,68,68,0.3)";
+        decEl.innerHTML = `&#9888; Cash shortfall &#8377;${fc(f.shortfall)} &mdash; ${f.loadLabel}. Collect ${f.buyDayNum + 2} days revenue &amp; file RTGS by ${formatDate(f.rtgsDeadline)}`;
       } else {
-        decEl.style.background = 'rgba(34,197,94,0.08)';
-        decEl.style.color = '#4ade80';
-        decEl.style.border = '1px solid rgba(34,197,94,0.25)';
+        decEl.style.background = "rgba(34,197,94,0.08)";
+        decEl.style.color = "#4ade80";
+        decEl.style.border = "1px solid rgba(34,197,94,0.25)";
         decEl.innerHTML = `&#10003; Buy <strong>${f.loadLabel}</strong>. File RTGS at CBI by ${formatDate(f.rtgsDeadline)}`;
       }
     }
   }
-
-  fillCard('upcom', upcom, msStock, hsdStock);
-  fillCard('ntu',   ntu,   upcom.msAfter, upcom.hsdAfter);
+  fillCard("upcom", upcom, msStock, hsdStock);
+  fillCard("ntu", ntu, upcom.msAfter, upcom.hsdAfter);
 }
-
-
-// -------------------------------------------------------------
-// SHIFT RECONCILIATION & CASH COUNT LOGIC
-// -------------------------------------------------------------
-
-// Global state variables for shift reconciliation
 window.reconExpensesList = [];
 window.reconOpenStock = { petrol: 0, diesel: 0 };
 window.ocrExtractedValues = null;
 window.testFuelTimers = {};
-
 function renderShiftRecon() {
-  const today = new Date();
+  const today = /* @__PURE__ */ new Date();
   const currentHour = today.getHours();
-
   const getLocalDateStr = (dateObj) => {
     const y = dateObj.getFullYear();
-    const m = String(dateObj.getMonth() + 1).padStart(2, '0');
-    const d = String(dateObj.getDate()).padStart(2, '0');
+    const m = String(dateObj.getMonth() + 1).padStart(2, "0");
+    const d = String(dateObj.getDate()).padStart(2, "0");
     return `${y}-${m}-${d}`;
   };
-
   let defaultDateStr = getLocalDateStr(today);
-  let defaultShift = 'day';
-
-  if (currentHour < 15) { // Before 3 PM: Night shift of yesterday
-    defaultShift = 'night';
-    const yesterday = new Date();
+  let defaultShift = "day";
+  if (currentHour < 15) {
+    defaultShift = "night";
+    const yesterday = /* @__PURE__ */ new Date();
     yesterday.setDate(yesterday.getDate() - 1);
     defaultDateStr = getLocalDateStr(yesterday);
-  } else { // After 3 PM: Day shift of today
-    defaultShift = 'day';
+  } else {
+    defaultShift = "day";
   }
-
-  document.getElementById('recon-date').value = defaultDateStr;
-  document.getElementById('recon-shift').value = defaultShift;
-
+  document.getElementById("recon-date").value = defaultDateStr;
+  document.getElementById("recon-shift").value = defaultShift;
   window.reconExpensesList = [];
   window.ocrExtractedValues = null;
-
-  // Load authorized contacts filter from settings
-  const authInput = document.getElementById('recon-authorized-contacts');
+  const authInput = document.getElementById("recon-authorized-contacts");
   if (authInput) {
     authInput.value = db.settings.authorized_contacts || "Anil Operator, Ramesh Supervisor, +91 98765 43210";
   }
-
-  // Reset input mode to manual by default
-  switchReconInputMode('manual');
-
-  // Reset image preview & scan reports
-  document.getElementById('paper-verify-report').style.display = 'none';
-  document.getElementById('upload-preview-container').style.display = 'none';
-  document.getElementById('upload-prompt').style.display = 'block';
-  document.getElementById('paper-slip-file').value = '';
-
+  switchReconInputMode("manual");
+  document.getElementById("paper-verify-report").style.display = "none";
+  document.getElementById("upload-preview-container").style.display = "none";
+  document.getElementById("upload-prompt").style.display = "block";
+  document.getElementById("paper-slip-file").value = "";
   resetDenominations();
   onReconShiftChange();
 }
-
 function onReconShiftChange() {
-  const dateStr = document.getElementById('recon-date').value;
-  const shift = document.getElementById('recon-shift').value;
-
+  var _a, _b, _c, _d, _e, _f;
+  const dateStr = document.getElementById("recon-date").value;
+  const shift = document.getElementById("recon-shift").value;
   if (!dateStr) return;
-
-  // 1. Fetch opening readings
   const openReadings = getOpeningReadings(dateStr, shift);
-  document.getElementById('recon-du1-p-open').value = openReadings.du1_p.toFixed(2);
-  document.getElementById('recon-du2-p-open').value = openReadings.du2_p.toFixed(2);
-  document.getElementById('recon-du1-d-open').value = openReadings.du1_d.toFixed(2);
-  document.getElementById('recon-du2-d-open').value = openReadings.du2_d.toFixed(2);
-
-  // 2. Fetch previous PhonePe
+  document.getElementById("recon-du1-p-open").value = openReadings.du1_p.toFixed(2);
+  document.getElementById("recon-du2-p-open").value = openReadings.du2_p.toFixed(2);
+  document.getElementById("recon-du1-d-open").value = openReadings.du1_d.toFixed(2);
+  document.getElementById("recon-du2-d-open").value = openReadings.du2_d.toFixed(2);
   const prevPhonePe = getPreviousShiftPhonePe(dateStr, shift);
-  document.getElementById('recon-phonepe-prev').value = prevPhonePe.toFixed(2);
-
-  // 3. Fetch opening physical stock for visualizer
+  document.getElementById("recon-phonepe-prev").value = prevPhonePe.toFixed(2);
   const openStock = getShiftOpeningStock(dateStr, shift);
   window.reconOpenStock = openStock;
-
-  document.getElementById('recon-visual-val-p').textContent = Math.round(openStock.petrol) + " L";
-  document.getElementById('recon-visual-val-d').textContent = Math.round(openStock.diesel) + " L";
-
-  const capP = db.settings.petrol_capacity || 20000;
-  const capD = db.settings.diesel_capacity || 20000;
-  document.getElementById('recon-visual-liquid-p').style.height = Math.min(100, (openStock.petrol / capP) * 100) + "%";
-  document.getElementById('recon-visual-liquid-d').style.height = Math.min(100, (openStock.diesel / capD) * 100) + "%";
-
-  // 4. Prepopulate closing form if record already exists in database
-  const row = db.daily_ledger.find(r => r.date === dateStr);
+  document.getElementById("recon-visual-val-p").textContent = Math.round(openStock.petrol) + " L";
+  document.getElementById("recon-visual-val-d").textContent = Math.round(openStock.diesel) + " L";
+  const capP = db.settings.petrol_capacity || 2e4;
+  const capD = db.settings.diesel_capacity || 2e4;
+  document.getElementById("recon-visual-liquid-p").style.height = Math.min(100, openStock.petrol / capP * 100) + "%";
+  document.getElementById("recon-visual-liquid-d").style.height = Math.min(100, openStock.diesel / capD * 100) + "%";
+  const row = db.daily_ledger.find((r) => r.date === dateStr);
   if (row) {
-    if (shift === 'day') {
-      if (row.du1_p.close_day) document.getElementById('recon-du1-p-close').value = row.du1_p.close_day;
-      if (row.du2_p.close_day) document.getElementById('recon-du2-p-close').value = row.du2_p.close_day;
-      if (row.du1_d.close_day) document.getElementById('recon-du1-d-close').value = row.du1_d.close_day;
-      if (row.du2_d.close_day) document.getElementById('recon-du2-d-close').value = row.du2_d.close_day;
-
-      const t1p = (row.du1_p.close_day > row.du1_p.open) ? (row.du1_p.tests_day ?? 1) : 0;
-      const t2p = (row.du2_p.close_day > row.du2_p.open) ? (row.du2_p.tests_day ?? 1) : 0;
-      const t1d = (row.du1_d.close_day > row.du1_d.open) ? (row.du1_d.tests_day ?? 1) : 0;
-      const t2d = (row.du2_d.close_day > row.du2_d.open) ? (row.du2_d.tests_day ?? 1) : 0;
-
+    if (shift === "day") {
+      if (row.du1_p.close_day) document.getElementById("recon-du1-p-close").value = row.du1_p.close_day;
+      if (row.du2_p.close_day) document.getElementById("recon-du2-p-close").value = row.du2_p.close_day;
+      if (row.du1_d.close_day) document.getElementById("recon-du1-d-close").value = row.du1_d.close_day;
+      if (row.du2_d.close_day) document.getElementById("recon-du2-d-close").value = row.du2_d.close_day;
+      const t1p = row.du1_p.close_day > row.du1_p.open ? (_a = row.du1_p.tests_day) != null ? _a : 1 : 0;
+      const t2p = row.du2_p.close_day > row.du2_p.open ? (_b = row.du2_p.tests_day) != null ? _b : 1 : 0;
+      const t1d = row.du1_d.close_day > row.du1_d.open ? (_c = row.du1_d.tests_day) != null ? _c : 1 : 0;
+      const t2d = row.du2_d.close_day > row.du2_d.open ? (_d = row.du2_d.tests_day) != null ? _d : 1 : 0;
       const p_vol = (t1p + t2p) * 5;
       const d_vol = (t1d + t2d) * 5;
-      const p_rate = row.prices?.petrol || 0;
-      const d_rate = row.prices?.diesel || 0;
-
-      document.getElementById('recon-p-tests').value = p_vol > 0 ? `${p_vol} L (₹ ${(p_vol * p_rate).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })})` : "0 L";
-      document.getElementById('recon-d-tests').value = d_vol > 0 ? `${d_vol} L (₹ ${(d_vol * d_rate).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })})` : "0 L";
+      const p_rate = ((_e = row.prices) == null ? void 0 : _e.petrol) || 0;
+      const d_rate = ((_f = row.prices) == null ? void 0 : _f.diesel) || 0;
+      document.getElementById("recon-p-tests").value = p_vol > 0 ? `${p_vol} L (\u20B9 ${(p_vol * p_rate).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })})` : "0 L";
+      document.getElementById("recon-d-tests").value = d_vol > 0 ? `${d_vol} L (\u20B9 ${(d_vol * d_rate).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })})` : "0 L";
     } else {
-      if (row.du1_p.close_night) document.getElementById('recon-du1-p-close').value = row.du1_p.close_night;
-      if (row.du2_p.close_night) document.getElementById('recon-du2-p-close').value = row.du2_p.close_night;
-      if (row.du1_d.close_night) document.getElementById('recon-du1-d-close').value = row.du1_d.close_night;
-      if (row.du2_d.close_night) document.getElementById('recon-du2-d-close').value = row.du2_d.close_night;
-
-      document.getElementById('recon-p-tests').value = 0;
-      document.getElementById('recon-d-tests').value = 0;
+      if (row.du1_p.close_night) document.getElementById("recon-du1-p-close").value = row.du1_p.close_night;
+      if (row.du2_p.close_night) document.getElementById("recon-du2-p-close").value = row.du2_p.close_night;
+      if (row.du1_d.close_night) document.getElementById("recon-du1-d-close").value = row.du1_d.close_night;
+      if (row.du2_d.close_night) document.getElementById("recon-du2-d-close").value = row.du2_d.close_night;
+      document.getElementById("recon-p-tests").value = 0;
+      document.getElementById("recon-d-tests").value = 0;
     }
-
-    // Load recon details if present
     if (row.recon && row.recon[shift]) {
       const rData = row.recon[shift];
-      document.getElementById('recon-phonepe-curr').value = rData.phonepe_close || '';
+      document.getElementById("recon-phonepe-curr").value = rData.phonepe_close || "";
       window.reconExpensesList = rData.expenses ? JSON.parse(JSON.stringify(rData.expenses)) : [];
-
       resetDenominations();
       if (rData.denominations) {
-        const denoms = ['500', '200', '100', '50', '20', '10', '5', 'coins'];
-        denoms.forEach(d => {
+        const denoms = ["500", "200", "100", "50", "20", "10", "5", "coins"];
+        denoms.forEach((d) => {
           const val = rData.denominations[d] || 0;
-          document.getElementById('denom-' + d).value = val;
-          if (d === 'coins') {
-            document.getElementById('denom-val-coins').textContent = val.toFixed(2);
+          document.getElementById("denom-" + d).value = val;
+          if (d === "coins") {
+            document.getElementById("denom-val-coins").textContent = val.toFixed(2);
           } else {
-            document.getElementById('denom-val-' + d).textContent = (val * parseInt(d)).toFixed(2);
+            document.getElementById("denom-val-" + d).textContent = (val * parseInt(d)).toFixed(2);
           }
         });
-        document.getElementById('recon-cash-total-label').textContent = formatCurrency(rData.cash_counted);
+        document.getElementById("recon-cash-total-label").textContent = formatCurrency(rData.cash_counted);
       } else if (rData.cash_counted) {
-        document.getElementById('denom-coins').value = rData.cash_counted;
-        document.getElementById('denom-val-coins').textContent = rData.cash_counted.toFixed(2);
-        document.getElementById('recon-cash-total-label').textContent = formatCurrency(rData.cash_counted);
+        document.getElementById("denom-coins").value = rData.cash_counted;
+        document.getElementById("denom-val-coins").textContent = rData.cash_counted.toFixed(2);
+        document.getElementById("recon-cash-total-label").textContent = formatCurrency(rData.cash_counted);
       }
     } else {
       clearShiftFieldsOnly();
@@ -1022,48 +872,39 @@ function onReconShiftChange() {
   } else {
     clearShiftFieldsOnly();
   }
-
   renderExpensesList();
   calculateLiveSales();
-
-  // Update template on local bridge
   updateBridgeTemplate();
-
-  // Refresh sync messages if sync panel is visible
-  const syncSection = document.getElementById('recon-section-sync');
-  if (syncSection && syncSection.style.display !== 'none') {
+  const syncSection = document.getElementById("recon-section-sync");
+  if (syncSection && syncSection.style.display !== "none") {
     renderSyncMessages();
   }
 }
-
 function clearShiftFieldsOnly() {
-  document.getElementById('recon-du1-p-close').value = '';
-  document.getElementById('recon-du2-p-close').value = '';
-  document.getElementById('recon-du1-d-close').value = '';
-  document.getElementById('recon-du2-d-close').value = '';
-  document.getElementById('recon-p-tests').value = '0';
-  document.getElementById('recon-d-tests').value = '0';
-  document.getElementById('recon-phonepe-curr').value = '';
+  document.getElementById("recon-du1-p-close").value = "";
+  document.getElementById("recon-du2-p-close").value = "";
+  document.getElementById("recon-du1-d-close").value = "";
+  document.getElementById("recon-du2-d-close").value = "";
+  document.getElementById("recon-p-tests").value = "0";
+  document.getElementById("recon-d-tests").value = "0";
+  document.getElementById("recon-phonepe-curr").value = "";
   window.reconExpensesList = [];
   renderExpensesList();
   resetDenominations();
 }
-
 function resetDenominations() {
-  const denoms = ['500', '200', '100', '50', '20', '10', '5', 'coins'];
-  denoms.forEach(d => {
-    document.getElementById('denom-' + d).value = '0';
-    document.getElementById('denom-val-' + d).textContent = '0';
+  const denoms = ["500", "200", "100", "50", "20", "10", "5", "coins"];
+  denoms.forEach((d) => {
+    document.getElementById("denom-" + d).value = "0";
+    document.getElementById("denom-val-" + d).textContent = "0";
   });
-  document.getElementById('recon-cash-total-label').textContent = '₹ 0.00';
+  document.getElementById("recon-cash-total-label").textContent = "\u20B9 0.00";
 }
-
 function getOpeningReadings(dateStr, shift) {
   const sorted = [...db.daily_ledger].sort((a, b) => b.date.localeCompare(a.date));
-
-  if (shift === 'day') {
-    const row = db.daily_ledger.find(r => r.date === dateStr);
-    if (row && row.du1_p && row.du1_p.open !== undefined) {
+  if (shift === "day") {
+    const row = db.daily_ledger.find((r) => r.date === dateStr);
+    if (row && row.du1_p && row.du1_p.open !== void 0) {
       return {
         du1_p: row.du1_p.open,
         du1_d: row.du1_d.open,
@@ -1071,18 +912,18 @@ function getOpeningReadings(dateStr, shift) {
         du2_d: row.du2_d.open
       };
     }
-    const prev = sorted.find(r => r.date < dateStr);
+    const prev = sorted.find((r) => r.date < dateStr);
     if (prev) {
       return {
-        du1_p: prev.du1_p.close_night !== undefined ? prev.du1_p.close_night : (prev.du1_p.close_day || prev.du1_p.open),
-        du1_d: prev.du1_d.close_night !== undefined ? prev.du1_d.close_night : (prev.du1_d.close_day || prev.du1_d.open),
-        du2_p: prev.du2_p.close_night !== undefined ? prev.du2_p.close_night : (prev.du2_p.close_day || prev.du2_p.open),
-        du2_d: prev.du2_d.close_night !== undefined ? prev.du2_d.close_night : (prev.du2_d.close_day || prev.du2_d.open)
+        du1_p: prev.du1_p.close_night !== void 0 ? prev.du1_p.close_night : prev.du1_p.close_day || prev.du1_p.open,
+        du1_d: prev.du1_d.close_night !== void 0 ? prev.du1_d.close_night : prev.du1_d.close_day || prev.du1_d.open,
+        du2_p: prev.du2_p.close_night !== void 0 ? prev.du2_p.close_night : prev.du2_p.close_day || prev.du2_p.open,
+        du2_d: prev.du2_d.close_night !== void 0 ? prev.du2_d.close_night : prev.du2_d.close_day || prev.du2_d.open
       };
     }
   } else {
-    const row = db.daily_ledger.find(r => r.date === dateStr);
-    if (row && row.du1_p && row.du1_p.close_day !== undefined) {
+    const row = db.daily_ledger.find((r) => r.date === dateStr);
+    if (row && row.du1_p && row.du1_p.close_day !== void 0) {
       return {
         du1_p: row.du1_p.close_day,
         du1_d: row.du1_d.close_day,
@@ -1090,7 +931,7 @@ function getOpeningReadings(dateStr, shift) {
         du2_d: row.du2_d.close_day
       };
     }
-    if (row && row.du1_p && row.du1_p.open !== undefined) {
+    if (row && row.du1_p && row.du1_p.open !== void 0) {
       return {
         du1_p: row.du1_p.open,
         du1_d: row.du1_d.open,
@@ -1098,7 +939,7 @@ function getOpeningReadings(dateStr, shift) {
         du2_d: row.du2_d.open
       };
     }
-    const prev = sorted.find(r => r.date < dateStr);
+    const prev = sorted.find((r) => r.date < dateStr);
     if (prev) {
       return {
         du1_p: prev.du1_p.close_night || prev.du1_p.close_day || prev.du1_p.open,
@@ -1108,7 +949,6 @@ function getOpeningReadings(dateStr, shift) {
       };
     }
   }
-
   if (sorted.length > 0) {
     const earliest = sorted[sorted.length - 1];
     return {
@@ -1120,45 +960,42 @@ function getOpeningReadings(dateStr, shift) {
   }
   return { du1_p: 15400, du1_d: 22100, du2_p: 18200, du2_d: 19050 };
 }
-
 function getPreviousShiftPhonePe(dateStr, shift) {
-  if (shift === 'day') {
+  if (shift === "day") {
     const prevDate = addDays(dateStr, -1);
-    const prevRow = db.daily_ledger.find(r => r.date === prevDate);
-    if (prevRow && prevRow.recon && prevRow.recon.night && prevRow.recon.night.phonepe_close !== undefined) {
+    const prevRow = db.daily_ledger.find((r) => r.date === prevDate);
+    if (prevRow && prevRow.recon && prevRow.recon.night && prevRow.recon.night.phonepe_close !== void 0) {
       return prevRow.recon.night.phonepe_close;
     }
   } else {
-    const row = db.daily_ledger.find(r => r.date === dateStr);
-    if (row && row.recon && row.recon.day && row.recon.day.phonepe_close !== undefined) {
+    const row = db.daily_ledger.find((r) => r.date === dateStr);
+    if (row && row.recon && row.recon.day && row.recon.day.phonepe_close !== void 0) {
       return row.recon.day.phonepe_close;
     }
   }
-
   const sorted = [...db.daily_ledger].sort((a, b) => b.date.localeCompare(a.date));
   for (const r of sorted) {
     if (r.recon) {
-      if (r.date === dateStr && shift === 'night') {
-        if (r.recon.day && r.recon.day.phonepe_close !== undefined) return r.recon.day.phonepe_close;
+      if (r.date === dateStr && shift === "night") {
+        if (r.recon.day && r.recon.day.phonepe_close !== void 0) return r.recon.day.phonepe_close;
       }
       if (r.date < dateStr) {
-        if (r.recon.night && r.recon.night.phonepe_close !== undefined) return r.recon.night.phonepe_close;
-        if (r.recon.day && r.recon.day.phonepe_close !== undefined) return r.recon.day.phonepe_close;
+        if (r.recon.night && r.recon.night.phonepe_close !== void 0) return r.recon.night.phonepe_close;
+        if (r.recon.day && r.recon.day.phonepe_close !== void 0) return r.recon.day.phonepe_close;
       }
     }
   }
-  return 100000; // default initial total
+  return 1e5;
 }
-
 function getShiftOpeningStock(dateStr, shift) {
   const hist = getStockHistoryFor(dateStr);
-  if (shift === 'day') {
+  if (shift === "day") {
     return {
       petrol: hist.petStart,
       diesel: hist.dieStart
     };
   } else {
-    const row = db.daily_ledger.find(r => r.date === dateStr);
+    const row = db.daily_ledger.find((r) => r.date === dateStr);
     let daySalesP = 0;
     let daySalesD = 0;
     if (row) {
@@ -1166,97 +1003,70 @@ function getShiftOpeningStock(dateStr, shift) {
       daySalesP = calc.totals.day.petrol;
       daySalesD = calc.totals.day.diesel;
     }
-    const dayPurchases = db.purchases.filter(p => p.date.split('T')[0] === dateStr);
+    const dayPurchases = db.purchases.filter((p) => p.date.split("T")[0] === dateStr);
     const purchasedP = dayPurchases.reduce((sum, p) => sum + (p.petrol_liters || 0), 0);
     const purchasedD = dayPurchases.reduce((sum, p) => sum + (p.diesel_liters || 0), 0);
-
     return {
       petrol: hist.petStart + purchasedP - daySalesP,
       diesel: hist.dieStart + purchasedD - daySalesD
     };
   }
 }
-
 function calculateLiveSales() {
-  const du1_p_open = parseFloat(document.getElementById('recon-du1-p-open').value) || 0;
-  const du1_p_close = parseFloat(document.getElementById('recon-du1-p-close').value) || 0;
-  const du2_p_open = parseFloat(document.getElementById('recon-du2-p-open').value) || 0;
-  const du2_p_close = parseFloat(document.getElementById('recon-du2-p-close').value) || 0;
-
-  const du1_d_open = parseFloat(document.getElementById('recon-du1-d-open').value) || 0;
-  const du1_d_close = parseFloat(document.getElementById('recon-du1-d-close').value) || 0;
-  const du2_d_open = parseFloat(document.getElementById('recon-du2-d-open').value) || 0;
-  const du2_d_close = parseFloat(document.getElementById('recon-du2-d-close').value) || 0;
-
-  const shift = document.getElementById('recon-shift').value;
+  const du1_p_open = parseFloat(document.getElementById("recon-du1-p-open").value) || 0;
+  const du1_p_close = parseFloat(document.getElementById("recon-du1-p-close").value) || 0;
+  const du2_p_open = parseFloat(document.getElementById("recon-du2-p-open").value) || 0;
+  const du2_p_close = parseFloat(document.getElementById("recon-du2-p-close").value) || 0;
+  const du1_d_open = parseFloat(document.getElementById("recon-du1-d-open").value) || 0;
+  const du1_d_close = parseFloat(document.getElementById("recon-du1-d-close").value) || 0;
+  const du2_d_open = parseFloat(document.getElementById("recon-du2-d-open").value) || 0;
+  const du2_d_close = parseFloat(document.getElementById("recon-du2-d-close").value) || 0;
+  const shift = document.getElementById("recon-shift").value;
   let p_tests = 0;
   let d_tests = 0;
-
-  if (shift === 'day') {
+  if (shift === "day") {
     p_tests = ((du1_p_close > du1_p_open ? 1 : 0) + (du2_p_close > du2_p_open ? 1 : 0)) * 5;
     d_tests = ((du1_d_close > du1_d_open ? 1 : 0) + (du2_d_close > du2_d_open ? 1 : 0)) * 5;
   }
-
-  // Defer setting test input values until prices are resolved below
-
-  // Volume Calculations
   const du1_p_sales = du1_p_close > 0 ? Math.max(0, du1_p_close - du1_p_open) : 0;
   const du2_p_sales = du2_p_close > 0 ? Math.max(0, du2_p_close - du2_p_open) : 0;
   const du1_d_sales = du1_d_close > 0 ? Math.max(0, du1_d_close - du1_d_open) : 0;
   const du2_d_sales = du2_d_close > 0 ? Math.max(0, du2_d_close - du2_d_open) : 0;
-
-  // Deduct test liters per nozzle first (to match the core math engine in computeLedgerRow)
-  const du1_p_test_l = (shift === 'day' && du1_p_close > du1_p_open) ? 5 : 0;
-  const du2_p_test_l = (shift === 'day' && du2_p_close > du2_p_open) ? 5 : 0;
-  const du1_d_test_l = (shift === 'day' && du1_d_close > du1_d_open) ? 5 : 0;
-  const du2_d_test_l = (shift === 'day' && du2_d_close > du2_d_open) ? 5 : 0;
-
+  const du1_p_test_l = shift === "day" && du1_p_close > du1_p_open ? 5 : 0;
+  const du2_p_test_l = shift === "day" && du2_p_close > du2_p_open ? 5 : 0;
+  const du1_d_test_l = shift === "day" && du1_d_close > du1_d_open ? 5 : 0;
+  const du2_d_test_l = shift === "day" && du2_d_close > du2_d_open ? 5 : 0;
   const petrol_net = Math.max(0, du1_p_sales - du1_p_test_l) + Math.max(0, du2_p_sales - du2_p_test_l);
   const diesel_net = Math.max(0, du1_d_sales - du1_d_test_l) + Math.max(0, du2_d_sales - du2_d_test_l);
-
   const total_liters = petrol_net + diesel_net;
-
-  const dateStr = document.getElementById('recon-date').value;
+  const dateStr = document.getElementById("recon-date").value;
   const prices = getPricesAt(dateStr);
-
   const p_rate = prices.petrol || 0;
   const d_rate = prices.diesel || 0;
-  document.getElementById('recon-p-tests').value = p_tests > 0 ? `${p_tests} L (₹ ${(p_tests * p_rate).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })})` : "0 L";
-  document.getElementById('recon-d-tests').value = d_tests > 0 ? `${d_tests} L (₹ ${(d_tests * d_rate).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })})` : "0 L";
-
+  document.getElementById("recon-p-tests").value = p_tests > 0 ? `${p_tests} L (\u20B9 ${(p_tests * p_rate).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })})` : "0 L";
+  document.getElementById("recon-d-tests").value = d_tests > 0 ? `${d_tests} L (\u20B9 ${(d_tests * d_rate).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })})` : "0 L";
   const petrol_rev = petrol_net * prices.petrol;
   const diesel_rev = diesel_net * prices.diesel;
   const total_revenue = petrol_rev + diesel_rev;
-
-  // PhonePe Calculations
-  const prev_pe = parseFloat(document.getElementById('recon-phonepe-prev').value) || 0;
-  const curr_pe = parseFloat(document.getElementById('recon-phonepe-curr').value) || 0;
+  const prev_pe = parseFloat(document.getElementById("recon-phonepe-prev").value) || 0;
+  const curr_pe = parseFloat(document.getElementById("recon-phonepe-curr").value) || 0;
   const net_pe = curr_pe > 0 ? Math.max(0, curr_pe - prev_pe) : 0;
-
-  document.getElementById('recon-phonepe-net-label').textContent = formatCurrency(net_pe);
-
-  // Expenses calculations
+  document.getElementById("recon-phonepe-net-label").textContent = formatCurrency(net_pe);
   const total_expenses = window.reconExpensesList.reduce((sum, exp) => sum + exp.amount, 0);
-  document.getElementById('recon-expenses-total-label').textContent = formatCurrency(total_expenses);
-
-  // Reconciliation Summary Board calculations
+  document.getElementById("recon-expenses-total-label").textContent = formatCurrency(total_expenses);
   const expected_cash = Math.max(0, total_revenue - net_pe);
   const counted_cash = calculateDenominationsValue();
   const actual_cash_accounted = counted_cash + total_expenses;
   const variance = actual_cash_accounted - expected_cash;
-
-  document.getElementById('board-liters-sold').textContent = total_liters.toFixed(2) + " L";
-  document.getElementById('board-liters-split').textContent = `P: ${petrol_net.toFixed(2)} L | D: ${diesel_net.toFixed(2)} L`;
-  document.getElementById('board-revenue').textContent = formatCurrency(total_revenue);
-  document.getElementById('board-expected-cash').textContent = formatCurrency(expected_cash);
-  document.getElementById('board-cash-accounted').textContent = formatCurrency(actual_cash_accounted);
-
-  const varEl = document.getElementById('board-variance');
-  const statusEl = document.getElementById('board-variance-status');
-  const cardEl = document.getElementById('board-variance-card');
-
+  document.getElementById("board-liters-sold").textContent = total_liters.toFixed(2) + " L";
+  document.getElementById("board-liters-split").textContent = `P: ${petrol_net.toFixed(2)} L | D: ${diesel_net.toFixed(2)} L`;
+  document.getElementById("board-revenue").textContent = formatCurrency(total_revenue);
+  document.getElementById("board-expected-cash").textContent = formatCurrency(expected_cash);
+  document.getElementById("board-cash-accounted").textContent = formatCurrency(actual_cash_accounted);
+  const varEl = document.getElementById("board-variance");
+  const statusEl = document.getElementById("board-variance-status");
+  const cardEl = document.getElementById("board-variance-card");
   varEl.textContent = formatCurrency(variance);
-
   if (Math.abs(variance) < 0.01) {
     statusEl.textContent = "MATCHED";
     statusEl.style.background = "rgba(34, 197, 94, 0.15)";
@@ -1273,117 +1083,97 @@ function calculateLiveSales() {
     statusEl.style.color = "rgb(248, 113, 113)";
     cardEl.style.borderColor = "rgba(239, 68, 68, 0.4)";
   }
-
-  // 5. Update physical remaining tank volumes
   if (window.reconOpenStock) {
     const currentStockP = Math.max(0, window.reconOpenStock.petrol - petrol_net);
     const currentStockD = Math.max(0, window.reconOpenStock.diesel - diesel_net);
-
-    document.getElementById('recon-visual-val-p').textContent = Math.round(currentStockP) + " L";
-    document.getElementById('recon-visual-val-d').textContent = Math.round(currentStockD) + " L";
-
-    const capP = db.settings.petrol_capacity || 20000;
-    const capD = db.settings.diesel_capacity || 20000;
-    document.getElementById('recon-visual-liquid-p').style.height = Math.min(100, (currentStockP / capP) * 100) + "%";
-    document.getElementById('recon-visual-liquid-d').style.height = Math.min(100, (currentStockD / capD) * 100) + "%";
+    document.getElementById("recon-visual-val-p").textContent = Math.round(currentStockP) + " L";
+    document.getElementById("recon-visual-val-d").textContent = Math.round(currentStockD) + " L";
+    const capP = db.settings.petrol_capacity || 2e4;
+    const capD = db.settings.diesel_capacity || 2e4;
+    document.getElementById("recon-visual-liquid-p").style.height = Math.min(100, currentStockP / capP * 100) + "%";
+    document.getElementById("recon-visual-liquid-d").style.height = Math.min(100, currentStockD / capD * 100) + "%";
   }
-
-  // 6. Update Paper Verification table if slip was uploaded
   if (window.ocrExtractedValues) {
-    const compContainer = document.getElementById('ocr-comparison-rows');
-    const btnApply = document.getElementById('btn-apply-ocr');
-
+    const compContainer = document.getElementById("ocr-comparison-rows");
+    const btnApply = document.getElementById("btn-apply-ocr");
     const list = [
-      { label: 'DU1 MS Close (P)', form: du1_p_close, ocr: window.ocrExtractedValues.du1_p_close },
-      { label: 'DU2 MS Close (P)', form: du2_p_close, ocr: window.ocrExtractedValues.du2_p_close },
-      { label: 'DU1 HSD Close (D)', form: du1_d_close, ocr: window.ocrExtractedValues.du1_d_close },
-      { label: 'DU2 HSD Close (D)', form: du2_d_close, ocr: window.ocrExtractedValues.du2_d_close }
+      { label: "DU1 MS Close (P)", form: du1_p_close, ocr: window.ocrExtractedValues.du1_p_close },
+      { label: "DU2 MS Close (P)", form: du2_p_close, ocr: window.ocrExtractedValues.du2_p_close },
+      { label: "DU1 HSD Close (D)", form: du1_d_close, ocr: window.ocrExtractedValues.du1_d_close },
+      { label: "DU2 HSD Close (D)", form: du2_d_close, ocr: window.ocrExtractedValues.du2_d_close }
     ];
-
-    let html = '';
+    let html = "";
     let anyMismatch = false;
-
-    list.forEach(item => {
+    list.forEach((item) => {
       const match = Math.abs(item.form - item.ocr) < 0.01;
-      const badge = match
-        ? `<span class="ocr-match-badge">✓ Match</span>`
-        : `<span class="ocr-mismatch-badge">✗ Mismatch (Paper: ${item.ocr.toFixed(2)})</span>`;
-
+      const badge = match ? `<span class="ocr-match-badge">\u2713 Match</span>` : `<span class="ocr-mismatch-badge">\u2717 Mismatch (Paper: ${item.ocr.toFixed(2)})</span>`;
       if (!match) anyMismatch = true;
-
       html += `
         <div class="ocr-row-item">
           <span style="color:var(--text-dim);">${item.label}</span>
           <div style="display:flex; align-items:center; gap:0.5rem;">
-            <span style="font-weight:600; color:#fff;">${item.form > 0 ? item.form.toFixed(2) : '-'}</span>
+            <span style="font-weight:600; color:#fff;">${item.form > 0 ? item.form.toFixed(2) : "-"}</span>
             ${badge}
           </div>
         </div>
       `;
     });
-
     compContainer.innerHTML = html;
-    btnApply.style.display = anyMismatch ? 'block' : 'none';
+    btnApply.style.display = anyMismatch ? "block" : "none";
   }
 }
-
 function calculateDenominationsValue() {
   const denoms = [
-    { key: '500', val: 500 },
-    { key: '200', val: 200 },
-    { key: '100', val: 100 },
-    { key: '50', val: 50 },
-    { key: '20', val: 20 },
-    { key: '10', val: 10 },
-    { key: '5', val: 5 }
+    { key: "500", val: 500 },
+    { key: "200", val: 200 },
+    { key: "100", val: 100 },
+    { key: "50", val: 50 },
+    { key: "20", val: 20 },
+    { key: "10", val: 10 },
+    { key: "5", val: 5 }
   ];
   let sum = 0;
-  denoms.forEach(d => {
-    const count = parseInt(document.getElementById('denom-' + d.key).value) || 0;
+  denoms.forEach((d) => {
+    const count = parseInt(document.getElementById("denom-" + d.key).value) || 0;
     const itemVal = count * d.val;
-    document.getElementById('denom-val-' + d.key).textContent = itemVal;
+    document.getElementById("denom-val-" + d.key).textContent = itemVal;
     sum += itemVal;
   });
-  const coins = parseFloat(document.getElementById('denom-coins').value) || 0;
-  document.getElementById('denom-val-coins').textContent = coins.toFixed(2);
+  const coins = parseFloat(document.getElementById("denom-coins").value) || 0;
+  document.getElementById("denom-val-coins").textContent = coins.toFixed(2);
   sum += coins;
   return sum;
 }
-
 function calculateDenominations() {
   const total = calculateDenominationsValue();
-  document.getElementById('recon-cash-total-label').textContent = formatCurrency(total);
+  document.getElementById("recon-cash-total-label").textContent = formatCurrency(total);
   calculateLiveSales();
 }
-
 function renderExpensesList() {
-  const container = document.getElementById('expenses-container');
-  container.innerHTML = '';
-
+  const container = document.getElementById("expenses-container");
+  container.innerHTML = "";
   if (window.reconExpensesList.length === 0) {
     container.innerHTML = `<div style="font-size:0.75rem; color:var(--text-dim); text-align:center; padding: 0.5rem; width:100%;">No expenses recorded.</div>`;
     return;
   }
-
   window.reconExpensesList.forEach((exp, idx) => {
-    const row = document.createElement('div');
-    row.className = 'ocr-row-item';
+    const row = document.createElement("div");
+    row.className = "ocr-row-item";
     row.innerHTML = `
       <span style="color:#fff;" class="recon-expense-desc"></span>
       <div style="display:flex; align-items:center; gap:0.5rem;">
-        <strong style="color:var(--danger);">₹ ${exp.amount.toFixed(2)}</strong>
-        <button class="btn btn-secondary btn-sm" onclick="removeExpenseRow(${idx})" style="padding:0.05rem 0.25rem; font-size:0.65rem; border-radius:3px; line-height:1; background:rgba(255,255,255,0.05);">×</button>
+        <strong style="color:var(--danger);">\u20B9 ${exp.amount.toFixed(2)}</strong>
+        <button class="btn btn-secondary btn-sm" onclick="removeExpenseRow(${idx})" style="padding:0.05rem 0.25rem; font-size:0.65rem; border-radius:3px; line-height:1; background:rgba(255,255,255,0.05);">\xD7</button>
       </div>
     `;
-    row.querySelector('.recon-expense-desc').textContent = exp.description;
+    row.querySelector(".recon-expense-desc").textContent = exp.description;
     container.appendChild(row);
   });
 }
-
 function addExpenseRow() {
   const desc = prompt("Enter expense description (e.g. Tea, Stationery):");
   if (!desc) return;
-  const amountStr = prompt("Enter expense amount (₹):");
+  const amountStr = prompt("Enter expense amount (\u20B9):");
   const amount = parseFloat(amountStr);
   if (isNaN(amount) || amount <= 0) {
     alert("Please enter a valid positive amount.");
@@ -1393,103 +1183,76 @@ function addExpenseRow() {
   renderExpensesList();
   calculateLiveSales();
 }
-
 function removeExpenseRow(index) {
   window.reconExpensesList.splice(index, 1);
   renderExpensesList();
   calculateLiveSales();
 }
-
 function animateNumber(elementId, startVal, endVal, suffix = "") {
-  const duration = 2000; // 2 seconds
+  const duration = 2e3;
   const startTime = performance.now();
-
   function update(currentTime) {
     const elapsed = currentTime - startTime;
     const progress = Math.min(elapsed / duration, 1);
-
-    // Ease out quad
     const easeProgress = progress * (2 - progress);
     const currentVal = Math.round(startVal + (endVal - startVal) * easeProgress);
-
     document.getElementById(elementId).textContent = currentVal + suffix;
-
     if (progress < 1) {
       requestAnimationFrame(update);
     }
   }
-
   requestAnimationFrame(update);
 }
-
 function triggerTestFuelAnimation(fuelType) {
-  const isP = fuelType === 'petrol';
-  const inputEl = document.getElementById(isP ? 'recon-p-tests' : 'recon-d-tests');
+  const isP = fuelType === "petrol";
+  const inputEl = document.getElementById(isP ? "recon-p-tests" : "recon-d-tests");
   const val = parseFloat(inputEl.value) || 0;
-
   calculateLiveSales();
-
   if (val <= 0) return;
-
   if (window.testFuelTimers[fuelType]) {
     clearTimeout(window.testFuelTimers[fuelType]);
   }
-
-  const stream = document.getElementById(isP ? 'recon-visual-stream-p' : 'recon-visual-stream-d');
-  const liquid = document.getElementById(isP ? 'recon-visual-liquid-p' : 'recon-visual-liquid-d');
-  const badge = document.getElementById(isP ? 'recon-visual-badge-p' : 'recon-visual-badge-d');
-
-  const color = isP ? 'var(--color-petrol)' : 'var(--color-diesel)';
-
-  const du1_close = parseFloat(document.getElementById(isP ? 'recon-du1-p-close' : 'recon-du1-d-close').value) || 0;
-  const du1_open = parseFloat(document.getElementById(isP ? 'recon-du1-p-open' : 'recon-du1-d-open').value) || 0;
-  const du2_close = parseFloat(document.getElementById(isP ? 'recon-du2-p-close' : 'recon-du2-d-close').value) || 0;
-  const du2_open = parseFloat(document.getElementById(isP ? 'recon-du2-p-open' : 'recon-du2-d-open').value) || 0;
-
+  const stream = document.getElementById(isP ? "recon-visual-stream-p" : "recon-visual-stream-d");
+  const liquid = document.getElementById(isP ? "recon-visual-liquid-p" : "recon-visual-liquid-d");
+  const badge = document.getElementById(isP ? "recon-visual-badge-p" : "recon-visual-badge-d");
+  const color = isP ? "var(--color-petrol)" : "var(--color-diesel)";
+  const du1_close = parseFloat(document.getElementById(isP ? "recon-du1-p-close" : "recon-du1-d-close").value) || 0;
+  const du1_open = parseFloat(document.getElementById(isP ? "recon-du1-p-open" : "recon-du1-d-open").value) || 0;
+  const du2_close = parseFloat(document.getElementById(isP ? "recon-du2-p-close" : "recon-du2-d-close").value) || 0;
+  const du2_open = parseFloat(document.getElementById(isP ? "recon-du2-p-open" : "recon-du2-d-open").value) || 0;
   const du1_sales = du1_close > 0 ? Math.max(0, du1_close - du1_open) : 0;
   const du2_sales = du2_close > 0 ? Math.max(0, du2_close - du2_open) : 0;
   const gross = du1_sales + du2_sales;
-
-  const openStock = window.reconOpenStock ? (isP ? window.reconOpenStock.petrol : window.reconOpenStock.diesel) : 5000;
-
+  const openStock = window.reconOpenStock ? isP ? window.reconOpenStock.petrol : window.reconOpenStock.diesel : 5e3;
   const startStock = Math.max(0, openStock - gross);
   const endStock = startStock + val;
-
-  stream.style.display = 'block';
+  stream.style.display = "block";
   stream.style.color = color;
-  liquid.classList.add('glowing-stock-recirc');
+  liquid.classList.add("glowing-stock-recirc");
   liquid.style.color = color;
-
   badge.textContent = `+${val} L`;
-  badge.style.display = 'inline-block';
-  badge.className = 'badge badge-success float-badge-active';
-
-  animateNumber(isP ? 'recon-visual-val-p' : 'recon-visual-val-d', startStock, endStock, " L");
-
-  const cap = isP ? (db.settings.petrol_capacity || 20000) : (db.settings.diesel_capacity || 20000);
-  liquid.style.height = Math.min(100, (endStock / cap) * 100) + "%";
-
+  badge.style.display = "inline-block";
+  badge.className = "badge badge-success float-badge-active";
+  animateNumber(isP ? "recon-visual-val-p" : "recon-visual-val-d", startStock, endStock, " L");
+  const cap = isP ? db.settings.petrol_capacity || 2e4 : db.settings.diesel_capacity || 2e4;
+  liquid.style.height = Math.min(100, endStock / cap * 100) + "%";
   window.testFuelTimers[fuelType] = setTimeout(() => {
-    stream.style.display = 'none';
-    liquid.classList.remove('glowing-stock-recirc');
-    badge.style.display = 'none';
-    badge.className = 'badge badge-success';
+    stream.style.display = "none";
+    liquid.classList.remove("glowing-stock-recirc");
+    badge.style.display = "none";
+    badge.className = "badge badge-success";
   }, 2500);
 }
-
 function copyWhatsAppTemplate() {
-  const dateStr = document.getElementById('recon-date').value;
-  const shift = document.getElementById('recon-shift').value;
-
-  const d1_p_open = parseFloat(document.getElementById('recon-du1-p-open').value) || 0;
-  const d2_p_open = parseFloat(document.getElementById('recon-du2-p-open').value) || 0;
-  const d1_d_open = parseFloat(document.getElementById('recon-du1-d-open').value) || 0;
-  const d2_d_open = parseFloat(document.getElementById('recon-du2-d-open').value) || 0;
-
-  const pts = dateStr.split('-');
+  const dateStr = document.getElementById("recon-date").value;
+  const shift = document.getElementById("recon-shift").value;
+  const d1_p_open = parseFloat(document.getElementById("recon-du1-p-open").value) || 0;
+  const d2_p_open = parseFloat(document.getElementById("recon-du2-p-open").value) || 0;
+  const d1_d_open = parseFloat(document.getElementById("recon-du1-d-open").value) || 0;
+  const d2_d_open = parseFloat(document.getElementById("recon-du2-d-open").value) || 0;
+  const pts = dateStr.split("-");
   const formattedDate = pts.length === 3 ? `${pts[2]}-${pts[1]}-${pts[0]}` : dateStr;
-  const shiftLabel = shift === 'day' ? 'Day Shift (8 AM - 8 PM)' : 'Night Shift (8 PM - 8 AM)';
-
+  const shiftLabel = shift === "day" ? "Day Shift (8 AM - 8 PM)" : "Night Shift (8 PM - 8 AM)";
   const text = `*OctaneFlow Shift Report*
 Date: ${formattedDate}
 Shift: ${shiftLabel}
@@ -1502,29 +1265,24 @@ Test Diesel (Liters): 0
 PhonePe Current: [Enter PhonePe Total]
 Expenses:
 - [Item Name]: [Amount]`;
-
   navigator.clipboard.writeText(text).then(() => {
     showNotification("WhatsApp template copied to clipboard! Share with your staff.", "success");
-  }).catch(err => {
+  }).catch((err) => {
     console.error("Failed to copy template: ", err);
     alert("Copy template text manually:\n\n" + text);
   });
 }
-
 function updateBridgeTemplate() {
-  const dateStr = document.getElementById('recon-date').value;
-  const shift = document.getElementById('recon-shift').value;
+  const dateStr = document.getElementById("recon-date").value;
+  const shift = document.getElementById("recon-shift").value;
   if (!dateStr || !shift) return;
-
-  const d1_p_open = parseFloat(document.getElementById('recon-du1-p-open').value) || 0;
-  const d2_p_open = parseFloat(document.getElementById('recon-du2-p-open').value) || 0;
-  const d1_d_open = parseFloat(document.getElementById('recon-du1-d-open').value) || 0;
-  const d2_d_open = parseFloat(document.getElementById('recon-du2-d-open').value) || 0;
-
-  const pts = dateStr.split('-');
+  const d1_p_open = parseFloat(document.getElementById("recon-du1-p-open").value) || 0;
+  const d2_p_open = parseFloat(document.getElementById("recon-du2-p-open").value) || 0;
+  const d1_d_open = parseFloat(document.getElementById("recon-du1-d-open").value) || 0;
+  const d2_d_open = parseFloat(document.getElementById("recon-du2-d-open").value) || 0;
+  const pts = dateStr.split("-");
   const formattedDate = pts.length === 3 ? `${pts[2]}-${pts[1]}-${pts[0]}` : dateStr;
-  const shiftLabel = shift === 'day' ? 'Day Shift (8 AM - 8 PM)' : 'Night Shift (8 PM - 8 AM)';
-
+  const shiftLabel = shift === "day" ? "Day Shift (8 AM - 8 PM)" : "Night Shift (8 PM - 8 AM)";
   const text = `*OctaneFlow Shift Report*
 Date: ${formattedDate}
 Shift: ${shiftLabel}
@@ -1537,31 +1295,26 @@ Test Diesel (Liters): 0
 PhonePe Current: [Enter PhonePe Total]
 Expenses:
 - [Item Name]: [Amount]`;
-
-  fetch('https://localhost:8000/whatsapp-template', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+  fetch("https://localhost:8000/whatsapp-template", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ template: text })
-  }).then(res => {
+  }).then((res) => {
     if (res.ok) console.log("Successfully pushed template to bridge.");
-  }).catch(err => {
+  }).catch((err) => {
     console.error("Failed to push template to bridge:", err);
   });
 }
-
 function sendWhatsAppTemplate() {
-  const dateStr = document.getElementById('recon-date').value;
-  const shift = document.getElementById('recon-shift').value;
-
-  const d1_p_open = parseFloat(document.getElementById('recon-du1-p-open').value) || 0;
-  const d2_p_open = parseFloat(document.getElementById('recon-du2-p-open').value) || 0;
-  const d1_d_open = parseFloat(document.getElementById('recon-du1-d-open').value) || 0;
-  const d2_d_open = parseFloat(document.getElementById('recon-du2-d-open').value) || 0;
-
-  const pts = dateStr.split('-');
+  const dateStr = document.getElementById("recon-date").value;
+  const shift = document.getElementById("recon-shift").value;
+  const d1_p_open = parseFloat(document.getElementById("recon-du1-p-open").value) || 0;
+  const d2_p_open = parseFloat(document.getElementById("recon-du2-p-open").value) || 0;
+  const d1_d_open = parseFloat(document.getElementById("recon-du1-d-open").value) || 0;
+  const d2_d_open = parseFloat(document.getElementById("recon-du2-d-open").value) || 0;
+  const pts = dateStr.split("-");
   const formattedDate = pts.length === 3 ? `${pts[2]}-${pts[1]}-${pts[0]}` : dateStr;
-  const shiftLabel = shift === 'day' ? 'Day Shift (8 AM - 8 PM)' : 'Night Shift (8 PM - 8 AM)';
-
+  const shiftLabel = shift === "day" ? "Day Shift (8 AM - 8 PM)" : "Night Shift (8 PM - 8 AM)";
   const text = `*OctaneFlow Shift Report*
 Date: ${formattedDate}
 Shift: ${shiftLabel}
@@ -1574,32 +1327,26 @@ Test Diesel (Liters): 0
 PhonePe Current: [Enter PhonePe Total]
 Expenses:
 - [Item Name]: [Amount]`;
-
   const url = `https://web.whatsapp.com/send?text=${encodeURIComponent(text)}`;
-  window.open(url, '_blank');
+  window.open(url, "_blank");
   showNotification("Opening WhatsApp Web with template...", "info");
 }
-
 function fetchPhonePeSettlement() {
-  const dateStr = document.getElementById('recon-date').value;
-  const shift = document.getElementById('recon-shift').value;
+  const dateStr = document.getElementById("recon-date").value;
+  const shift = document.getElementById("recon-shift").value;
   if (!dateStr || !shift) {
     showNotification("Please select an Operating Date and Shift first.", "warning");
     return;
   }
-
-  const mid = db.settings.phonepe_mid || '';
-  const saltKey = db.settings.phonepe_salt_key || '';
-  const saltIndex = db.settings.phonepe_salt_index || '1';
-
+  const mid = db.settings.phonepe_mid || "";
+  const saltKey = db.settings.phonepe_salt_key || "";
+  const saltIndex = db.settings.phonepe_salt_index || "1";
   if (!mid || !saltKey) {
     showNotification("Please configure PhonePe Merchant API credentials in System Settings first.", "warning");
     return;
   }
-
-  // Calculate start/end timestamps in IST (India Standard Time +05:30)
   let startMs, endMs;
-  if (shift === 'day') {
+  if (shift === "day") {
     const startStr = `${dateStr}T08:00:00+05:30`;
     const endStr = `${dateStr}T20:00:00+05:30`;
     startMs = new Date(startStr).getTime();
@@ -1608,78 +1355,63 @@ function fetchPhonePeSettlement() {
     const startStr = `${dateStr}T20:00:00+05:30`;
     const d = new Date(dateStr);
     d.setDate(d.getDate() + 1);
-    const nextDateStr = d.toISOString().split('T')[0];
+    const nextDateStr = d.toISOString().split("T")[0];
     const endStr = `${nextDateStr}T08:00:00+05:30`;
     startMs = new Date(startStr).getTime();
     endMs = new Date(endStr).getTime();
   }
-
   showNotification("Syncing transaction totals from PhonePe...", "info");
-
   const url = `https://localhost:8000/phonepe-settlement?merchantId=${encodeURIComponent(mid)}&saltKey=${encodeURIComponent(saltKey)}&saltIndex=${encodeURIComponent(saltIndex)}&startTimestamp=${startMs}&endTimestamp=${endMs}`;
-
-  fetch(url)
-    .then(res => res.json())
-    .then(data => {
-      if (data.status === 'success') {
-        document.getElementById('recon-phonepe-curr').value = data.total.toFixed(2);
-        calculateLiveSales();
-        if (data.mode === 'mock') {
-          showNotification(`PhonePe Sync: Loaded Mock Settlement ₹${data.total.toFixed(2)} (Demo Mode)`, "success");
-        } else {
-          showNotification(`PhonePe Sync: Loaded Real Settlement ₹${data.total.toFixed(2)} (${data.count} txs)`, "success");
-        }
-      } else if (data.status === 'partial_success') {
-        document.getElementById('recon-phonepe-curr').value = data.total.toFixed(2);
-        calculateLiveSales();
-        showNotification(`PhonePe Live Connection Error: ${data.error}. Used mock fallback.`, "warning");
+  fetch(url).then((res) => res.json()).then((data) => {
+    if (data.status === "success") {
+      document.getElementById("recon-phonepe-curr").value = data.total.toFixed(2);
+      calculateLiveSales();
+      if (data.mode === "mock") {
+        showNotification(`PhonePe Sync: Loaded Mock Settlement \u20B9${data.total.toFixed(2)} (Demo Mode)`, "success");
       } else {
-        showNotification("Failed to fetch data from PhonePe: " + (data.error || "Unknown error"), "danger");
+        showNotification(`PhonePe Sync: Loaded Real Settlement \u20B9${data.total.toFixed(2)} (${data.count} txs)`, "success");
       }
-    })
-    .catch(err => {
-      console.error("PhonePe sync fetch error:", err);
-      showNotification("Error connecting to local bridge server.", "danger");
-    });
+    } else if (data.status === "partial_success") {
+      document.getElementById("recon-phonepe-curr").value = data.total.toFixed(2);
+      calculateLiveSales();
+      showNotification(`PhonePe Live Connection Error: ${data.error}. Used mock fallback.`, "warning");
+    } else {
+      showNotification("Failed to fetch data from PhonePe: " + (data.error || "Unknown error"), "danger");
+    }
+  }).catch((err) => {
+    console.error("PhonePe sync fetch error:", err);
+    showNotification("Error connecting to local bridge server.", "danger");
+  });
 }
-
 function parseWhatsAppReport() {
-  const input = document.getElementById('whatsapp-input').value;
-  if (!input || input.trim() === '') {
+  const input = document.getElementById("whatsapp-input").value;
+  if (!input || input.trim() === "") {
     showNotification("Please paste WhatsApp text in the input area first.", "warning");
     return;
   }
-
-  // Parse date
   const dateRegex = /(?:Date|date):\s*(\d{1,2})[-/.](\d{1,2})[-/.](\d{4})/;
   const dateMatch = input.match(dateRegex);
   if (dateMatch) {
-    const day = dateMatch[1].padStart(2, '0');
-    const month = dateMatch[2].padStart(2, '0');
+    const day = dateMatch[1].padStart(2, "0");
+    const month = dateMatch[2].padStart(2, "0");
     const year = dateMatch[3];
-    document.getElementById('recon-date').value = `${year}-${month}-${day}`;
+    document.getElementById("recon-date").value = `${year}-${month}-${day}`;
   }
-
-  // Parse shift
   const shiftRegex = /(?:Shift|shift):\s*(day|night|Day|Night)/;
   const shiftMatch = input.match(shiftRegex);
   if (shiftMatch) {
     const sStr = shiftMatch[1].toLowerCase();
-    document.getElementById('recon-shift').value = sStr.includes('night') ? 'night' : 'day';
+    document.getElementById("recon-shift").value = sStr.includes("night") ? "night" : "day";
   }
-
   onReconShiftChange();
-
-  // Parse nozzle opening & closing values
   const du1_p_regex = /(?:DU1\s*MS|DU1\s*Petrol|DU1\s*p|DU1\s*P)[^\n:]*:\s*([^\n]+)/i;
   const du2_p_regex = /(?:DU2\s*MS|DU2\s*Petrol|DU2\s*p|DU2\s*P)[^\n:]*:\s*([^\n]+)/i;
   const du1_d_regex = /(?:DU1\s*HSD|DU1\s*Diesel|DU1\s*d|DU1\s*D)[^\n:]*:\s*([^\n]+)/i;
   const du2_d_regex = /(?:DU2\s*HSD|DU2\s*Diesel|DU2\s*d|DU2\s*D)[^\n:]*:\s*([^\n]+)/i;
-
   const parseReadingLine = (matchResult, openId, closeId) => {
     if (!matchResult) return;
     const content = matchResult[1].trim();
-    const parts = content.split('-').map(s => parseFloat(s.replace(/[^\d.]/g, '')));
+    const parts = content.split("-").map((s) => parseFloat(s.replace(/[^\d.]/g, "")));
     if (parts.length >= 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
       document.getElementById(openId).value = parts[0];
       document.getElementById(closeId).value = parts[1];
@@ -1687,43 +1419,35 @@ function parseWhatsAppReport() {
       document.getElementById(closeId).value = parts[0];
     }
   };
-
-  parseReadingLine(input.match(du1_p_regex), 'recon-du1-p-open', 'recon-du1-p-close');
-  parseReadingLine(input.match(du2_p_regex), 'recon-du2-p-open', 'recon-du2-p-close');
-  parseReadingLine(input.match(du1_d_regex), 'recon-du1-d-open', 'recon-du1-d-close');
-  parseReadingLine(input.match(du2_d_regex), 'recon-du2-d-open', 'recon-du2-d-close');
-
-  // Parse test fuel
+  parseReadingLine(input.match(du1_p_regex), "recon-du1-p-open", "recon-du1-p-close");
+  parseReadingLine(input.match(du2_p_regex), "recon-du2-p-open", "recon-du2-p-close");
+  parseReadingLine(input.match(du1_d_regex), "recon-du1-d-open", "recon-du1-d-close");
+  parseReadingLine(input.match(du2_d_regex), "recon-du2-d-open", "recon-du2-d-close");
   const test_p_regex = /(?:Test\s*Petrol|test\s*petrol|Test\s*MS|test\s*ms|Test\s*P|test\s*p)[^\n]*:\s*\[?([\d.]+)\]?/i;
   const test_d_regex = /(?:Test\s*Diesel|test\s*diesel|Test\s*HSD|test\s*hsd|Test\s*D|test\s*d)[^\n]*:\s*\[?([\d.]+)\]?/i;
-
   const tp = input.match(test_p_regex);
   const td = input.match(test_d_regex);
-  if (tp) document.getElementById('recon-p-tests').value = parseFloat(tp[1]);
-  if (td) document.getElementById('recon-d-tests').value = parseFloat(td[1]);
-
-  // Parse PhonePe Close (with word boundaries to avoid matching "Pe" inside "Petrol")
+  if (tp) document.getElementById("recon-p-tests").value = parseFloat(tp[1]);
+  if (td) document.getElementById("recon-d-tests").value = parseFloat(td[1]);
   const pe_regex = /(?:PhonePe\s*Current|\bPhonePe\b|\bPE\b|\bpe\b|\bPay\b)[^\n:]*:\s*[^0-9]*([\d,.]+)/i;
   const peMatch = input.match(pe_regex);
   if (peMatch) {
-    const cleanVal = peMatch[1].replace(/,/g, '');
-    document.getElementById('recon-phonepe-curr').value = parseFloat(cleanVal);
+    const cleanVal = peMatch[1].replace(/,/g, "");
+    document.getElementById("recon-phonepe-curr").value = parseFloat(cleanVal);
   }
-
-  // Parse expenses section
   window.reconExpensesList = [];
   const expSectionRegex = /(?:Expenses|expenses|Exp|exp):([\s\S]*)/i;
   const expMatch = input.match(expSectionRegex);
   if (expMatch) {
-    const lines = expMatch[1].split('\n');
-    lines.forEach(line => {
+    const lines = expMatch[1].split("\n");
+    lines.forEach((line) => {
       const trimmed = line.trim();
-      if (trimmed.startsWith('-') || trimmed.startsWith('*')) {
+      if (trimmed.startsWith("-") || trimmed.startsWith("*")) {
         const content = trimmed.substring(1).trim();
         const parts = content.split(/[:\-]/);
         if (parts.length >= 2) {
           const desc = parts[0].trim();
-          const amtStr = parts[1].replace(/[^\d.]/g, '');
+          const amtStr = parts[1].replace(/[^\d.]/g, "");
           const amt = parseFloat(amtStr);
           if (desc && !isNaN(amt)) {
             window.reconExpensesList.push({ description: desc, amount: amt });
@@ -1732,129 +1456,100 @@ function parseWhatsAppReport() {
       }
     });
   }
-
   renderExpensesList();
   calculateLiveSales();
   showNotification("WhatsApp report parsed and form filled!", "success");
 }
-
 function handlePaperSlipUpload(event) {
   const file = event.target.files[0];
   if (!file) return;
-
   const reader = new FileReader();
   reader.onload = function(e) {
-    document.getElementById('upload-prompt').style.display = 'none';
-    document.getElementById('upload-preview-container').style.display = 'block';
-    document.getElementById('upload-preview-img').src = e.target.result;
-
-    // Trigger holographic scanner line
-    const laser = document.getElementById('scanner-laser-line');
-    laser.style.display = 'block';
-
-    document.getElementById('paper-verify-report').style.display = 'none';
-
+    document.getElementById("upload-prompt").style.display = "none";
+    document.getElementById("upload-preview-container").style.display = "block";
+    document.getElementById("upload-preview-img").src = e.target.result;
+    const laser = document.getElementById("scanner-laser-line");
+    laser.style.display = "block";
+    document.getElementById("paper-verify-report").style.display = "none";
     setTimeout(() => {
-      laser.style.display = 'none';
+      laser.style.display = "none";
       showOCRVerificationReport();
-    }, 2000);
+    }, 2e3);
   };
   reader.readAsDataURL(file);
 }
-
 function showOCRVerificationReport() {
-  // Grab close values from form, or generate reasonable mock numbers if empty
-  const f_du1_p = parseFloat(document.getElementById('recon-du1-p-close').value);
-  const f_du2_p = parseFloat(document.getElementById('recon-du2-p-close').value);
-  const f_du1_d = parseFloat(document.getElementById('recon-du1-d-close').value);
-  const f_du2_d = parseFloat(document.getElementById('recon-du2-d-close').value);
-
-  // OCR reads the paper totalizers (perfect OCR extraction matching entered numbers or default values)
+  const f_du1_p = parseFloat(document.getElementById("recon-du1-p-close").value);
+  const f_du2_p = parseFloat(document.getElementById("recon-du2-p-close").value);
+  const f_du1_d = parseFloat(document.getElementById("recon-du1-d-close").value);
+  const f_du2_d = parseFloat(document.getElementById("recon-du2-d-close").value);
   window.ocrExtractedValues = {
-    timestamp: new Date().toLocaleString(),
-    du1_p_close: !isNaN(f_du1_p) ? f_du1_p : 15580.00,
-    du2_p_close: !isNaN(f_du2_p) ? f_du2_p : 18350.00,
-    du1_d_close: !isNaN(f_du1_d) ? f_du1_d : 22320.00,
-    du2_d_close: !isNaN(f_du2_d) ? f_du2_d : 19200.00
+    timestamp: (/* @__PURE__ */ new Date()).toLocaleString(),
+    du1_p_close: !isNaN(f_du1_p) ? f_du1_p : 15580,
+    du2_p_close: !isNaN(f_du2_p) ? f_du2_p : 18350,
+    du1_d_close: !isNaN(f_du1_d) ? f_du1_d : 22320,
+    du2_d_close: !isNaN(f_du2_d) ? f_du2_d : 19200
   };
-
-  document.getElementById('ocr-timestamp').textContent = "Extracted: " + window.ocrExtractedValues.timestamp;
-  document.getElementById('paper-verify-report').style.display = 'block';
-
+  document.getElementById("ocr-timestamp").textContent = "Extracted: " + window.ocrExtractedValues.timestamp;
+  document.getElementById("paper-verify-report").style.display = "block";
   calculateLiveSales();
   showNotification("Paper slip scanned and verified against inputs.", "info");
 }
-
 function applyOCRReadings() {
   if (!window.ocrExtractedValues) return;
-  document.getElementById('recon-du1-p-close').value = window.ocrExtractedValues.du1_p_close.toFixed(2);
-  document.getElementById('recon-du2-p-close').value = window.ocrExtractedValues.du2_p_close.toFixed(2);
-  document.getElementById('recon-du1-d-close').value = window.ocrExtractedValues.du1_d_close.toFixed(2);
-  document.getElementById('recon-du2-d-close').value = window.ocrExtractedValues.du2_d_close.toFixed(2);
-
+  document.getElementById("recon-du1-p-close").value = window.ocrExtractedValues.du1_p_close.toFixed(2);
+  document.getElementById("recon-du2-p-close").value = window.ocrExtractedValues.du2_p_close.toFixed(2);
+  document.getElementById("recon-du1-d-close").value = window.ocrExtractedValues.du1_d_close.toFixed(2);
+  document.getElementById("recon-du2-d-close").value = window.ocrExtractedValues.du2_d_close.toFixed(2);
   calculateLiveSales();
   showNotification("Verified paper readings loaded into form.", "success");
 }
-
 function postShiftRecon() {
-  const dateStr = document.getElementById('recon-date').value;
-  const shift = document.getElementById('recon-shift').value;
-
+  const dateStr = document.getElementById("recon-date").value;
+  const shift = document.getElementById("recon-shift").value;
   if (!dateStr) {
     showNotification("Please select an operating date.", "danger");
     return;
   }
-
-  const du1_p_close = parseFloat(document.getElementById('recon-du1-p-close').value);
-  const du2_p_close = parseFloat(document.getElementById('recon-du2-p-close').value);
-  const du1_d_close = parseFloat(document.getElementById('recon-du1-d-close').value);
-  const du2_d_close = parseFloat(document.getElementById('recon-du2-d-close').value);
-
+  const du1_p_close = parseFloat(document.getElementById("recon-du1-p-close").value);
+  const du2_p_close = parseFloat(document.getElementById("recon-du2-p-close").value);
+  const du1_d_close = parseFloat(document.getElementById("recon-du1-d-close").value);
+  const du2_d_close = parseFloat(document.getElementById("recon-du2-d-close").value);
   if (isNaN(du1_p_close) || isNaN(du2_p_close) || isNaN(du1_d_close) || isNaN(du2_d_close)) {
     showNotification("Please enter closing readings for all nozzles.", "danger");
     return;
   }
-
-  const du1_p_open = parseFloat(document.getElementById('recon-du1-p-open').value) || 0;
-  const du2_p_open = parseFloat(document.getElementById('recon-du2-p-open').value) || 0;
-  const du1_d_open = parseFloat(document.getElementById('recon-du1-d-open').value) || 0;
-  const du2_d_open = parseFloat(document.getElementById('recon-du2-d-open').value) || 0;
-
-  if (du1_p_close < 0 || du2_p_close < 0 || du1_d_close < 0 || du2_d_close < 0 ||
-      du1_p_open < 0 || du2_p_open < 0 || du1_d_open < 0 || du2_d_open < 0) {
-    showNotification("⚠️ Validation Error: Readings cannot be negative.", "danger");
+  const du1_p_open = parseFloat(document.getElementById("recon-du1-p-open").value) || 0;
+  const du2_p_open = parseFloat(document.getElementById("recon-du2-p-open").value) || 0;
+  const du1_d_open = parseFloat(document.getElementById("recon-du1-d-open").value) || 0;
+  const du2_d_open = parseFloat(document.getElementById("recon-du2-d-open").value) || 0;
+  if (du1_p_close < 0 || du2_p_close < 0 || du1_d_close < 0 || du2_d_close < 0 || du1_p_open < 0 || du2_p_open < 0 || du1_d_open < 0 || du2_d_open < 0) {
+    showNotification("\u26A0\uFE0F Validation Error: Readings cannot be negative.", "danger");
     return;
   }
-
   if (du1_p_close < du1_p_open || du2_p_close < du2_p_open || du1_d_close < du1_d_open || du2_d_close < du2_d_open) {
     showNotification("Closing readings cannot be less than opening readings.", "danger");
     return;
   }
-
-  const p_tests = parseFloat(document.getElementById('recon-p-tests').value.split(' ')[0]) || 0;
-  const d_tests = parseFloat(document.getElementById('recon-d-tests').value.split(' ')[0]) || 0;
-
+  const p_tests = parseFloat(document.getElementById("recon-p-tests").value.split(" ")[0]) || 0;
+  const d_tests = parseFloat(document.getElementById("recon-d-tests").value.split(" ")[0]) || 0;
   if (p_tests < 0 || d_tests < 0) {
-    showNotification("⚠️ Validation Error: Test volumes cannot be negative.", "danger");
+    showNotification("\u26A0\uFE0F Validation Error: Test volumes cannot be negative.", "danger");
     return;
   }
-
-  const diff_p = (du1_p_close - du1_p_open) + (du2_p_close - du2_p_open);
-  const diff_d = (du1_d_close - du1_d_open) + (du2_d_close - du2_d_open);
+  const diff_p = du1_p_close - du1_p_open + (du2_p_close - du2_p_open);
+  const diff_d = du1_d_close - du1_d_open + (du2_d_close - du2_d_open);
   if (diff_p < p_tests) {
-    showNotification(`⚠️ Validation Error: Petrol tests (${p_tests} L) cannot be greater than petrol totalizer difference (${diff_p.toFixed(2)} L).`, "danger");
+    showNotification(`\u26A0\uFE0F Validation Error: Petrol tests (${p_tests} L) cannot be greater than petrol totalizer difference (${diff_p.toFixed(2)} L).`, "danger");
     return;
   }
   if (diff_d < d_tests) {
-    showNotification(`⚠️ Validation Error: Diesel tests (${d_tests} L) cannot be greater than diesel totalizer difference (${diff_d.toFixed(2)} L).`, "danger");
+    showNotification(`\u26A0\uFE0F Validation Error: Diesel tests (${d_tests} L) cannot be greater than diesel totalizer difference (${diff_d.toFixed(2)} L).`, "danger");
     return;
   }
-
   const p_tests_count = Math.round(p_tests / 5);
   const d_tests_count = Math.round(d_tests / 5);
-
-  // Find or create ledger entry
-  let row = db.daily_ledger.find(r => r.date === dateStr);
+  let row = db.daily_ledger.find((r) => r.date === dateStr);
   if (!row) {
     const prices = getPricesAt(dateStr);
     row = {
@@ -1866,94 +1561,70 @@ function postShiftRecon() {
       du2_d: { open: du2_d_open, close_day: du2_d_open, close_night: du2_d_open, tests_day: 0, tests_night: 0 }
     };
   }
-
-  // Update nozzle totals
-  if (shift === 'day') {
+  if (shift === "day") {
     row.du1_p.close_day = du1_p_close;
     row.du2_p.close_day = du2_p_close;
     row.du1_d.close_day = du1_d_close;
     row.du2_d.close_day = du2_d_close;
-
-    row.du1_p.tests_day = (du1_p_close > row.du1_p.open) ? 1 : 0;
-    row.du2_p.tests_day = (du2_p_close > row.du2_p.open) ? 1 : 0;
-    row.du1_d.tests_day = (du1_d_close > row.du1_d.open) ? 1 : 0;
-    row.du2_d.tests_day = (du2_d_close > row.du2_d.open) ? 1 : 0;
+    row.du1_p.tests_day = du1_p_close > row.du1_p.open ? 1 : 0;
+    row.du2_p.tests_day = du2_p_close > row.du2_p.open ? 1 : 0;
+    row.du1_d.tests_day = du1_d_close > row.du1_d.open ? 1 : 0;
+    row.du2_d.tests_day = du2_d_close > row.du2_d.open ? 1 : 0;
   } else {
-    // If night shift posted and day shift is still at default, carry over day readings
     if (row.du1_p.close_day === row.du1_p.open) {
       row.du1_p.close_day = row.du1_p.open;
       row.du2_p.close_day = row.du2_p.open;
       row.du1_d.close_day = row.du1_d.open;
       row.du2_d.close_day = row.du2_d.open;
     }
-
     row.du1_p.close_night = du1_p_close;
     row.du2_p.close_night = du2_p_close;
     row.du1_d.close_night = du1_d_close;
     row.du2_d.close_night = du2_d_close;
-
     row.du1_p.tests_night = 0;
     row.du2_p.tests_night = 0;
     row.du1_d.tests_night = 0;
     row.du2_d.tests_night = 0;
   }
-
-  // Save reconciliation details in the ledger
-  const curr_pe = parseFloat(document.getElementById('recon-phonepe-curr').value) || 0;
-  const prev_pe = parseFloat(document.getElementById('recon-phonepe-prev').value) || 0;
+  const curr_pe = parseFloat(document.getElementById("recon-phonepe-curr").value) || 0;
+  const prev_pe = parseFloat(document.getElementById("recon-phonepe-prev").value) || 0;
   const net_pe = curr_pe > 0 ? Math.max(0, curr_pe - prev_pe) : 0;
-
   const total_expenses = window.reconExpensesList.reduce((sum, exp) => sum + exp.amount, 0);
-
-  const nozzle_p_sales = (du1_p_close - du1_p_open) + (du2_p_close - du2_p_open);
-  const nozzle_d_sales = (du1_d_close - du1_d_open) + (du2_d_close - du2_d_open);
+  const nozzle_p_sales = du1_p_close - du1_p_open + (du2_p_close - du2_p_open);
+  const nozzle_d_sales = du1_d_close - du1_d_open + (du2_d_close - du2_d_open);
   const net_p_sales = Math.max(0, nozzle_p_sales - p_tests);
   const net_d_sales = Math.max(0, nozzle_d_sales - d_tests);
-  const shift_rev = (net_p_sales * row.prices.petrol) + (net_d_sales * row.prices.diesel);
+  const shift_rev = net_p_sales * row.prices.petrol + net_d_sales * row.prices.diesel;
   const shift_expected_cash = Math.max(0, shift_rev - net_pe);
-
   const counted_cash = calculateDenominationsValue();
   const actual_cash_accounted = counted_cash + total_expenses;
   const shift_variance = actual_cash_accounted - shift_expected_cash;
-
-  const denomsKeys = ['500', '200', '100', '50', '20', '10', '5', 'coins'];
+  const denomsKeys = ["500", "200", "100", "50", "20", "10", "5", "coins"];
   const denomsObj = {};
-  denomsKeys.forEach(d => {
-    denomsObj[d] = parseFloat(document.getElementById('denom-' + d).value) || 0;
+  denomsKeys.forEach((d) => {
+    denomsObj[d] = parseFloat(document.getElementById("denom-" + d).value) || 0;
   });
-
   row.recon = row.recon || {};
-  
-  // Bookkeeping Integration (Plan 23) - Idempotent Cash Drawer and Expenses update
   const sourceRef = `shift_recon_${dateStr}_${shift}`;
   if (!db.expenses) db.expenses = [];
   if (!db.cashflow) db.cashflow = { bank_balance: 0, phonepe_balance: 0, cash_drawer: 0, iocl_cushion: 0 };
-
-  // 1. Rollback previous expenses from this same shift
-  const prevExpensesForShift = db.expenses.filter(e => e.source === sourceRef);
+  const prevExpensesForShift = db.expenses.filter((e) => e.source === sourceRef);
   const prevExpTotal = prevExpensesForShift.reduce((s, e) => s + e.amount, 0);
   db.cashflow.cash_drawer = (db.cashflow.cash_drawer || 0) + prevExpTotal;
-
-  // Remove previous expenses from global log
-  db.expenses = db.expenses.filter(e => e.source !== sourceRef);
-
-  // 2. Append new expenses to global log and deduct from cash drawer
+  db.expenses = db.expenses.filter((e) => e.source !== sourceRef);
   const newExpenses = window.reconExpensesList.map((exp, idx) => ({
     id: `exp_recon_${dateStr}_${shift}_${idx}_${Date.now()}`,
     date: dateStr,
-    category: 'Operational',
-    vendor: 'Shift Expense',
+    category: "Operational",
+    vendor: "Shift Expense",
     amount: exp.amount,
     description: exp.description,
     source: sourceRef
   }));
   db.expenses.push(...newExpenses);
   db.cashflow.cash_drawer = Math.max(0, (db.cashflow.cash_drawer || 0) - total_expenses);
-
-  // 3. Adjust cash drawer for cash counted (idempotent delta shift)
-  const prevCashCounted = row.recon[shift] ? (row.recon[shift].cash_counted || 0) : 0;
+  const prevCashCounted = row.recon[shift] ? row.recon[shift].cash_counted || 0 : 0;
   db.cashflow.cash_drawer = Math.max(0, (db.cashflow.cash_drawer || 0) - prevCashCounted + counted_cash);
-
   row.recon[shift] = {
     phonepe_close: curr_pe,
     phonepe_net: net_pe,
@@ -1965,98 +1636,68 @@ function postShiftRecon() {
     paper_verified: !!window.ocrExtractedValues,
     paper_timestamp: window.ocrExtractedValues ? window.ocrExtractedValues.timestamp : null
   };
-
-  // 2. Warning Flags (Confirmation)
   const warnings = [];
-
   const totalLiters = net_p_sales + net_d_sales;
-
-  // Nozzle net volumes sold in this shift
   const du1_p_sales_vol = du1_p_close - du1_p_open;
   const du2_p_sales_vol = du2_p_close - du2_p_open;
   const du1_d_sales_vol = du1_d_close - du1_d_open;
   const du2_d_sales_vol = du2_d_close - du2_d_open;
-
-  const du1_p_test_liters = (shift === 'day' && du1_p_close > du1_p_open) ? 5 : 0;
-  const du2_p_test_liters = (shift === 'day' && du2_p_close > du2_p_open) ? 5 : 0;
-  const du1_d_test_liters = (shift === 'day' && du1_d_close > du1_d_open) ? 5 : 0;
-  const du2_d_test_liters = (shift === 'day' && du2_d_close > du2_d_open) ? 5 : 0;
-
+  const du1_p_test_liters = shift === "day" && du1_p_close > du1_p_open ? 5 : 0;
+  const du2_p_test_liters = shift === "day" && du2_p_close > du2_p_open ? 5 : 0;
+  const du1_d_test_liters = shift === "day" && du1_d_close > du1_d_open ? 5 : 0;
+  const du2_d_test_liters = shift === "day" && du2_d_close > du2_d_open ? 5 : 0;
   const net_du1_p_vol = Math.max(0, du1_p_sales_vol - du1_p_test_liters);
   const net_du2_p_vol = Math.max(0, du2_p_sales_vol - du2_p_test_liters);
   const net_du1_d_vol = Math.max(0, du1_d_sales_vol - du1_d_test_liters);
   const net_du2_d_vol = Math.max(0, du2_d_sales_vol - du2_d_test_liters);
-
   if (totalLiters === 0) {
     warnings.push("Total shift sales volume is 0 Liters.");
   }
-  if (net_du1_p_vol > 5000) warnings.push(`DU1 Petrol sales volume (${net_du1_p_vol.toFixed(2)} L) is abnormally high (exceeds 5,000 L).`);
-  if (net_du2_p_vol > 5000) warnings.push(`DU2 Petrol sales volume (${net_du2_p_vol.toFixed(2)} L) is abnormally high (exceeds 5,000 L).`);
-  if (net_du1_d_vol > 5000) warnings.push(`DU1 Diesel sales volume (${net_du1_d_vol.toFixed(2)} L) is abnormally high (exceeds 5,000 L).`);
-  if (net_du2_d_vol > 5000) warnings.push(`DU2 Diesel sales volume (${net_du2_d_vol.toFixed(2)} L) is abnormally high (exceeds 5,000 L).`);
-
+  if (net_du1_p_vol > 5e3) warnings.push(`DU1 Petrol sales volume (${net_du1_p_vol.toFixed(2)} L) is abnormally high (exceeds 5,000 L).`);
+  if (net_du2_p_vol > 5e3) warnings.push(`DU2 Petrol sales volume (${net_du2_p_vol.toFixed(2)} L) is abnormally high (exceeds 5,000 L).`);
+  if (net_du1_d_vol > 5e3) warnings.push(`DU1 Diesel sales volume (${net_du1_d_vol.toFixed(2)} L) is abnormally high (exceeds 5,000 L).`);
+  if (net_du2_d_vol > 5e3) warnings.push(`DU2 Diesel sales volume (${net_du2_d_vol.toFixed(2)} L) is abnormally high (exceeds 5,000 L).`);
   const estimatedRevenue = shift_rev;
   const totalCollections = counted_cash + total_expenses + net_pe;
-
   if (estimatedRevenue > 0) {
     const discrepancy = totalCollections - estimatedRevenue;
     const absDiscrepancy = Math.abs(discrepancy);
     const ratio = totalCollections / estimatedRevenue;
-
-    if (ratio > 1.5 && absDiscrepancy > 15000) {
+    if (ratio > 1.5 && absDiscrepancy > 15e3) {
       warnings.push(`Collections (${formatCurrency(totalCollections)}) are more than 1.5x of estimated revenue (${formatCurrency(estimatedRevenue)}). Discrepancy is +${formatCurrency(absDiscrepancy)}.`);
-    } else if (ratio < 0.1 && estimatedRevenue > 1000) {
+    } else if (ratio < 0.1 && estimatedRevenue > 1e3) {
       warnings.push(`Collections (${formatCurrency(totalCollections)}) are less than 10% of estimated revenue (${formatCurrency(estimatedRevenue)}). Discrepancy is -${formatCurrency(absDiscrepancy)}.`);
-    } else if (absDiscrepancy > 15000) {
+    } else if (absDiscrepancy > 15e3) {
       warnings.push(`There is a significant difference of ${formatCurrency(discrepancy)} between collections (${formatCurrency(totalCollections)}) and estimated fuel revenue (${formatCurrency(estimatedRevenue)}).`);
     }
   } else if (totalCollections > 0) {
     warnings.push(`Collections entered (${formatCurrency(totalCollections)}) but estimated revenue is 0 (0 Liters sold).`);
   }
-
   if (warnings.length > 0) {
-    const msg = "⚠️ Warning: Potential errors detected in reconciliation:\n\n" +
-                warnings.map(w => "• " + w).join("\n") +
-                "\n\nAre you sure you want to save this reconciliation?";
+    const msg = "\u26A0\uFE0F Warning: Potential errors detected in reconciliation:\n\n" + warnings.map((w) => "\u2022 " + w).join("\n") + "\n\nAre you sure you want to save this reconciliation?";
     if (!confirm(msg)) {
       return;
     }
   } else {
-    if (!confirm(`Are you sure you want to save and post this shift reconciliation for ${shift === 'day' ? 'Day' : 'Night'} Shift on ${formatDate(dateStr)}?`)) {
+    if (!confirm(`Are you sure you want to save and post this shift reconciliation for ${shift === "day" ? "Day" : "Night"} Shift on ${formatDate(dateStr)}?`)) {
       return;
     }
   }
-
-  // Call general ledger save logic which also automatically updates stock
   saveDailyReadings(row);
-
-  SystemLogger.success('postShiftRecon', `Reconciliation posted successfully for ${shift === 'day' ? 'Day' : 'Night'} Shift on ${formatDate(dateStr)}. Expected Cash: ₹${shift_expected_cash.toFixed(2)}, Counted Cash: ₹${counted_cash.toFixed(2)}, Variance: ₹${shift_variance.toFixed(2)}`, {
+  SystemLogger.success("postShiftRecon", `Reconciliation posted successfully for ${shift === "day" ? "Day" : "Night"} Shift on ${formatDate(dateStr)}. Expected Cash: \u20B9${shift_expected_cash.toFixed(2)}, Counted Cash: \u20B9${counted_cash.toFixed(2)}, Variance: \u20B9${shift_variance.toFixed(2)}`, {
     date: dateStr,
     shift,
     variance: shift_variance
   });
-
-  showNotification(`Reconciliation saved and posted to ledger for ${shift === 'day' ? 'Day' : 'Night'} Shift on ${formatDate(dateStr)}.`, "success");
-
-  // Refresh views
+  showNotification(`Reconciliation saved and posted to ledger for ${shift === "day" ? "Day" : "Night"} Shift on ${formatDate(dateStr)}.`, "success");
   onReconShiftChange();
 }
-
-// -------------------------------------------------------------
-// LIVE WHATSAPP SYNC SIMULATOR
-// -------------------------------------------------------------
-
 function switchReconInputMode(mode) {
-  const isSync = mode === 'sync';
-
-  // Update button classes
-  document.getElementById('btn-recon-mode-manual').classList.toggle('active', !isSync);
-  document.getElementById('btn-recon-mode-sync').classList.toggle('active', isSync);
-
-  // Show/Hide sections
-  document.getElementById('recon-section-manual').style.display = isSync ? 'none' : 'block';
-  document.getElementById('recon-section-sync').style.display = isSync ? 'block' : 'none';
-
+  const isSync = mode === "sync";
+  document.getElementById("btn-recon-mode-manual").classList.toggle("active", !isSync);
+  document.getElementById("btn-recon-mode-sync").classList.toggle("active", isSync);
+  document.getElementById("recon-section-manual").style.display = isSync ? "none" : "block";
+  document.getElementById("recon-section-sync").style.display = isSync ? "block" : "none";
   if (isSync) {
     renderEmployeesTable();
     renderSyncMessages();
@@ -2065,25 +1706,18 @@ function switchReconInputMode(mode) {
     stopLiveWhatsAppPoll();
   }
 }
-
 function renderEmployeesTable() {
-  const tbody = document.getElementById('employees-table-body');
+  const tbody = document.getElementById("employees-table-body");
   if (!tbody) return;
-  tbody.innerHTML = '';
-
+  tbody.innerHTML = "";
   if (db.employees.length === 0) {
     tbody.innerHTML = `<tr><td colspan="4" style="text-align:center; padding:1rem; color:var(--text-dim);">No employees in directory.</td></tr>`;
     return;
   }
-
   db.employees.forEach((emp, index) => {
-    const tr = document.createElement('tr');
+    const tr = document.createElement("tr");
     tr.style.borderBottom = "1px solid var(--border)";
-
-    const activeBadge = emp.active
-      ? `<span class="badge badge-success" style="font-size:0.65rem; cursor:pointer;" onclick="toggleEmployeeActive(${index})">Active</span>`
-      : `<span class="badge badge-danger" style="font-size:0.65rem; cursor:pointer;" onclick="toggleEmployeeActive(${index})">Inactive</span>`;
-
+    const activeBadge = emp.active ? `<span class="badge badge-success" style="font-size:0.65rem; cursor:pointer;" onclick="toggleEmployeeActive(${index})">Active</span>` : `<span class="badge badge-danger" style="font-size:0.65rem; cursor:pointer;" onclick="toggleEmployeeActive(${index})">Inactive</span>`;
     tr.innerHTML = `
       <td style="padding: 0.5rem; font-weight:600; color:#fff;">${emp.name}</td>
       <td style="padding: 0.5rem; color:var(--text-dim);">${emp.phone}</td>
@@ -2096,48 +1730,39 @@ function renderEmployeesTable() {
     tbody.appendChild(tr);
   });
 }
-
 function toggleEmployeeActive(index) {
   db.employees[index].active = !db.employees[index].active;
   saveDB();
   renderEmployeesTable();
   renderSyncMessages();
 }
-
 function addEmployee(event) {
   event.preventDefault();
-  const name = document.getElementById('new-emp-name').value.trim();
-  const phone = document.getElementById('new-emp-phone').value.trim();
-  const role = document.getElementById('new-emp-role').value;
-
+  const name = document.getElementById("new-emp-name").value.trim();
+  const phone = document.getElementById("new-emp-phone").value.trim();
+  const role = document.getElementById("new-emp-role").value;
   if (!name || !phone) return;
-
   const newEmp = {
-    id: 'emp_' + Date.now(),
+    id: "emp_" + Date.now(),
     name,
     phone,
     role,
     active: true
   };
-
   db.employees.push(newEmp);
   saveDB();
-
-  document.getElementById('add-employee-form').reset();
+  document.getElementById("add-employee-form").reset();
   renderEmployeesTable();
   renderSyncMessages();
   showNotification(`Authorized employee ${name} added successfully.`, "success");
 }
-
 window._empDeleteTimers = {};
 function deleteEmployee(index, btnId) {
   const btn = document.getElementById(btnId);
   if (!btn) return;
-
   if (btn.dataset.confirmed === "true") {
     clearTimeout(window._empDeleteTimers[index]);
     delete window._empDeleteTimers[index];
-
     const emp = db.employees[index];
     if (!emp) return;
     db.employees.splice(index, 1);
@@ -2150,35 +1775,26 @@ function deleteEmployee(index, btnId) {
     btn.innerHTML = "Confirm?";
     btn.style.background = "#ef4444";
     btn.style.color = "#fff";
-
     window._empDeleteTimers[index] = setTimeout(() => {
       btn.dataset.confirmed = "false";
       btn.innerHTML = "Delete";
       btn.style.background = "rgba(239, 68, 68, 0.15)";
       btn.style.color = "rgb(248, 113, 113)";
-    }, 3000);
+    }, 3e3);
   }
 }
-
 function renderSyncMessages() {
-  const dateStr = document.getElementById('recon-date').value;
-  const shift = document.getElementById('recon-shift').value;
+  const dateStr = document.getElementById("recon-date").value;
+  const shift = document.getElementById("recon-shift").value;
   const openReadings = getOpeningReadings(dateStr, shift);
-
-  // Format date nicely as DD-MM-YYYY
-  const pts = dateStr.split('-');
+  const pts = dateStr.split("-");
   const formattedDate = pts.length === 3 ? `${pts[2]}-${pts[1]}-${pts[0]}` : dateStr;
-  const shiftLabel = shift === 'day' ? 'Day Shift (8 AM - 8 PM)' : 'Night Shift (8 PM - 8 AM)';
-
-  // Generate realistic closings for mock message
+  const shiftLabel = shift === "day" ? "Day Shift (8 AM - 8 PM)" : "Night Shift (8 PM - 8 AM)";
   const c1p = openReadings.du1_p + 180;
   const c2p = openReadings.du2_p + 150;
   const c1d = openReadings.du1_d + 220;
   const c2d = openReadings.du2_d + 190;
-
-  const phonepe_close = shift === 'day' ? 120000 : 230000;
-
-  // Define mock messages database
+  const phonepe_close = shift === "day" ? 12e4 : 23e4;
   let mockMessages = [
     {
       sender: "Anil Operator",
@@ -2209,7 +1825,7 @@ DU1 HSD (Diesel): ${openReadings.du1_d.toFixed(2)} - ${(openReadings.du1_d + 250
 DU2 HSD (Diesel): ${openReadings.du2_d.toFixed(2)} - ${(openReadings.du2_d + 180).toFixed(2)}
 Test Petrol (Liters): 0
 Test Diesel (Liters): 0
-PhonePe Current: ${phonepe_close + 15000}
+PhonePe Current: ${phonepe_close + 15e3}
 Expenses:
 - Minor repairs: 1200`
     },
@@ -2224,145 +1840,111 @@ Expenses:
       text: "Hello, please send me the fuel rates for today, thanks."
     }
   ];
-
   if (window.liveWhatsAppMessages && window.liveWhatsAppMessages.length > 0) {
     mockMessages = [...window.liveWhatsAppMessages, ...mockMessages];
   }
-
-  const container = document.getElementById('recon-sync-messages');
+  const container = document.getElementById("recon-sync-messages");
   if (!container) return;
-  container.innerHTML = '';
-
+  container.innerHTML = "";
   mockMessages.forEach((msg, idx) => {
-    // Search for the sender in the employees database
-    const emp = db.employees.find(e => {
-      // Clean phone numbers for exact digit matching
-      const cleanEPhone = e.phone.replace(/[^\d]/g, '');
-      const cleanMsgSender = msg.sender.replace(/[^\d]/g, '');
-
+    const emp = db.employees.find((e) => {
+      const cleanEPhone = e.phone.replace(/[^\d]/g, "");
+      const cleanMsgSender = msg.sender.replace(/[^\d]/g, "");
       if (cleanEPhone && cleanMsgSender && cleanMsgSender.includes(cleanEPhone)) return true;
       return msg.sender.toLowerCase().includes(e.name.toLowerCase()) || e.name.toLowerCase().includes(msg.sender.toLowerCase());
     });
-
     const isAuth = emp && emp.active;
-
-    const card = document.createElement('div');
-    card.style.background = isAuth ? 'rgba(34, 197, 94, 0.03)' : 'rgba(239, 68, 68, 0.02)';
-    card.style.border = isAuth ? '1px solid rgba(34, 197, 94, 0.15)' : '1px solid rgba(239, 68, 68, 0.1)';
-    card.style.borderRadius = '6px';
-    card.style.padding = '0.6rem';
-    card.style.display = 'flex';
-    card.style.flexDirection = 'column';
-    card.style.gap = '0.35rem';
-
-    const header = document.createElement('div');
-    header.style.display = 'flex';
-    header.style.justifyContent = 'space-between';
-    header.style.fontSize = '0.7rem';
-    header.style.alignItems = 'center';
-
-    const senderSpan = document.createElement('span');
-    senderSpan.style.fontWeight = '700';
-    senderSpan.style.color = isAuth ? 'var(--success)' : 'var(--text-dim)';
-
-    // Show role if authorized
-    senderSpan.textContent = msg.sender + (isAuth ? ` (${emp.role})` : '');
-
-    const timeSpan = document.createElement('span');
-    timeSpan.style.color = 'var(--text-muted)';
+    const card = document.createElement("div");
+    card.style.background = isAuth ? "rgba(34, 197, 94, 0.03)" : "rgba(239, 68, 68, 0.02)";
+    card.style.border = isAuth ? "1px solid rgba(34, 197, 94, 0.15)" : "1px solid rgba(239, 68, 68, 0.1)";
+    card.style.borderRadius = "6px";
+    card.style.padding = "0.6rem";
+    card.style.display = "flex";
+    card.style.flexDirection = "column";
+    card.style.gap = "0.35rem";
+    const header = document.createElement("div");
+    header.style.display = "flex";
+    header.style.justifyContent = "space-between";
+    header.style.fontSize = "0.7rem";
+    header.style.alignItems = "center";
+    const senderSpan = document.createElement("span");
+    senderSpan.style.fontWeight = "700";
+    senderSpan.style.color = isAuth ? "var(--success)" : "var(--text-dim)";
+    senderSpan.textContent = msg.sender + (isAuth ? ` (${emp.role})` : "");
+    const timeSpan = document.createElement("span");
+    timeSpan.style.color = "var(--text-muted)";
     timeSpan.textContent = msg.time;
-
     header.appendChild(senderSpan);
     header.appendChild(timeSpan);
     card.appendChild(header);
-
-    const body = document.createElement('pre');
-    body.style.margin = '0';
-    body.style.whiteSpace = 'pre-wrap';
-    body.style.fontFamily = 'monospace';
-    body.style.fontSize = '0.7rem';
-    body.style.color = isAuth ? '#fff' : 'var(--text-muted)';
-    body.style.background = 'rgba(0,0,0,0.2)';
-    body.style.padding = '0.4rem';
-    body.style.borderRadius = '4px';
-    body.style.maxHeight = '70px';
-    body.style.overflowY = 'auto';
+    const body = document.createElement("pre");
+    body.style.margin = "0";
+    body.style.whiteSpace = "pre-wrap";
+    body.style.fontFamily = "monospace";
+    body.style.fontSize = "0.7rem";
+    body.style.color = isAuth ? "#fff" : "var(--text-muted)";
+    body.style.background = "rgba(0,0,0,0.2)";
+    body.style.padding = "0.4rem";
+    body.style.borderRadius = "4px";
+    body.style.maxHeight = "70px";
+    body.style.overflowY = "auto";
     body.textContent = msg.text;
     card.appendChild(body);
-
     if (isAuth) {
-      const actions = document.createElement('div');
-      actions.style.display = 'flex';
-      actions.style.justifyContent = 'flex-end';
-      actions.style.marginTop = '0.2rem';
-
-      const btn = document.createElement('button');
-      btn.className = 'btn btn-primary btn-sm';
-      btn.style.fontSize = '0.65rem';
-      btn.style.padding = '0.15rem 0.5rem';
-      btn.textContent = 'Import & Verify';
-
+      const actions = document.createElement("div");
+      actions.style.display = "flex";
+      actions.style.justifyContent = "flex-end";
+      actions.style.marginTop = "0.2rem";
+      const btn = document.createElement("button");
+      btn.className = "btn btn-primary btn-sm";
+      btn.style.fontSize = "0.65rem";
+      btn.style.padding = "0.15rem 0.5rem";
+      btn.textContent = "Import & Verify";
       btn.onclick = () => importSyncMessage(msg.text);
-
       actions.appendChild(btn);
       card.appendChild(actions);
     } else {
-      const badgeContainer = document.createElement('div');
-      badgeContainer.style.display = 'flex';
-      badgeContainer.style.justifyContent = 'flex-end';
-      badgeContainer.style.marginTop = '0.2rem';
-
-      const badge = document.createElement('span');
-      badge.style.fontSize = '0.65rem';
-      badge.className = 'badge badge-danger';
-      badge.style.background = 'rgba(239, 68, 68, 0.15)';
-      badge.style.color = 'rgb(248, 113, 113)';
-      badge.style.border = '1px solid rgba(239, 68, 68, 0.3)';
-      badge.textContent = emp ? 'Blocked (Inactive Staff)' : 'Blocked (Unauthorized Contact)';
-
+      const badgeContainer = document.createElement("div");
+      badgeContainer.style.display = "flex";
+      badgeContainer.style.justifyContent = "flex-end";
+      badgeContainer.style.marginTop = "0.2rem";
+      const badge = document.createElement("span");
+      badge.style.fontSize = "0.65rem";
+      badge.className = "badge badge-danger";
+      badge.style.background = "rgba(239, 68, 68, 0.15)";
+      badge.style.color = "rgb(248, 113, 113)";
+      badge.style.border = "1px solid rgba(239, 68, 68, 0.3)";
+      badge.textContent = emp ? "Blocked (Inactive Staff)" : "Blocked (Unauthorized Contact)";
       badgeContainer.appendChild(badge);
       card.appendChild(badgeContainer);
     }
-
     container.appendChild(card);
   });
 }
-
 function importSyncMessage(text) {
-  document.getElementById('whatsapp-input').value = text;
+  document.getElementById("whatsapp-input").value = text;
   parseWhatsAppReport();
-
-  // Now simulate OCR slip photo verification scan!
-  document.getElementById('upload-prompt').style.display = 'none';
-  document.getElementById('upload-preview-container').style.display = 'block';
-
-  const close_du1_p = document.getElementById('recon-du1-p-close').value;
-  const close_du2_p = document.getElementById('recon-du2-p-close').value;
-  const close_du1_d = document.getElementById('recon-du1-d-close').value;
-  const close_du2_d = document.getElementById('recon-du2-d-close').value;
-
-  // Render dynamic SVG image showing exact closing totalizer values
-  document.getElementById('upload-preview-img').src = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='200' height='300' viewBox='0 0 200 300'><rect width='100%' height='100%' fill='%230f172a'/><text x='10' y='30' fill='%2310b981' font-family='monospace' font-weight='bold' font-size='11'>OCTANEFLOW VERIFY</text><line x1='10' y1='40' x2='190' y2='40' stroke='%23334155' stroke-width='1'/><text x='10' y='65' fill='%2394a3b8' font-family='monospace' font-size='9'>DU1 MS CLOSE: " + close_du1_p + "</text><text x='10' y='85' fill='%2394a3b8' font-family='monospace' font-size='9'>DU2 MS CLOSE: " + close_du2_p + "</text><text x='10' y='105' fill='%2394a3b8' font-family='monospace' font-size='9'>DU1 HSD CLOSE: " + close_du1_d + "</text><text x='10' y='125' fill='%2394a3b8' font-family='monospace' font-size='9'>DU2 HSD CLOSE: " + close_du2_d + "</text><line x1='10' y1='145' x2='190' y2='145' stroke='%23334155' stroke-width='1'/><text x='10' y='165' fill='%2364748b' font-family='monospace' font-size='8'>DATE: " + document.getElementById('recon-date').value + "</text><text x='10' y='180' fill='%2364748b' font-family='monospace' font-size='8'>VERIFIED BY VISION API</text></svg>";
-
-  const laser = document.getElementById('scanner-laser-line');
-  laser.style.display = 'block';
-  document.getElementById('paper-verify-report').style.display = 'none';
-
+  document.getElementById("upload-prompt").style.display = "none";
+  document.getElementById("upload-preview-container").style.display = "block";
+  const close_du1_p = document.getElementById("recon-du1-p-close").value;
+  const close_du2_p = document.getElementById("recon-du2-p-close").value;
+  const close_du1_d = document.getElementById("recon-du1-d-close").value;
+  const close_du2_d = document.getElementById("recon-du2-d-close").value;
+  document.getElementById("upload-preview-img").src = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='200' height='300' viewBox='0 0 200 300'><rect width='100%' height='100%' fill='%230f172a'/><text x='10' y='30' fill='%2310b981' font-family='monospace' font-weight='bold' font-size='11'>OCTANEFLOW VERIFY</text><line x1='10' y1='40' x2='190' y2='40' stroke='%23334155' stroke-width='1'/><text x='10' y='65' fill='%2394a3b8' font-family='monospace' font-size='9'>DU1 MS CLOSE: " + close_du1_p + "</text><text x='10' y='85' fill='%2394a3b8' font-family='monospace' font-size='9'>DU2 MS CLOSE: " + close_du2_p + "</text><text x='10' y='105' fill='%2394a3b8' font-family='monospace' font-size='9'>DU1 HSD CLOSE: " + close_du1_d + "</text><text x='10' y='125' fill='%2394a3b8' font-family='monospace' font-size='9'>DU2 HSD CLOSE: " + close_du2_d + "</text><line x1='10' y1='145' x2='190' y2='145' stroke='%23334155' stroke-width='1'/><text x='10' y='165' fill='%2364748b' font-family='monospace' font-size='8'>DATE: " + document.getElementById("recon-date").value + "</text><text x='10' y='180' fill='%2364748b' font-family='monospace' font-size='8'>VERIFIED BY VISION API</text></svg>";
+  const laser = document.getElementById("scanner-laser-line");
+  laser.style.display = "block";
+  document.getElementById("paper-verify-report").style.display = "none";
   setTimeout(() => {
-    laser.style.display = 'none';
+    laser.style.display = "none";
     showOCRVerificationReport();
-  }, 2000);
+  }, 2e3);
 }
-
-// Bind to window to allow button onclick invocation
 window.startTour = startTour;
 window.nextTourStep = nextTourStep;
 window.prevTourStep = prevTourStep;
 window.endTour = endTour;
 window.openDipCalculator = openDipCalculator;
 window.updateDipCalculation = updateDipCalculation;
-
-// Shift Reconciliation Bindings
 window.renderShiftRecon = renderShiftRecon;
 window.onReconShiftChange = onReconShiftChange;
 window.calculateLiveSales = calculateLiveSales;
@@ -2377,8 +1959,6 @@ window.fetchPhonePeSettlement = fetchPhonePeSettlement;
 window.handlePaperSlipUpload = handlePaperSlipUpload;
 window.applyOCRReadings = applyOCRReadings;
 window.postShiftRecon = postShiftRecon;
-
-// Live Sync Bindings
 window.switchReconInputMode = switchReconInputMode;
 window.renderSyncMessages = renderSyncMessages;
 window.importSyncMessage = importSyncMessage;
@@ -2386,106 +1966,86 @@ window.renderEmployeesTable = renderEmployeesTable;
 window.toggleEmployeeActive = toggleEmployeeActive;
 window.addEmployee = addEmployee;
 window.deleteEmployee = deleteEmployee;
-
 let liveWhatsAppPollInterval = null;
-
 function startLiveWhatsAppPoll() {
   if (liveWhatsAppPollInterval) return;
   fetchLiveWhatsAppMessages();
-  liveWhatsAppPollInterval = setInterval(fetchLiveWhatsAppMessages, 2000);
+  liveWhatsAppPollInterval = setInterval(fetchLiveWhatsAppMessages, 2e3);
 }
-
 function stopLiveWhatsAppPoll() {
   if (liveWhatsAppPollInterval) {
     clearInterval(liveWhatsAppPollInterval);
     liveWhatsAppPollInterval = null;
   }
 }
-
-async function fetchLiveWhatsAppMessages() {
-  try {
-    const response = await fetch('https://localhost:8000/whatsapp-messages');
-    if (response.ok) {
-      const messages = await response.json();
-      window.liveWhatsAppMessages = messages;
-      renderSyncMessages();
+function fetchLiveWhatsAppMessages() {
+  return __async(this, null, function* () {
+    try {
+      const response = yield fetch("https://localhost:8000/whatsapp-messages");
+      if (response.ok) {
+        const messages = yield response.json();
+        window.liveWhatsAppMessages = messages;
+        renderSyncMessages();
+      }
+    } catch (err) {
+      console.error("Error fetching live WhatsApp messages:", err);
     }
-  } catch (err) {
-    console.error('Error fetching live WhatsApp messages:', err);
-  }
+  });
 }
-
 window.startLiveWhatsAppPoll = startLiveWhatsAppPoll;
 window.stopLiveWhatsAppPoll = stopLiveWhatsAppPoll;
-
-window.addEventListener('message', async (event) => {
-  if (!event.origin.includes('whatsapp.com') && !event.origin.includes('localhost') && !event.origin.includes('127.0.0.1')) return;
-
-  if (event.data && event.data.type === 'WHATSAPP_REPORT') {
-    console.log('Received WhatsApp report via postMessage:', event.data.data);
+window.addEventListener("message", (event) => __async(this, null, function* () {
+  if (!event.origin.includes("whatsapp.com") && !event.origin.includes("localhost") && !event.origin.includes("127.0.0.1")) return;
+  if (event.data && event.data.type === "WHATSAPP_REPORT") {
+    console.log("Received WhatsApp report via postMessage:", event.data.data);
     try {
-      const response = await fetch('https://localhost:8000/whatsapp-message', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      const response = yield fetch("https://localhost:8000/whatsapp-message", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(event.data.data)
       });
       if (response.ok) {
-        console.log('Successfully forwarded report to local bridge.');
+        console.log("Successfully forwarded report to local bridge.");
         fetchLiveWhatsAppMessages();
       }
     } catch (err) {
-      console.error('Error forwarding message to bridge:', err);
+      console.error("Error forwarding message to bridge:", err);
     }
   }
-});
-
-window.renderCashFlow           = renderCashFlow;
+}));
+window.renderCashFlow = renderCashFlow;
 window.saveCashInputsAndForecast = saveCashInputsAndForecast;
-window.isCBIHoliday             = isCBIHoliday;
-window.switchPnlTab             = switchPnlTab;
-
-
-// =============================================================
-// EXPENSE LEDGER
-// =============================================================
-
+window.isCBIHoliday = isCBIHoliday;
+window.switchPnlTab = switchPnlTab;
 const EXPENSE_CATEGORY_COLORS = {
-  'Electricity':        { bg: 'rgba(234,179,8,0.15)',   text: '#fbbf24', icon: '⚡' },
-  'Lube & Consumables': { bg: 'rgba(168,85,247,0.15)',  text: '#a855f7', icon: '🛢️' },
-  'Salary':             { bg: 'rgba(59,130,246,0.15)',  text: '#60a5fa', icon: '👷' },
-  'Maintenance':        { bg: 'rgba(249,115,22,0.15)',  text: '#fb923c', icon: '🔧' },
-  'Other':              { bg: 'rgba(100,116,139,0.15)', text: '#94a3b8', icon: '📋' },
+  "Electricity": { bg: "rgba(234,179,8,0.15)", text: "#fbbf24", icon: "\u26A1" },
+  "Lube & Consumables": { bg: "rgba(168,85,247,0.15)", text: "#a855f7", icon: "\u{1F6E2}\uFE0F" },
+  "Salary": { bg: "rgba(59,130,246,0.15)", text: "#60a5fa", icon: "\u{1F477}" },
+  "Maintenance": { bg: "rgba(249,115,22,0.15)", text: "#fb923c", icon: "\u{1F527}" },
+  "Other": { bg: "rgba(100,116,139,0.15)", text: "#94a3b8", icon: "\u{1F4CB}" }
 };
-
 function getCatStyle(cat) {
-  return EXPENSE_CATEGORY_COLORS[cat] || EXPENSE_CATEGORY_COLORS['Other'];
+  return EXPENSE_CATEGORY_COLORS[cat] || EXPENSE_CATEGORY_COLORS["Other"];
 }
-
 function renderExpenseLedger() {
   if (!db.expenses) db.expenses = [];
-
-  const filterCat  = document.getElementById('exp-filter-cat')  ? document.getElementById('exp-filter-cat').value  : 'all';
-  const filterFrom = document.getElementById('exp-filter-from') ? document.getElementById('exp-filter-from').value : '';
-  const filterTo   = document.getElementById('exp-filter-to')   ? document.getElementById('exp-filter-to').value   : '';
-
-  // Filter
+  const filterCat = document.getElementById("exp-filter-cat") ? document.getElementById("exp-filter-cat").value : "all";
+  const filterFrom = document.getElementById("exp-filter-from") ? document.getElementById("exp-filter-from").value : "";
+  const filterTo = document.getElementById("exp-filter-to") ? document.getElementById("exp-filter-to").value : "";
   let expenses = [...db.expenses].sort((a, b) => b.date.localeCompare(a.date));
-  if (filterCat  !== 'all') expenses = expenses.filter(e => e.category === filterCat);
-  if (filterFrom)           expenses = expenses.filter(e => e.date >= filterFrom);
-  if (filterTo)             expenses = expenses.filter(e => e.date <= filterTo);
-
-  // ---- Summary cards ----
-  const summaryEl = document.getElementById('expense-summary-cards');
+  if (filterCat !== "all") expenses = expenses.filter((e) => e.category === filterCat);
+  if (filterFrom) expenses = expenses.filter((e) => e.date >= filterFrom);
+  if (filterTo) expenses = expenses.filter((e) => e.date <= filterTo);
+  const summaryEl = document.getElementById("expense-summary-cards");
   if (summaryEl) {
     const allExp = db.expenses;
     const totalAll = allExp.reduce((s, e) => s + e.amount, 0);
-    const totalElec = allExp.filter(e => e.category === 'Electricity').reduce((s, e) => s + e.amount, 0);
-    const totalLube = allExp.filter(e => e.category === 'Lube & Consumables').reduce((s, e) => s + e.amount, 0);
+    const totalElec = allExp.filter((e) => e.category === "Electricity").reduce((s, e) => s + e.amount, 0);
+    const totalLube = allExp.filter((e) => e.category === "Lube & Consumables").reduce((s, e) => s + e.amount, 0);
     const totalOther = totalAll - totalElec - totalLube;
-
     summaryEl.innerHTML = `
       <div class="stat-card">
-        <div class="stat-icon" style="background:rgba(239,68,68,0.15); color:#ef4444;">₹</div>
+        <div class="stat-icon" style="background:rgba(239,68,68,0.15); color:#ef4444;">\u20B9</div>
         <div class="stat-info">
           <div class="stat-label">Total Expenses Recorded</div>
           <div class="stat-value">${formatCurrency(totalAll)}</div>
@@ -2493,42 +2053,38 @@ function renderExpenseLedger() {
         </div>
       </div>
       <div class="stat-card">
-        <div class="stat-icon" style="background:rgba(234,179,8,0.15); color:#fbbf24;">⚡</div>
+        <div class="stat-icon" style="background:rgba(234,179,8,0.15); color:#fbbf24;">\u26A1</div>
         <div class="stat-info">
           <div class="stat-label">Electricity</div>
           <div class="stat-value">${formatCurrency(totalElec)}</div>
-          <div class="stat-sub">${allExp.filter(e=>e.category==='Electricity').length} bills</div>
+          <div class="stat-sub">${allExp.filter((e) => e.category === "Electricity").length} bills</div>
         </div>
       </div>
       <div class="stat-card">
-        <div class="stat-icon" style="background:rgba(168,85,247,0.15); color:#a855f7;">🛢️</div>
+        <div class="stat-icon" style="background:rgba(168,85,247,0.15); color:#a855f7;">\u{1F6E2}\uFE0F</div>
         <div class="stat-info">
           <div class="stat-label">Lube &amp; Consumables</div>
           <div class="stat-value">${formatCurrency(totalLube)}</div>
-          <div class="stat-sub">${allExp.filter(e=>e.category==='Lube & Consumables').length} invoices</div>
+          <div class="stat-sub">${allExp.filter((e) => e.category === "Lube & Consumables").length} invoices</div>
         </div>
       </div>
       <div class="stat-card">
-        <div class="stat-icon" style="background:rgba(100,116,139,0.15); color:#94a3b8;">📋</div>
+        <div class="stat-icon" style="background:rgba(100,116,139,0.15); color:#94a3b8;">\u{1F4CB}</div>
         <div class="stat-info">
           <div class="stat-label">Other</div>
           <div class="stat-value">${formatCurrency(totalOther)}</div>
-          <div class="stat-sub">${allExp.filter(e=>e.category!=='Electricity'&&e.category!=='Lube & Consumables').length} entries</div>
+          <div class="stat-sub">${allExp.filter((e) => e.category !== "Electricity" && e.category !== "Lube & Consumables").length} entries</div>
         </div>
       </div>
     `;
   }
-
-  // ---- Table ----
-  const tbody = document.getElementById('expense-ledger-body');
+  const tbody = document.getElementById("expense-ledger-body");
   if (!tbody) return;
-
   if (expenses.length === 0) {
     tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; color:var(--text-dim); padding:2rem;">No expense records found.</td></tr>`;
     return;
   }
-
-  tbody.innerHTML = expenses.map(e => {
+  tbody.innerHTML = expenses.map((e) => {
     const cs = getCatStyle(e.category);
     return `
       <tr>
@@ -2539,8 +2095,8 @@ function renderExpenseLedger() {
           </span>
         </td>
         <td>
-          <div style="font-weight:600; font-size:0.82rem;">${e.vendor || '—'}</div>
-          <div style="font-size:0.72rem; color:var(--text-dim); margin-top:0.15rem; max-width:380px; line-height:1.4;">${e.description || ''}</div>
+          <div style="font-weight:600; font-size:0.82rem;">${e.vendor || "\u2014"}</div>
+          <div style="font-size:0.72rem; color:var(--text-dim); margin-top:0.15rem; max-width:380px; line-height:1.4;">${e.description || ""}</div>
         </td>
         <td style="text-align:right; font-weight:700; font-size:0.9rem; color:var(--accent-danger);">${formatCurrency(e.amount)}</td>
         <td style="text-align:center;">
@@ -2550,173 +2106,132 @@ function renderExpenseLedger() {
           </div>
         </td>
       </tr>`;
-  }).join('');
+  }).join("");
 }
-
 function openAddExpenseModal() {
-  document.getElementById('expense-modal-title').textContent = 'Add Expense';
-  document.getElementById('exp-edit-id').value = '';
-  document.getElementById('exp-inp-date').value   = new Date().toISOString().split('T')[0];
-  document.getElementById('exp-inp-cat').value    = 'Electricity';
-  document.getElementById('exp-inp-vendor').value = '';
-  document.getElementById('exp-inp-amount').value = '';
-  document.getElementById('exp-inp-desc').value   = '';
-  const modal = document.getElementById('expense-modal');
-  modal.style.display = 'flex';
+  document.getElementById("expense-modal-title").textContent = "Add Expense";
+  document.getElementById("exp-edit-id").value = "";
+  document.getElementById("exp-inp-date").value = (/* @__PURE__ */ new Date()).toISOString().split("T")[0];
+  document.getElementById("exp-inp-cat").value = "Electricity";
+  document.getElementById("exp-inp-vendor").value = "";
+  document.getElementById("exp-inp-amount").value = "";
+  document.getElementById("exp-inp-desc").value = "";
+  const modal = document.getElementById("expense-modal");
+  modal.style.display = "flex";
 }
-
 function editExpenseEntry(id) {
   if (!db.expenses) return;
-  const e = db.expenses.find(x => x.id === id);
+  const e = db.expenses.find((x) => x.id === id);
   if (!e) return;
-  document.getElementById('expense-modal-title').textContent = 'Edit Expense';
-  document.getElementById('exp-edit-id').value    = e.id;
-  document.getElementById('exp-inp-date').value   = e.date;
-  document.getElementById('exp-inp-cat').value    = e.category;
-  document.getElementById('exp-inp-vendor').value = e.vendor || '';
-  document.getElementById('exp-inp-amount').value = e.amount;
-  document.getElementById('exp-inp-desc').value   = e.description || '';
-  document.getElementById('expense-modal').style.display = 'flex';
+  document.getElementById("expense-modal-title").textContent = "Edit Expense";
+  document.getElementById("exp-edit-id").value = e.id;
+  document.getElementById("exp-inp-date").value = e.date;
+  document.getElementById("exp-inp-cat").value = e.category;
+  document.getElementById("exp-inp-vendor").value = e.vendor || "";
+  document.getElementById("exp-inp-amount").value = e.amount;
+  document.getElementById("exp-inp-desc").value = e.description || "";
+  document.getElementById("expense-modal").style.display = "flex";
 }
-
 function closeExpenseModal() {
-  document.getElementById('expense-modal').style.display = 'none';
+  document.getElementById("expense-modal").style.display = "none";
 }
-
 function saveExpenseEntry() {
   if (!db.expenses) db.expenses = [];
-  const editId  = document.getElementById('exp-edit-id').value.trim();
-  const date    = document.getElementById('exp-inp-date').value;
-  const cat     = document.getElementById('exp-inp-cat').value;
-  const vendor  = document.getElementById('exp-inp-vendor').value.trim();
-  const amount  = parseFloat(document.getElementById('exp-inp-amount').value);
-  const desc    = document.getElementById('exp-inp-desc').value.trim();
-
-  if (!date)        { showNotification('Please enter a date.', 'danger'); return; }
-  if (isNaN(amount) || amount <= 0) { showNotification('Please enter a valid amount.', 'danger'); return; }
-
+  const editId = document.getElementById("exp-edit-id").value.trim();
+  const date = document.getElementById("exp-inp-date").value;
+  const cat = document.getElementById("exp-inp-cat").value;
+  const vendor = document.getElementById("exp-inp-vendor").value.trim();
+  const amount = parseFloat(document.getElementById("exp-inp-amount").value);
+  const desc = document.getElementById("exp-inp-desc").value.trim();
+  if (!date) {
+    showNotification("Please enter a date.", "danger");
+    return;
+  }
+  if (isNaN(amount) || amount <= 0) {
+    showNotification("Please enter a valid amount.", "danger");
+    return;
+  }
   if (editId) {
-    const idx = db.expenses.findIndex(x => x.id === editId);
+    const idx = db.expenses.findIndex((x) => x.id === editId);
     if (idx !== -1) {
       db.expenses[idx] = { id: editId, date, category: cat, vendor, amount, description: desc };
     }
   } else {
-    const newId = 'exp_' + date.replace(/-/g, '') + '_' + Date.now();
+    const newId = "exp_" + date.replace(/-/g, "") + "_" + Date.now();
     db.expenses.push({ id: newId, date, category: cat, vendor, amount, description: desc });
   }
-
   saveDB();
   closeExpenseModal();
   renderExpenseLedger();
-  showNotification('Expense saved.', 'success');
+  showNotification("Expense saved.", "success");
 }
-
 function deleteExpenseEntry(id) {
   if (!db.expenses) return;
-  if (!confirm('Delete this expense record?')) return;
-  db.expenses = db.expenses.filter(e => e.id !== id);
+  if (!confirm("Delete this expense record?")) return;
+  db.expenses = db.expenses.filter((e) => e.id !== id);
   saveDB();
   renderExpenseLedger();
-  showNotification('Expense deleted.', 'info');
+  showNotification("Expense deleted.", "info");
 }
-
-window.renderExpenseLedger  = renderExpenseLedger;
-window.openAddExpenseModal  = openAddExpenseModal;
-window.closeExpenseModal    = closeExpenseModal;
-window.saveExpenseEntry     = saveExpenseEntry;
-window.editExpenseEntry     = editExpenseEntry;
-window.deleteExpenseEntry   = deleteExpenseEntry;
-
-// =============================================================
-// P&L REPORT ENGINE
-// =============================================================
-// Purchase cost per litre — derived from actual IOCL invoices:
-//   Nov 2024 deliveries (price_petrol=102.17, price_diesel=88.84)
-//   Dec 2024 onwards   (price_petrol=102.02, price_diesel=88.71)
-//   Historical avg used as fallback when no bill is available:
-//     MS ≈ ₹102.10/L | HSD ≈ ₹88.78/L
-const HIST_AVG_MS_COST  = 102.10; // historical avg purchase price for MS (petrol)
-const HIST_AVG_HSD_COST = 88.78;  // historical avg purchase price for HSD (diesel)
-
-// ---- Helper: compute net litres sold from one nozzle row ----
+window.renderExpenseLedger = renderExpenseLedger;
+window.openAddExpenseModal = openAddExpenseModal;
+window.closeExpenseModal = closeExpenseModal;
+window.saveExpenseEntry = saveExpenseEntry;
+window.editExpenseEntry = editExpenseEntry;
+window.deleteExpenseEntry = deleteExpenseEntry;
+const HIST_AVG_MS_COST = 102.1;
+const HIST_AVG_HSD_COST = 88.78;
 function nozzleSale(n) {
   if (!n) return 0;
-  const open  = n.open  || 0;
-  const close = n.close_night > 0 ? n.close_night : (n.close_day || 0);
+  const open = n.open || 0;
+  const close = n.close_night > 0 ? n.close_night : n.close_day || 0;
   if (close <= open) return 0;
   const gross = close - open;
-  const tests = (n.tests_day || 0) * 5; // 5L per day-test
+  const tests = (n.tests_day || 0) * 5;
   return Math.max(0, gross - tests);
 }
-
-// ---- Build daily WAC timeline from purchases (chronological) ----
-// WAC = Weighted Average Cost of stock in tank on any given date.
-// We process chronologically: when a tanker delivers → update WAC.
-// When daily sales happen → reduce stock (WAC stays same, only stock falls).
 function buildWACTimeline() {
   if (!db || !db.purchases || !db.daily_ledger) return {};
-
-  // Sort purchases oldest first
-  const purch = [...db.purchases]
-    .filter(p => p && (p.petrol_liters > 0 || p.diesel_liters > 0))
-    .sort((a, b) => (a.date || '').localeCompare(b.date || ''));
-
-  // All unique dates in ledger, sorted oldest first
-  const ledgerDates = [...new Set(db.daily_ledger.filter(r => r && r.date).map(r => r.date))].sort();
-
-  // Initial stock / WAC seeds (reasonable starting point before our data)
-  let msStock  = 8000;
-  let hsdStock = 8000;
-  let msWAC    = HIST_AVG_MS_COST;
-  let hsdWAC   = HIST_AVG_HSD_COST;
-
-  // Seed WAC from first purchase price if available
+  const purch = [...db.purchases].filter((p) => p && (p.petrol_liters > 0 || p.diesel_liters > 0)).sort((a, b) => (a.date || "").localeCompare(b.date || ""));
+  const ledgerDates = [...new Set(db.daily_ledger.filter((r) => r && r.date).map((r) => r.date))].sort();
+  let msStock = 8e3;
+  let hsdStock = 8e3;
+  let msWAC = HIST_AVG_MS_COST;
+  let hsdWAC = HIST_AVG_HSD_COST;
   if (purch.length > 0) {
-    msWAC  = purch[0].price_petrol  || HIST_AVG_MS_COST;
-    hsdWAC = purch[0].price_diesel  || HIST_AVG_HSD_COST;
+    msWAC = purch[0].price_petrol || HIST_AVG_MS_COST;
+    hsdWAC = purch[0].price_diesel || HIST_AVG_HSD_COST;
   }
-
   const wacByDate = {};
-  let pi = 0; // purchase index
-
+  let pi = 0;
   for (const date of ledgerDates) {
-    // Apply all purchases on or before this date
-    while (pi < purch.length && (purch[pi].date || '').split('T')[0] <= date) {
-      const p  = purch[pi];
-      const pMs  = p.petrol_liters  || 0;
-      const pHsd = p.diesel_liters  || 0;
-      // Use bill price; fallback to historical avg if 0
-      const pMsPrice  = (pMs  > 0 && p.price_petrol  > 0) ? p.price_petrol  : HIST_AVG_MS_COST;
-      const pHsdPrice = (pHsd > 0 && p.price_diesel   > 0) ? p.price_diesel  : HIST_AVG_HSD_COST;
-
+    while (pi < purch.length && (purch[pi].date || "").split("T")[0] <= date) {
+      const p = purch[pi];
+      const pMs = p.petrol_liters || 0;
+      const pHsd = p.diesel_liters || 0;
+      const pMsPrice = pMs > 0 && p.price_petrol > 0 ? p.price_petrol : HIST_AVG_MS_COST;
+      const pHsdPrice = pHsd > 0 && p.price_diesel > 0 ? p.price_diesel : HIST_AVG_HSD_COST;
       if (pMs > 0) {
-        msWAC   = (msStock * msWAC + pMs * pMsPrice) / (msStock + pMs);
+        msWAC = (msStock * msWAC + pMs * pMsPrice) / (msStock + pMs);
         msStock += pMs;
       }
       if (pHsd > 0) {
-        hsdWAC   = (hsdStock * hsdWAC + pHsd * pHsdPrice) / (hsdStock + pHsd);
+        hsdWAC = (hsdStock * hsdWAC + pHsd * pHsdPrice) / (hsdStock + pHsd);
         hsdStock += pHsd;
       }
       pi++;
     }
-
-    // Record WAC for this date AFTER incoming stock
     wacByDate[date] = { ms: msWAC, hsd: hsdWAC };
-
-    // Reduce stock by today's sales
-    const row = db.daily_ledger.find(r => r.date === date);
+    const row = db.daily_ledger.find((r) => r.date === date);
     if (row) {
-      const msSold  = nozzleSale(row.du1_p) + nozzleSale(row.du2_p);
+      const msSold = nozzleSale(row.du1_p) + nozzleSale(row.du2_p);
       const hsdSold = nozzleSale(row.du1_d) + nozzleSale(row.du2_d);
-      msStock  = Math.max(0, msStock  - msSold);
+      msStock = Math.max(0, msStock - msSold);
       hsdStock = Math.max(0, hsdStock - hsdSold);
     }
   }
-
   return wacByDate;
 }
-
-// ---- Build expense lookup map: date string → total expense amount ----
 function buildExpenseDateMap() {
   const map = {};
   if (!db.expenses) return map;
@@ -2725,114 +2240,108 @@ function buildExpenseDateMap() {
   }
   return map;
 }
-
-// ---- Find selling price applicable on a given date ----
 function getSellingPrice(dateStr) {
   if (!db.prices || db.prices.length === 0) return { petrol: 105.58, diesel: 90.98 };
-  const sorted = [...db.prices].sort((a, b) => (b.effective_date || '').localeCompare(a.effective_date || ''));
+  const sorted = [...db.prices].sort((a, b) => (b.effective_date || "").localeCompare(a.effective_date || ""));
   for (const p of sorted) {
-    if ((p.effective_date || '').split('T')[0] <= dateStr) return p;
+    if ((p.effective_date || "").split("T")[0] <= dateStr) return p;
   }
-  // Fallback: earliest known price
   return sorted[sorted.length - 1] || { petrol: 105.58, diesel: 90.98 };
 }
-
-// ---- Main render function ----
 function renderPnlReport() {
   if (!db.daily_ledger || db.daily_ledger.length === 0) {
-    document.getElementById('pnl-summary-tiles').innerHTML =
-      '<div style="color:var(--text-dim); padding:2rem;">No ledger data available. Load history backup from System Settings.</div>';
+    document.getElementById("pnl-summary-tiles").innerHTML = '<div style="color:var(--text-dim); padding:2rem;">No ledger data available. Load history backup from System Settings.</div>';
     return;
   }
-
-  const wacMap     = buildWACTimeline();
+  const wacMap = buildWACTimeline();
   const expenseMap = buildExpenseDateMap();
-
-  // ---- Compute one record per ledger day ----
-  const dailyRows = db.daily_ledger
-    .map(row => {
-      const date = row.date;
-      const wac  = wacMap[date] || { ms: HIST_AVG_MS_COST, hsd: HIST_AVG_HSD_COST };
-      const sp   = row.prices || getSellingPrice(date);
-
-      const msSold  = nozzleSale(row.du1_p) + nozzleSale(row.du2_p);
-      const hsdSold = nozzleSale(row.du1_d) + nozzleSale(row.du2_d);
-
-      const msRev   = msSold  * sp.petrol;
-      const hsdRev  = hsdSold * sp.diesel;
-      const revenue = msRev + hsdRev;
-
-      const msCost   = msSold  * wac.ms;
-      const hsdCost  = hsdSold * wac.hsd;
-      const totalCost = msCost + hsdCost;
-
-      const grossProfit = revenue - totalCost;
-      const dayExpenses = expenseMap[date] || 0;
-      const netPnl      = grossProfit - dayExpenses;
-
-      return {
-        date, msSold, hsdSold,
-        sellMs: sp.petrol, sellHsd: sp.diesel,
-        wacMs: wac.ms, wacHsd: wac.hsd,
-        msRev, hsdRev, revenue,
-        msCost, hsdCost, totalCost,
-        grossProfit, dayExpenses, netPnl
-      };
-    })
-    .sort((a, b) => b.date.localeCompare(a.date)); // newest first
-
-  // ---- Aggregate into months ----
+  const dailyRows = db.daily_ledger.map((row) => {
+    const date = row.date;
+    const wac = wacMap[date] || { ms: HIST_AVG_MS_COST, hsd: HIST_AVG_HSD_COST };
+    const sp = row.prices || getSellingPrice(date);
+    const msSold = nozzleSale(row.du1_p) + nozzleSale(row.du2_p);
+    const hsdSold = nozzleSale(row.du1_d) + nozzleSale(row.du2_d);
+    const msRev = msSold * sp.petrol;
+    const hsdRev = hsdSold * sp.diesel;
+    const revenue = msRev + hsdRev;
+    const msCost = msSold * wac.ms;
+    const hsdCost = hsdSold * wac.hsd;
+    const totalCost = msCost + hsdCost;
+    const grossProfit = revenue - totalCost;
+    const dayExpenses = expenseMap[date] || 0;
+    const netPnl = grossProfit - dayExpenses;
+    return {
+      date,
+      msSold,
+      hsdSold,
+      sellMs: sp.petrol,
+      sellHsd: sp.diesel,
+      wacMs: wac.ms,
+      wacHsd: wac.hsd,
+      msRev,
+      hsdRev,
+      revenue,
+      msCost,
+      hsdCost,
+      totalCost,
+      grossProfit,
+      dayExpenses,
+      netPnl
+    };
+  }).sort((a, b) => b.date.localeCompare(a.date));
   const monthMap = {};
   for (const r of dailyRows) {
-    const mon = r.date.slice(0, 7); // "2024-11"
+    const mon = r.date.slice(0, 7);
     if (!monthMap[mon]) {
       monthMap[mon] = {
-        month: mon, msSold: 0, hsdSold: 0,
-        msRev: 0, hsdRev: 0, revenue: 0,
-        msCost: 0, hsdCost: 0, totalCost: 0,
-        grossProfit: 0, expenses: 0, netPnl: 0
+        month: mon,
+        msSold: 0,
+        hsdSold: 0,
+        msRev: 0,
+        hsdRev: 0,
+        revenue: 0,
+        msCost: 0,
+        hsdCost: 0,
+        totalCost: 0,
+        grossProfit: 0,
+        expenses: 0,
+        netPnl: 0
       };
     }
     const m = monthMap[mon];
-    m.msSold      += r.msSold;
-    m.hsdSold     += r.hsdSold;
-    m.msRev       += r.msRev;
-    m.hsdRev      += r.hsdRev;
-    m.revenue     += r.revenue;
-    m.msCost      += r.msCost;
-    m.hsdCost     += r.hsdCost;
-    m.totalCost   += r.totalCost;
+    m.msSold += r.msSold;
+    m.hsdSold += r.hsdSold;
+    m.msRev += r.msRev;
+    m.hsdRev += r.hsdRev;
+    m.revenue += r.revenue;
+    m.msCost += r.msCost;
+    m.hsdCost += r.hsdCost;
+    m.totalCost += r.totalCost;
     m.grossProfit += r.grossProfit;
-    m.expenses    += r.dayExpenses;
-    m.netPnl      += r.netPnl;
+    m.expenses += r.dayExpenses;
+    m.netPnl += r.netPnl;
   }
-
   const monthlyRows = Object.values(monthMap).sort((a, b) => b.month.localeCompare(a.month));
-
-  // ---- Grand totals ----
   const grand = dailyRows.reduce((acc, r) => {
-    acc.revenue     += r.revenue;
-    acc.totalCost   += r.totalCost;
+    acc.revenue += r.revenue;
+    acc.totalCost += r.totalCost;
     acc.grossProfit += r.grossProfit;
-    acc.expenses    += r.dayExpenses;
-    acc.netPnl      += r.netPnl;
-    acc.msSold      += r.msSold;
-    acc.hsdSold     += r.hsdSold;
+    acc.expenses += r.dayExpenses;
+    acc.netPnl += r.netPnl;
+    acc.msSold += r.msSold;
+    acc.hsdSold += r.hsdSold;
     return acc;
-  }, { revenue:0, totalCost:0, grossProfit:0, expenses:0, netPnl:0, msSold:0, hsdSold:0 });
-
-  const totalMargin = grand.revenue > 0 ? (grand.netPnl / grand.revenue * 100) : 0;
+  }, { revenue: 0, totalCost: 0, grossProfit: 0, expenses: 0, netPnl: 0, msSold: 0, hsdSold: 0 });
+  const totalMargin = grand.revenue > 0 ? grand.netPnl / grand.revenue * 100 : 0;
   const livePrices = getSellingPriceNow();
-  const avgMsMargin  = HIST_AVG_MS_COST  > 0 ? (livePrices.petrol - HIST_AVG_MS_COST)  : 0;
-  const avgHsdMargin = HIST_AVG_HSD_COST > 0 ? (livePrices.diesel - HIST_AVG_HSD_COST) : 0;
-
-  // ---- Summary tiles ----
-  const tilesEl = document.getElementById('pnl-summary-tiles');
+  const avgMsMargin = HIST_AVG_MS_COST > 0 ? livePrices.petrol - HIST_AVG_MS_COST : 0;
+  const avgHsdMargin = HIST_AVG_HSD_COST > 0 ? livePrices.diesel - HIST_AVG_HSD_COST : 0;
+  const tilesEl = document.getElementById("pnl-summary-tiles");
   if (tilesEl) {
-    const profColor = grand.netPnl >= 0 ? '#22c55e' : '#ef4444';
+    const profColor = grand.netPnl >= 0 ? "#22c55e" : "#ef4444";
     tilesEl.innerHTML = `
       <div class="stat-card">
-        <div class="stat-icon" style="background:rgba(34,197,94,0.15); color:#22c55e;">₹</div>
+        <div class="stat-icon" style="background:rgba(34,197,94,0.15); color:#22c55e;">\u20B9</div>
         <div class="stat-info">
           <div class="stat-label">Total Revenue</div>
           <div class="stat-value" style="font-size:1.05rem;">${formatCurrency(grand.revenue)}</div>
@@ -2840,15 +2349,15 @@ function renderPnlReport() {
         </div>
       </div>
       <div class="stat-card">
-        <div class="stat-icon" style="background:rgba(239,68,68,0.15); color:#ef4444;">📦</div>
+        <div class="stat-icon" style="background:rgba(239,68,68,0.15); color:#ef4444;">\u{1F4E6}</div>
         <div class="stat-info">
           <div class="stat-label">Total Purchase Cost (WAC)</div>
           <div class="stat-value" style="font-size:1.05rem;">${formatCurrency(grand.totalCost)}</div>
-          <div class="stat-sub">MS ₹${HIST_AVG_MS_COST}/L avg · HSD ₹${HIST_AVG_HSD_COST}/L avg</div>
+          <div class="stat-sub">MS \u20B9${HIST_AVG_MS_COST}/L avg \xB7 HSD \u20B9${HIST_AVG_HSD_COST}/L avg</div>
         </div>
       </div>
       <div class="stat-card">
-        <div class="stat-icon" style="background:rgba(251,191,36,0.15); color:#fbbf24;">📊</div>
+        <div class="stat-icon" style="background:rgba(251,191,36,0.15); color:#fbbf24;">\u{1F4CA}</div>
         <div class="stat-info">
           <div class="stat-label">Gross Profit</div>
           <div class="stat-value" style="font-size:1.05rem; color:#fbbf24;">${formatCurrency(grand.grossProfit)}</div>
@@ -2856,8 +2365,8 @@ function renderPnlReport() {
         </div>
       </div>
       <div class="stat-card">
-        <div class="stat-icon" style="background:rgba(${grand.netPnl>=0?'34,197,94':'239,68,68'},0.15); color:${profColor};">
-          ${grand.netPnl >= 0 ? '📈' : '📉'}
+        <div class="stat-icon" style="background:rgba(${grand.netPnl >= 0 ? "34,197,94" : "239,68,68"},0.15); color:${profColor};">
+          ${grand.netPnl >= 0 ? "\u{1F4C8}" : "\u{1F4C9}"}
         </div>
         <div class="stat-info">
           <div class="stat-label">Net P&amp;L (after expenses)</div>
@@ -2866,24 +2375,22 @@ function renderPnlReport() {
         </div>
       </div>
       <div class="stat-card">
-        <div class="stat-icon" style="background:rgba(99,102,241,0.15); color:#818cf8;">⛽</div>
+        <div class="stat-icon" style="background:rgba(99,102,241,0.15); color:#818cf8;">\u26FD</div>
         <div class="stat-info">
           <div class="stat-label">Margin per Litre</div>
-          <div class="stat-value" style="font-size:1.05rem; color:#818cf8;">MS ₹${avgMsMargin.toFixed(2)} · HSD ₹${avgHsdMargin.toFixed(2)}</div>
+          <div class="stat-value" style="font-size:1.05rem; color:#818cf8;">MS \u20B9${avgMsMargin.toFixed(2)} \xB7 HSD \u20B9${avgHsdMargin.toFixed(2)}</div>
           <div class="stat-sub">Based on IOCL invoice prices vs sell price</div>
         </div>
       </div>
     `;
   }
-
-  // ---- Render monthly table ----
-  const mBody = document.getElementById('pnl-monthly-body');
-  const mFoot = document.getElementById('pnl-monthly-foot');
+  const mBody = document.getElementById("pnl-monthly-body");
+  const mFoot = document.getElementById("pnl-monthly-foot");
   if (mBody) {
-    mBody.innerHTML = monthlyRows.map(m => {
-      const margin = m.revenue > 0 ? (m.netPnl / m.revenue * 100) : 0;
-      const pnlColor = m.netPnl >= 0 ? '#22c55e' : '#ef4444';
-      const monthLabel = new Date(m.month + '-15').toLocaleString('en-IN', { month: 'long', year: 'numeric' });
+    mBody.innerHTML = monthlyRows.map((m) => {
+      const margin = m.revenue > 0 ? m.netPnl / m.revenue * 100 : 0;
+      const pnlColor = m.netPnl >= 0 ? "#22c55e" : "#ef4444";
+      const monthLabel = (/* @__PURE__ */ new Date(m.month + "-15")).toLocaleString("en-IN", { month: "long", year: "numeric" });
       return `<tr>
         <td style="font-weight:700; white-space:nowrap;">${monthLabel}</td>
         <td style="text-align:right;">${m.msSold.toFixed(0)}</td>
@@ -2894,21 +2401,19 @@ function renderPnlReport() {
         <td style="text-align:right; color:var(--text-dim);">${formatCurrency(m.msCost)}</td>
         <td style="text-align:right; color:var(--text-dim);">${formatCurrency(m.hsdCost)}</td>
         <td style="text-align:right; color:#fbbf24; font-weight:600;">${formatCurrency(m.grossProfit)}</td>
-        <td style="text-align:right; color:#ef4444;">${m.expenses > 0 ? formatCurrency(m.expenses) : '—'}</td>
+        <td style="text-align:right; color:#ef4444;">${m.expenses > 0 ? formatCurrency(m.expenses) : "\u2014"}</td>
         <td style="text-align:right; font-weight:700; color:${pnlColor};">${formatCurrency(m.netPnl)}</td>
         <td style="text-align:right;">
           <span style="padding:0.15rem 0.5rem; border-radius:20px; font-size:0.75rem; font-weight:700;
-            background:rgba(${m.netPnl>=0?'34,197,94':'239,68,68'},0.15); color:${pnlColor};">
+            background:rgba(${m.netPnl >= 0 ? "34,197,94" : "239,68,68"},0.15); color:${pnlColor};">
             ${margin.toFixed(1)}%
           </span>
         </td>
       </tr>`;
-    }).join('');
-
-    // Grand total footer row
+    }).join("");
     if (mFoot) {
-      const gMargin = grand.revenue > 0 ? (grand.netPnl / grand.revenue * 100) : 0;
-      const gColor  = grand.netPnl >= 0 ? '#22c55e' : '#ef4444';
+      const gMargin = grand.revenue > 0 ? grand.netPnl / grand.revenue * 100 : 0;
+      const gColor = grand.netPnl >= 0 ? "#22c55e" : "#ef4444";
       mFoot.innerHTML = `<tr style="background:rgba(255,255,255,0.04); font-weight:700; border-top:2px solid var(--border);">
         <td>TOTAL</td>
         <td style="text-align:right;">${grand.msSold.toFixed(0)}</td>
@@ -2923,53 +2428,45 @@ function renderPnlReport() {
       </tr>`;
     }
   }
-
-  // ---- Render daily table ----
-  const dBody = document.getElementById('pnl-daily-body');
+  const dBody = document.getElementById("pnl-daily-body");
   if (dBody) {
-    dBody.innerHTML = dailyRows.map(r => {
-      const pnlColor = r.netPnl >= 0 ? '#22c55e' : '#ef4444';
-      const rowBg    = r.netPnl < 0 ? 'background:rgba(239,68,68,0.04);' : '';
+    dBody.innerHTML = dailyRows.map((r) => {
+      const pnlColor = r.netPnl >= 0 ? "#22c55e" : "#ef4444";
+      const rowBg = r.netPnl < 0 ? "background:rgba(239,68,68,0.04);" : "";
       return `<tr style="${rowBg}">
         <td style="white-space:nowrap; font-weight:600;">${formatDate(r.date)}</td>
         <td style="text-align:right;">${r.msSold.toFixed(2)}</td>
         <td style="text-align:right;">${r.hsdSold.toFixed(2)}</td>
-        <td style="text-align:right; color:#818cf8;">₹${r.sellMs.toFixed(2)}</td>
-        <td style="text-align:right; color:#818cf8;">₹${r.sellHsd.toFixed(2)}</td>
+        <td style="text-align:right; color:#818cf8;">\u20B9${r.sellMs.toFixed(2)}</td>
+        <td style="text-align:right; color:#818cf8;">\u20B9${r.sellHsd.toFixed(2)}</td>
         <td style="text-align:right; font-weight:600;">${formatCurrency(r.revenue)}</td>
         <td style="text-align:right; color:var(--text-dim);">${formatCurrency(r.totalCost)}</td>
         <td style="text-align:right; color:#fbbf24;">${formatCurrency(r.grossProfit)}</td>
-        <td style="text-align:right; color:#ef4444;">${r.dayExpenses > 0 ? formatCurrency(r.dayExpenses) : '—'}</td>
+        <td style="text-align:right; color:#ef4444;">${r.dayExpenses > 0 ? formatCurrency(r.dayExpenses) : "\u2014"}</td>
         <td style="text-align:right; font-weight:700; color:${pnlColor};">${formatCurrency(r.netPnl)}</td>
       </tr>`;
-    }).join('');
+    }).join("");
   }
 }
-
-// ---- Sub-tab toggle (Monthly / Daily) ----
 function switchPnlTab(tab) {
-  const monthEl = document.getElementById('pnl-view-monthly');
-  const dailyEl = document.getElementById('pnl-view-daily');
-  const btnMon  = document.getElementById('pnl-tab-monthly');
-  const btnDay  = document.getElementById('pnl-tab-daily');
-
-  if (tab === 'monthly') {
-    monthEl.style.display = 'block';
-    dailyEl.style.display = 'none';
-    btnMon.className = 'btn btn-primary btn-sm';
-    btnDay.className = 'btn btn-secondary btn-sm';
+  const monthEl = document.getElementById("pnl-view-monthly");
+  const dailyEl = document.getElementById("pnl-view-daily");
+  const btnMon = document.getElementById("pnl-tab-monthly");
+  const btnDay = document.getElementById("pnl-tab-daily");
+  if (tab === "monthly") {
+    monthEl.style.display = "block";
+    dailyEl.style.display = "none";
+    btnMon.className = "btn btn-primary btn-sm";
+    btnDay.className = "btn btn-secondary btn-sm";
   } else {
-    monthEl.style.display = 'none';
-    dailyEl.style.display = 'block';
-    btnMon.className = 'btn btn-secondary btn-sm';
-    btnDay.className = 'btn btn-primary btn-sm';
+    monthEl.style.display = "none";
+    dailyEl.style.display = "block";
+    btnMon.className = "btn btn-secondary btn-sm";
+    btnDay.className = "btn btn-primary btn-sm";
   }
 }
-
 window.renderPnlReport = renderPnlReport;
-window.switchPnlTab    = switchPnlTab;
-
-// Expose approvals panel and bulk approval functions to global window scope
+window.switchPnlTab = switchPnlTab;
 window.calculateNozzleSale = calculateNozzleSale;
 window.getPendingGroupLabel = getPendingGroupLabel;
 window.toggleSelectAllGroup = toggleSelectAllGroup;
@@ -2977,4 +2474,3 @@ window.updateGroupCalculations = updateGroupCalculations;
 window.bulkApproveEntries = bulkApproveEntries;
 window.approveEntry = approveEntry;
 window.promptRejectEntry = promptRejectEntry;
-
