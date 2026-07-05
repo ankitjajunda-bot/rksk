@@ -554,7 +554,8 @@ Is this an authorized meter replacement or reset? Click OK to submit for owner a
         phonepe_closing: ppClose,
         phonepe_collection: ppCollection,
         manual_prices: Object.keys(manualPrices).length > 0 ? manualPrices : null,
-        remarks: ((_i = (_h = document.getElementById("emp-remarks")) == null ? void 0 : _h.value) == null ? void 0 : _i.trim()) || ""
+        remarks: ((_i = (_h = document.getElementById("emp-remarks")) == null ? void 0 : _h.value) == null ? void 0 : _i.trim()) || "",
+        photo: window._empPhotoBase64 || null
       },
       deviceId: getDeviceId()
     });
@@ -633,6 +634,9 @@ Is this an authorized meter replacement or reset? Click OK to submit for owner a
       if (mEl) mEl.value = today.getMonth() + 1;
       if (yEl) yEl.value = today.getFullYear();
 
+      // Clear photo after submit
+      if (typeof removeEmpPhoto === 'function') removeEmpPhoto();
+
       if (success) {
         showNotification(`\u2705 ${typeLabel} submitted and synced to cloud! Owner can see it under Operations \u2192 Approve Shifts.`, "success");
       } else {
@@ -645,3 +649,65 @@ Is this an authorized meter replacement or reset? Click OK to submit for owner a
     });
   });
 }
+
+// --- Photo Upload Handling ---
+window._empPhotoBase64 = null;
+
+function handleEmpPhotoUpload(input) {
+  if (!input.files || !input.files[0]) return;
+  const file = input.files[0];
+  
+  // Max 10MB raw
+  if (file.size > 10 * 1024 * 1024) {
+    showNotification("Photo too large (max 10MB). Try again.", "danger");
+    input.value = "";
+    return;
+  }
+
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    const img = new Image();
+    img.onload = function() {
+      // Compress: max 800px wide, JPEG quality 0.6
+      const MAX_W = 800;
+      const MAX_H = 800;
+      let w = img.width;
+      let h = img.height;
+      if (w > MAX_W) { h = Math.round(h * MAX_W / w); w = MAX_W; }
+      if (h > MAX_H) { w = Math.round(w * MAX_H / h); h = MAX_H; }
+      
+      const canvas = document.createElement("canvas");
+      canvas.width = w;
+      canvas.height = h;
+      const ctx = canvas.getContext("2d");
+      ctx.drawImage(img, 0, 0, w, h);
+      
+      const compressed = canvas.toDataURL("image/jpeg", 0.6);
+      window._empPhotoBase64 = compressed;
+      
+      // Show preview
+      const preview = document.getElementById("emp-photo-preview");
+      const thumb = document.getElementById("emp-photo-thumb");
+      const sizeEl = document.getElementById("emp-photo-size");
+      if (preview) preview.style.display = "block";
+      if (thumb) thumb.src = compressed;
+      
+      const sizeKB = Math.round(compressed.length * 0.75 / 1024);
+      if (sizeEl) sizeEl.textContent = `Compressed: ${sizeKB} KB (${w}×${h}px)`;
+    };
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+window.handleEmpPhotoUpload = handleEmpPhotoUpload;
+
+function removeEmpPhoto() {
+  window._empPhotoBase64 = null;
+  const preview = document.getElementById("emp-photo-preview");
+  const thumb = document.getElementById("emp-photo-thumb");
+  const input = document.getElementById("emp-photo-input");
+  if (preview) preview.style.display = "none";
+  if (thumb) thumb.src = "";
+  if (input) input.value = "";
+}
+window.removeEmpPhoto = removeEmpPhoto;

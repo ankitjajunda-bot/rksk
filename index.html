@@ -57,7 +57,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 
   <!-- Stylesheets -->
-  <link rel="stylesheet" href="styles.css?v=74">
+  <link rel="stylesheet" href="styles.css?v=75">
 
   <style>
     .proof-panel { padding: 1.5rem; border-left: 4px solid var(--primary); display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; background: rgba(0,0,0,0.15); box-shadow: inset 0 2px 10px rgba(0,0,0,0.2); margin: 0.5rem 0;}
@@ -385,6 +385,28 @@
           </div>
 
           <div class="form-group"><label for="emp-remarks">Remarks / Notes</label><input type="text" id="emp-remarks" placeholder="Explain discrepancy or write notes for owner…"></div>
+
+          <!-- Photo Upload Section -->
+          <div style="background:rgba(255,255,255,0.02);border:1px solid #334155;border-radius:0.75rem;padding:1rem;display:flex;flex-direction:column;gap:0.75rem;">
+            <div style="display:flex;align-items:center;justify-content:space-between;">
+              <span style="font-weight:700;color:#f8fafc;font-size:0.85rem;display:flex;align-items:center;gap:0.4rem;">
+                📷 Attach Reading Photo
+              </span>
+              <span style="font-size:0.65rem;color:#64748b;">Optional — photo of meter slip</span>
+            </div>
+            <div style="display:flex;gap:0.5rem;flex-wrap:wrap;">
+              <label for="emp-photo-input" style="background:linear-gradient(135deg,#f97316,#ea580c);color:#fff;border:none;border-radius:0.5rem;padding:0.55rem 1rem;font-size:0.8rem;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:0.4rem;">
+                📸 Take Photo / Upload
+              </label>
+              <input type="file" id="emp-photo-input" accept="image/*" capture="environment" style="display:none;" onchange="handleEmpPhotoUpload(this)">
+            </div>
+            <div id="emp-photo-preview" style="display:none;position:relative;">
+              <img id="emp-photo-thumb" src="" alt="Reading photo preview" style="max-width:100%;max-height:200px;border-radius:0.5rem;border:1px solid #334155;">
+              <button onclick="removeEmpPhoto()" style="position:absolute;top:4px;right:4px;background:rgba(239,68,68,0.9);color:#fff;border:none;border-radius:50%;width:24px;height:24px;font-size:0.75rem;cursor:pointer;display:flex;align-items:center;justify-content:center;">✕</button>
+              <div id="emp-photo-size" style="font-size:0.65rem;color:#64748b;margin-top:0.25rem;"></div>
+            </div>
+          </div>
+
           <button id="emp-submit-btn" class="btn btn-primary" style="width:100%;padding:0.85rem;font-size:1rem;">✅ Submit for Approval</button>
         </div>
       </div>
@@ -2631,17 +2653,17 @@
   <script src="extracted_kc_expenses.js"></script>
   <script src="ocr_stock_data.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="js/schema.js?v=74"></script>
-  <script src="js/sync.js?v=74"></script>
-  <script src="js/auth.js?v=74"></script>
-  <script src="js/ui_login.js?v=74"></script>
-  <script src="js/employee_dashboard.js?v=74"></script>
-  <script src="js/employee_submit.js?v=74"></script>
-  <script src="js/owner_approvals.js?v=74"></script>
-  <script src="js/core_db_ledger.js?v=74"></script>
-  <script src="js/error_reporting.js?v=74"></script>
-  <script src="js/dsr_checker.js?v=74"></script>
-  <script src="js/auth_reset.js?v=74"></script>
+  <script src="js/schema.js?v=75"></script>
+  <script src="js/sync.js?v=75"></script>
+  <script src="js/auth.js?v=75"></script>
+  <script src="js/ui_login.js?v=75"></script>
+  <script src="js/employee_dashboard.js?v=75"></script>
+  <script src="js/employee_submit.js?v=75"></script>
+  <script src="js/owner_approvals.js?v=75"></script>
+  <script src="js/core_db_ledger.js?v=75"></script>
+  <script src="js/error_reporting.js?v=75"></script>
+  <script src="js/dsr_checker.js?v=75"></script>
+  <script src="js/auth_reset.js?v=75"></script>
 
 
   <!-- PWA: Offline banner -->

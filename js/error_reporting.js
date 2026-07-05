@@ -181,6 +181,10 @@ window.addEventListener("DOMContentLoaded", () => {
     if (currentCfg.supabaseUrl && currentCfg.supabaseKey && session && document.visibilityState === "visible") {
       initSync().then(() => {
         buildIndexes();
+        // Skip re-rendering Settings page to prevent button jitter
+        const activeNav = document.querySelector('.nav-item.active');
+        const activeView = activeNav ? activeNav.dataset.view : '';
+        if (activeView === 'settings') return;
         if (session.role === "owner") {
           renderCurrentView();
         } else {
@@ -189,7 +193,7 @@ window.addEventListener("DOMContentLoaded", () => {
       }).catch(() => {
       });
     }
-  }, 8e3);
+  }, 15000);
 });
 let currentTourStep = 0;
 let activeHighlightElement = null;

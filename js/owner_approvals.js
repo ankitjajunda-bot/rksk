@@ -434,6 +434,11 @@ function renderApprovalsPanel() {
 
                     ${ed.remarks ? `<div style="font-size:0.75rem; color:#94a3b8; background:rgba(255,255,255,0.02); border-left:2px solid var(--primary); padding:0.35rem 0.6rem; border-radius:4px;">\u{1F4DD} <strong style="color:#f8fafc;">Note:</strong> ${RKSKSchema.escapeHtml(ed.remarks)}</div>` : ""}
 
+                    ${ed.photo ? `<div style="margin-top:0.25rem;">
+                      <div style="font-size:0.72rem; color:#94a3b8; margin-bottom:0.25rem;">\u{1F4F7} <strong>Attached Reading Photo:</strong></div>
+                      <img src="${ed.photo}" alt="Reading slip photo" style="max-width:100%; max-height:300px; border-radius:0.5rem; border:1px solid #334155; cursor:pointer;" onclick="window.open(this.src, '_blank')">
+                    </div>` : ""}
+
                     <!-- Actions -->
                     <div style="display:flex; gap:0.5rem; justify-content:flex-end; flex-wrap:wrap; margin-top:0.25rem;">
                       ${isSnapshot ? `<button onclick="approveEntry(event, '${entry.id}')" style="background:#3b82f6; color:#fff; border:none; border-radius:0.4rem; padding:0.4rem 0.8rem; font-size:0.75rem; font-weight:700; cursor:pointer;">\u{1F4CA} Post to Ledger</button>` : `<button onclick="approveEntry(event, '${entry.id}')" style="background:#22c55e; color:#fff; border:none; border-radius:0.4rem; padding:0.4rem 0.8rem; font-size:0.75rem; font-weight:700; cursor:pointer;">\u2705 Approve</button>`}
