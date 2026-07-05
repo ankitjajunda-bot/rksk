@@ -648,9 +648,10 @@ function renderUserManagement() {
             \xB7 <span style="font-size:0.72rem;color:${u.active ? "#22c55e" : "#ef4444"};">${u.active ? "Active" : "Inactive"}</span>
           </div>
           <div style="display:flex;gap:0.4rem;flex-wrap:wrap;">
-            <button onclick="resetEmployeeDevice('${u.username}')" style="background:#1e293b;color:#94a3b8;border:1px solid #334155;border-radius:0.4rem;padding:0.3rem 0.6rem;font-size:0.72rem;cursor:pointer;">\u{1F4F1} Reset Device</button>
+            <button onclick="copyEmployeeSetupLink('${u.username}')" style="background:rgba(249, 115, 22, 0.1);color:#f97316;border:1px solid rgba(249, 115, 22, 0.4);border-radius:0.4rem;padding:0.3rem 0.6rem;font-size:0.72rem;cursor:pointer;">🔗 Copy Setup Link</button>
+            <button onclick="resetEmployeeDevice('${u.username}')" style="background:#1e293b;color:#94a3b8;border:1px solid #334155;border-radius:0.4rem;padding:0.3rem 0.6rem;font-size:0.72rem;cursor:pointer;">📱 Reset Device</button>
             <button onclick="toggleEmployee('${u.username}')" style="background:${u.active ? "rgba(239,68,68,0.1)" : "rgba(34,197,94,0.1)"};color:${u.active ? "#ef4444" : "#22c55e"};border:1px solid ${u.active ? "#ef4444" : "#22c55e"};border-radius:0.4rem;padding:0.3rem 0.6rem;font-size:0.72rem;cursor:pointer;">${u.active ? "Deactivate" : "Activate"}</button>
-            <button id="del-btn-${u.username}" onclick="deleteEmployeeAccount('${u.username}')" style="background:rgba(239,68,68,0.15);color:#ef4444;border:1px solid #ef4444;border-radius:0.4rem;padding:0.3rem 0.6rem;font-size:0.72rem;cursor:pointer;">\u{1F5D1}\uFE0F Delete</button>
+            <button id="del-btn-${u.username}" onclick="deleteEmployeeAccount('${u.username}')" style="background:rgba(239,68,68,0.15);color:#ef4444;border:1px solid #ef4444;border-radius:0.4rem;padding:0.3rem 0.6rem;font-size:0.72rem;cursor:pointer;">🗑️ Delete</button>
           </div>
         </div>`).join("");
   const addBtn = document.getElementById("add-employee-btn");
