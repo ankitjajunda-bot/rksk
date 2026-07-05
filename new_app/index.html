@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="description" content="RKSK Chandaroon Fuel Station - Sales Ledger & Management System">
+  <meta name="theme-color" content="#f97316">
+  <title>RKSK Chandaroon Fuel Station</title>
+  <link rel="manifest" href="./manifest.json">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="./css/styles.css">
+</head>
+<body>
+
+  <!-- ═══════════ NOTIFICATION CONTAINER ═══════════ -->
+  <div id="notification-container"></div>
+
+  <!-- ═══════════ LOGIN OVERLAY ═══════════ -->
+  <div id="login-overlay" style="display:flex;">
+    <div class="login-card">
+      <h1>⛽ RKSK Chandaroon</h1>
+      <p class="subtitle">Fuel Station Management System v2</p>
+
+      <!-- Owner Login Form -->
+      <div id="owner-login-form">
+        <div class="form-group" style="margin-bottom:1rem;">
+          <label>Owner Password</label>
+          <input type="password" id="owner-password" placeholder="Enter password" autocomplete="current-password">
+        </div>
+        <button class="btn btn-primary btn-lg" id="owner-login-btn">🔑 Owner Login</button>
+
+        <!-- MFA Section -->
+        <div id="mfa-section">
+          <div class="form-group" style="margin-top:1rem;">
+            <label>MFA Code (6 digits)</label>
+            <input type="text" id="mfa-code" placeholder="000000" maxlength="6" inputmode="numeric">
+          </div>
+          <button class="btn btn-primary" id="mfa-verify-btn" style="margin-top:0.5rem;width:100%;">Verify MFA</button>
+        </div>
+      </div>
+
+      <!-- Employee Login Form -->
+      <div id="emp-login-form" style="display:none;">
+        <div class="form-group" style="margin-bottom:0.75rem;">
+          <label>Phone Number</label>
+          <input type="tel" id="emp-phone" placeholder="+91 98765 43210">
+        </div>
+        <div class="form-group" style="margin-bottom:0.75rem;">
+          <label>Registration Code</label>
+          <input type="text" id="emp-code" placeholder="ABCDEF" style="text-transform:uppercase;">
+        </div>
+        <div class="form-group" style="margin-bottom:1rem;">
+          <label>PIN Code</label>
+          <input type="password" id="emp-pin" placeholder="****" maxlength="6" inputmode="numeric">
+        </div>
+        <button class="btn btn-primary btn-lg" id="emp-login-btn">👤 Employee Login</button>
+      </div>
+
+      <div style="text-align:center;margin-top:1rem;">
+        <button class="btn btn-ghost" id="login-toggle">Employee Login →</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════ OWNER APP CONTAINER ═══════════ -->
+  <div id="app-container" style="display:none;">
+
+    <!-- Mobile Header -->
+    <div class="mobile-header" style="display:none;">
+      <button class="btn btn-ghost" onclick="document.querySelector('.sidebar').classList.toggle('open')">☰</button>
+      <span style="font-weight:700;font-size:0.85rem;">RKSK Chandaroon</span>
+      <div id="connectivity-status"></div>
+    </div>
+
+    <!-- Sidebar Navigation -->
+    <nav class="sidebar">
+      <div class="sidebar-header">
+        <h1>⛽ RKSK Chandaroon</h1>
+        <div class="subtitle">Fuel Station Management v2</div>
+      </div>
+
+      <div class="nav-item active" data-view="dashboard">📊 Dashboard</div>
+      <div class="nav-item" data-view="ledger">📈 Sales Ledger</div>
+      <div class="nav-item" data-view="approvals">📋 Approvals</div>
+      <div class="nav-item" data-view="settings">⚙️ Settings</div>
+
+      <div class="sidebar-footer">
+        <div id="connectivity-status-sidebar"></div>
+        <button class="btn btn-sm btn-ghost" onclick="Auth.logout()" style="margin-top:0.5rem;width:100%;">🚪 Logout</button>
+      </div>
+    </nav>
+
+    <!-- Main Content Area -->
+    <main class="main-content">
+      <div id="view-dashboard"></div>
+      <div id="view-ledger" style="display:none;"></div>
+      <div id="view-approvals" style="display:none;"></div>
+      <div id="view-settings" style="display:none;"></div>
+    </main>
+  </div>
+
+  <!-- ═══════════ EMPLOYEE SHELL ═══════════ -->
+  <div id="employee-shell" style="display:none;"></div>
+
+  <!-- ═══════════ SCRIPTS ═══════════ -->
+  <!-- Supabase SDK -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+
+  <!-- Core Layer -->
+  <script src="./js/core/db.js"></script>
+  <script src="./js/core/error_tracker.js"></script>
+  <script src="./js/core/sanitize.js"></script>
+  <script src="./js/core/sync_queue.js"></script>
+
+  <!-- Engine Layer -->
+  <script src="./js/engine/math_engine.js"></script>
+  <script src="./js/engine/stock_engine.js"></script>
+  <script src="./js/engine/rebuild_engine.js"></script>
+  <script src="./js/engine/ledger_engine.js"></script>
+
+  <!-- Auth Layer -->
+  <script src="./js/auth/auth.js"></script>
+  <script src="./js/auth/mfa.js"></script>
+
+  <!-- Sync Layer -->
+  <script src="./js/sync/supabase.js"></script>
+  <script src="./js/sync/sync_manager.js"></script>
+
+  <!-- Utils -->
+  <script src="./js/utils/helpers.js"></script>
+  <script src="./js/utils/validators.js"></script>
+  <script src="./js/utils/recovery.js"></script>
+
+  <!-- UI Layer -->
+  <script src="./js/ui/dashboard.js"></script>
+  <script src="./js/ui/ledger.js"></script>
+  <script src="./js/ui/approvals.js"></script>
+  <script src="./js/ui/employee.js"></script>
+  <script src="./js/ui/settings.js"></script>
+
+  <!-- App Entry Point (MUST be last) -->
+  <script src="./js/app.js"></script>
+</body>
+</html>

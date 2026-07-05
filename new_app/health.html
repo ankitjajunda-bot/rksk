@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Health Check - RKSK Pump</title>
+  <style>
+    body { background: #0f1117; color: #f8fafc; font-family: monospace; padding: 2rem; }
+    .status { padding: 1rem; border-radius: 8px; margin: 0.5rem 0; }
+    .healthy { background: rgba(34,197,94,0.1); border: 1px solid #22c55e; }
+    .degraded { background: rgba(249,115,22,0.1); border: 1px solid #f97316; }
+    .critical { background: rgba(239,68,68,0.1); border: 1px solid #ef4444; }
+  </style>
+</head>
+<body>
+  <h1>🩺 RKSK Pump - Health Check</h1>
+  <div id="results"></div>
+
+  <script>
+    const results = document.getElementById('results');
+    
+    async function checkIndexedDB() {
+      try {
+        return new Promise((resolve) => {
+          const req = indexedDB.open('octaneflow_db');
+          req.onsuccess = (e) => {
+            const db = e.target.result;
+            const stores = db.objectStoreNames;
+            resolve({ status: 'healthy', details: `Stores: ${[...stores].join(', ')}` });
+            db.close();
+          };
+          req.onerror = (e) => resolve({ status: 'critical', details: e.target.error?.message || 'IndexedDB failed' });
+        });
+      } catch (e) {
+        return { status: 'critical', details: e.message };
+      }
+    }
+    
+    async function checkSupabase() {
+      try {
+        // Ping Supabase
+        const response = await fetch('https://tgaunkmbzzrlvdwyuykm.supabase.co/rest/v1/', {
+          headers: { 'apikey': 'sb_publishable_YJgYf4bM6Kh5AfqybtbH4g_H5hQN2Sf' }
+        });
+        if (response.ok) {
+          return { status: 'healthy', details: 'Connected' };
+        } else {
+          return { status: 'degraded', details: `Status: ${response.status}` };
+        }
+      } catch (e) {
+        return { status: 'critical', details: e.message };
+      }
+    }
+    
+    async function runChecks() {
+      results.innerHTML = '<div class="status">⏳ Running health checks...</div>';
+      
+      const checks = {
+        'IndexedDB': await checkIndexedDB(),
+        'Supabase': await checkSupabase(),
+        'Service Worker': navigator.serviceWorker ? { status: 'healthy', details: 'Available' } : { status: 'degraded', details: 'Not available' },
+        'Persistent Storage': (navigator.storage && navigator.storage.persisted && await navigator.storage.persisted()) ? { status: 'healthy', details: 'Granted' } : { status: 'degraded', details: 'Not granted' }
+      };
+      
+      results.innerHTML = '';
+      for (const [name, check] of Object.entries(checks)) {
+        const div = document.createElement('div');
+        div.className = `status ${check.status}`;
+        div.innerHTML = `<strong>${name}:</strong> ${check.status.toUpperCase()} — ${check.details}`;
+        results.appendChild(div);
+      }
+    }
+    
+    runChecks();
+  </script>
+</body>
+</html>
