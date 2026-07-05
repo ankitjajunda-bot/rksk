@@ -46,6 +46,16 @@ window.addEventListener("DOMContentLoaded", () => {
         }
         history.replaceState(null, document.title, window.location.pathname + window.location.search);
         console.log("[Sync] Setup configuration successfully applied from link.");
+        
+        // CRITICAL FIX: The app must pull users from the cloud BEFORE the employee tries to log in.
+        // Otherwise, loginUser will fail because the local database is empty.
+        setTimeout(() => {
+          if (typeof initSupabaseClient === 'function') initSupabaseClient();
+          if (typeof initSync === 'function') {
+            if (typeof showNotification === 'function') showNotification("Setting up your device...", "info");
+            initSync().catch(console.error);
+          }
+        }, 500);
       }
     } catch (e) {
       console.error("[Sync] Failed to parse setup link:", e);
