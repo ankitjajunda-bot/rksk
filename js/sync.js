@@ -391,6 +391,37 @@ function rebuildSyncQueue() {
     });
   }
 }
+function isBusinessEquivalent(localObj, uploadedObj) {
+  if (!localObj || !uploadedObj) return localObj === uploadedObj;
+  
+  // Extract strictly business-critical fields for comparison
+  const extract = (obj) => {
+    if (obj.submission_type || obj.entryData) {
+      // Pending Entry
+      return {
+        status: obj.status,
+        entryData: obj.entryData,
+        rejectionReason: obj.rejectionReason
+      };
+    } else if (obj.shifts && obj.totals) {
+      // Daily Ledger
+      return {
+        status: obj.status,
+        shifts: obj.shifts,
+        totals: obj.totals,
+        inventory: obj.inventory,
+        margins: obj.margins
+      };
+    }
+    // Fallback: strip known sync flags
+    const clone = __spreadValues({}, obj);
+    delete clone._dirty;
+    return clone;
+  };
+  
+  return JSON.stringify(extract(localObj)) === JSON.stringify(extract(uploadedObj));
+}
+
 function processSyncQueue() {
   return __async(this, null, function* () {
     if (!db || !db.sync_queue || db.sync_queue.length === 0) return;
@@ -409,6 +440,16 @@ function processSyncQueue() {
       if ((tx.retry_count || 0) >= 5) {
         SystemLogger.error("syncQueue", `Dropping permanently failed TX ${tx.tx_id} after 5 retries to prevent queue lockup.`);
         window.logAuditTrail("SYNC_TX_DROPPED", JSON.stringify(tx), "", `Sync transaction dropped due to excessive retries: ${tx.error_details}`);
+        
+        // Edge Case Prevention: If an app_state upload is dropped, we must restore its dirty flag
+        // Otherwise, initSync will overwrite the local state with stale cloud data.
+        if (tx.action === "upsert_app_state" && tx.payload && tx.payload.key) {
+          db.dirty_app_state_keys = db.dirty_app_state_keys || [];
+          if (!db.dirty_app_state_keys.includes(tx.payload.key)) {
+            db.dirty_app_state_keys.push(tx.payload.key);
+          }
+        }
+        
         tx.status = "dropped";
         db.sync_queue = db.sync_queue.filter((q) => q.tx_id !== tx.tx_id);
         continue;
@@ -435,6 +476,20 @@ function processSyncQueue() {
         }
         tx.status = "success";
         tx.error_details = "";
+        
+        // Step 3: Clear _dirty flag safely (Business Data Integrity Verification)
+        if (tx.action === "upsert_pending") {
+          const idx = (db.pending_entries || []).findIndex(e => e.id === tx.payload.id);
+          if (idx !== -1 && isBusinessEquivalent(db.pending_entries[idx], tx.payload)) {
+            db.pending_entries[idx]._dirty = false;
+          }
+        } else if (tx.action === "upsert_ledger") {
+          const idx = (db.daily_ledger || []).findIndex(e => e.date === tx.payload.date);
+          if (idx !== -1 && isBusinessEquivalent(db.daily_ledger[idx], tx.payload)) {
+            db.daily_ledger[idx]._dirty = false;
+          }
+        }
+
         db.sync_history = db.sync_history || [];
         db.sync_history.unshift({
           tx_id: tx.tx_id,
@@ -514,14 +569,22 @@ function initSync() {
     if (!db) {
       db = cloudData;
     } else {
+      const isKeyProtected = (key) => {
+        const session = typeof getSession === 'function' ? getSession() : null;
+        const isOwner = session && session.role === "owner";
+        if (!isOwner) return false; // Employees never upload app_state, so they cannot protect it from cloud overwrites
+        
+        const isDirty = db.dirty_app_state_keys && db.dirty_app_state_keys.includes(key);
+        const isQueued = db.sync_queue && db.sync_queue.some((q) => q.action === "upsert_app_state" && q.payload.key === key && q.status !== "success" && q.status !== "dropped");
+        return isDirty || isQueued;
+      };
+
       const keysToCheck = ["settings", "stock", "price_history", "purchases", "holidays", "users", "cashflow"];
       db.conflicts = db.conflicts || {};
       keysToCheck.forEach((k) => {
         const localVal = db[k];
         const cloudVal = cloudData[k];
-        const isDirty = db.dirty_app_state_keys && db.dirty_app_state_keys.includes(k);
-        const isQueued = db.sync_queue && db.sync_queue.some((q) => q.action === "upsert_app_state" && q.payload.key === k && q.status === "pending");
-        if ((isDirty || isQueued) && cloudVal) {
+        if (isKeyProtected(k) && cloudVal) {
           if (JSON.stringify(localVal) !== JSON.stringify(cloudVal)) {
             db.conflicts[k] = {
               cloud: JSON.parse(JSON.stringify(cloudVal)),
@@ -542,35 +605,40 @@ function initSync() {
         { key: "cashflow", default: {} }
       ];
       stateKeys.forEach(({ key, default: def }) => {
-        const isDirty = db.dirty_app_state_keys && db.dirty_app_state_keys.includes(key);
-        const isQueued = db.sync_queue && db.sync_queue.some((q) => q.action === "upsert_app_state" && q.payload.key === key && q.status === "pending");
-        if (!isDirty && !isQueued) {
+        if (!isKeyProtected(key)) {
           db[key] = cloudData[key] || db[key] || def;
         }
       });
+      
       const localU = db.users || {};
       const cloudU = cloudData.users || {};
-      const safeUsers = __spreadValues(__spreadValues({}, localU), cloudU);
-      for (const k in localU) {
-        if (!safeUsers[k]) safeUsers[k] = localU[k];
-        const localDeleted = localU[k].deleted;
-        const cloudDeleted = cloudU[k] && cloudU[k].deleted;
-        if (localDeleted || cloudDeleted) {
-          if (localDeleted) {
-            safeUsers[k].deleted = true;
-          } else if (cloudDeleted) {
-            const localT = localU[k].createdAt ? new Date(localU[k].createdAt).getTime() : 0;
-            const cloudT = cloudU[k].createdAt ? new Date(cloudU[k].createdAt).getTime() : 0;
-            if (localT > cloudT) {
-              safeUsers[k].deleted = false;
-            } else {
+      let safeUsers = {};
+      
+      if (isKeyProtected("users")) {
+        safeUsers = __spreadValues({}, localU);
+      } else {
+        safeUsers = __spreadValues(__spreadValues({}, localU), cloudU);
+        for (const k in localU) {
+          if (!safeUsers[k]) safeUsers[k] = localU[k];
+          const localDeleted = localU[k].deleted;
+          const cloudDeleted = cloudU[k] && cloudU[k].deleted;
+          if (localDeleted || cloudDeleted) {
+            if (localDeleted) {
               safeUsers[k].deleted = true;
+            } else if (cloudDeleted) {
+              const localT = localU[k].createdAt ? new Date(localU[k].createdAt).getTime() : 0;
+              const cloudT = cloudU[k].createdAt ? new Date(cloudU[k].createdAt).getTime() : 0;
+              if (localT > cloudT) {
+                safeUsers[k].deleted = false;
+              } else {
+                safeUsers[k].deleted = true;
+              }
             }
           }
         }
-      }
-      for (const k in cloudU) {
-        if (cloudU[k].deleted && !localU[k]) safeUsers[k].deleted = true;
+        for (const k in cloudU) {
+          if (cloudU[k].deleted && !localU[k]) safeUsers[k].deleted = true;
+        }
       }
       db.users = safeUsers;
       const unsyncedPending = (db.pending_entries || []).filter((e) => e._dirty);

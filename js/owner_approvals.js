@@ -436,8 +436,8 @@ function renderApprovalsPanel() {
 
                     <!-- Actions -->
                     <div style="display:flex; gap:0.5rem; justify-content:flex-end; flex-wrap:wrap; margin-top:0.25rem;">
-                      ${isSnapshot ? `<button onclick="approveEntry('${entry.id}')" style="background:#3b82f6; color:#fff; border:none; border-radius:0.4rem; padding:0.4rem 0.8rem; font-size:0.75rem; font-weight:700; cursor:pointer;">\u{1F4CA} Post to Ledger</button>` : `<button onclick="approveEntry('${entry.id}')" style="background:#22c55e; color:#fff; border:none; border-radius:0.4rem; padding:0.4rem 0.8rem; font-size:0.75rem; font-weight:700; cursor:pointer;">\u2705 Approve</button>`}
-                      <button onclick="promptRejectEntry('${entry.id}')" style="background:#ef4444; color:#fff; border:none; border-radius:0.4rem; padding:0.4rem 0.8rem; font-size:0.75rem; font-weight:700; cursor:pointer;">\u274C Reject</button>
+                      ${isSnapshot ? `<button onclick="approveEntry(event, '${entry.id}')" style="background:#3b82f6; color:#fff; border:none; border-radius:0.4rem; padding:0.4rem 0.8rem; font-size:0.75rem; font-weight:700; cursor:pointer;">\u{1F4CA} Post to Ledger</button>` : `<button onclick="approveEntry(event, '${entry.id}')" style="background:#22c55e; color:#fff; border:none; border-radius:0.4rem; padding:0.4rem 0.8rem; font-size:0.75rem; font-weight:700; cursor:pointer;">\u2705 Approve</button>`}
+                      <button onclick="promptRejectEntry(event, '${entry.id}')" style="background:#ef4444; color:#fff; border:none; border-radius:0.4rem; padding:0.4rem 0.8rem; font-size:0.75rem; font-weight:700; cursor:pointer;">\u274C Reject</button>
                     </div>
                   </div>
                 </div>
@@ -476,13 +476,21 @@ function renderApprovalsPanel() {
   }
   container.innerHTML = html;
 }
-function approveEntry(entryId, skipRender = false) {
+function approveEntry(event, entryId, skipRender = false) {
   const session = getSession();
   if (!session || session.role !== "owner") return;
   const idx = (db.pending_entries || []).findIndex((e) => e.id === entryId);
   if (idx === -1) return;
   const entry = db.pending_entries[idx];
-  if (entry.status === "approved") return;
+  if (entry.status === "approved" || entry.status === "rejected") return;
+
+  const btn = event && event.currentTarget ? event.currentTarget : null;
+  if (btn) {
+    if (btn.disabled) return;
+    btn.disabled = true;
+    btn.innerHTML = `<span style="opacity:0.7">Processing...</span>`;
+  }
+
   const ed = entry.entryData;
   let row = db.daily_ledger.find((r) => r.date === ed.date);
   let oldNetP = 0;
@@ -615,12 +623,24 @@ function approveEntry(entryId, skipRender = false) {
     }
   }
 }
-function promptRejectEntry(entryId) {
-  const reason = prompt("Rejection reason (employee will see this):");
-  if (reason === null) return;
+function promptRejectEntry(event, entryId) {
   const session = getSession();
   const idx = (db.pending_entries || []).findIndex((e) => e.id === entryId);
   if (idx === -1) return;
+  const entry = db.pending_entries[idx];
+  if (entry.status === "approved" || entry.status === "rejected") return;
+
+  const btn = event && event.currentTarget ? event.currentTarget : null;
+  if (btn && btn.disabled) return;
+
+  const reason = prompt("Rejection reason (employee will see this):");
+  if (reason === null) return;
+  
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = `<span style="opacity:0.7">Wait...</span>`;
+  }
+
   db.pending_entries[idx].status = "rejected";
   db.pending_entries[idx].rejectionReason = reason || "No reason given";
   db.pending_entries[idx].reviewedBy = session.username;
@@ -695,7 +715,7 @@ function addUserAccount() {
         active: true,
         createdAt: (/* @__PURE__ */ new Date()).toISOString()
       };
-      saveUsers(users);
+      saveUsers(users, true);
       document.getElementById("new-emp-name").value = "";
       document.getElementById("new-emp-username").value = "";
       document.getElementById("new-emp-pin").value = "";
@@ -713,7 +733,7 @@ function resetEmployeeDevice(username) {
   if (!users[username]) return;
   users[username].deviceId = null;
   users[username].deviceRegisteredAt = null;
-  saveUsers(users);
+  saveUsers(users, true);
   showNotification(`Device reset for ${username}.`, "info");
   renderUserManagement();
 }
@@ -721,7 +741,7 @@ function toggleEmployee(username) {
   const users = getUsers();
   if (!users[username]) return;
   users[username].active = !users[username].active;
-  saveUsers(users);
+  saveUsers(users, true);
   renderUserManagement();
 }
 window._deleteTimers = {};
@@ -744,7 +764,7 @@ function deleteEmployeeAccount(username) {
     if (!users[username]) return;
     users[username].deleted = true;
     users[username].deviceId = null;
-    saveUsers(users);
+    saveUsers(users, true);
     showNotification(`Account @${username} deleted permanently.`, "info");
     renderUserManagement();
   } else {
@@ -777,20 +797,20 @@ ${url}`);
 }
 window.copyEmployeeSetupLink = copyEmployeeSetupLink;
 function renderPendingDeviceApprovals() {
-  return __async(this, null, function* () {
-    const container = document.getElementById("pending-device-approvals-list");
-    if (!container) return;
-    if (!supabaseClient) {
-      container.innerHTML = '<p style="color:#ef4444;font-size:0.75rem;text-align:center;">Sync not configured or offline.</p>';
-      return;
-    }
-    try {
-      const { data, error } = yield supabaseClient.from("pending_entries").select("*").eq("submission_type", "device_registration");
-      if (error) throw error;
-      if (!data || data.length === 0) {
-        container.innerHTML = '<p style="color:#64748b;font-size:0.75rem;text-align:center;padding:0.5rem;">No pending device approvals.</p>';
-        return;
-      }
+  const container = document.getElementById("pending-device-approvals-list");
+  if (!container) return;
+  
+  if (!db || !db.pending_entries) {
+    container.innerHTML = '<p style="color:#64748b;font-size:0.75rem;text-align:center;padding:0.5rem;">Database loading...</p>';
+    return;
+  }
+  
+  const data = db.pending_entries.filter((e) => e.submission_type === "device_registration" && e.status === "pending");
+  
+  if (data.length === 0) {
+    container.innerHTML = '<p style="color:#64748b;font-size:0.75rem;text-align:center;padding:0.5rem;">No pending device approvals.</p>';
+    return;
+  }
       const users = getUsers();
       const employees = Object.values(users).filter((u) => u.role === "employee" && !u.deleted);
       const unapprovedEmployees = employees.filter((u) => !u.deviceId);
@@ -816,16 +836,11 @@ function renderPendingDeviceApprovals() {
           <div style="display:flex;align-items:center;gap:0.4rem;">
             ${dropdownHtml}
             ${approveBtnHtml}
-            <button onclick="rejectDeviceRequest('${req.id}')" style="background:rgba(239,68,68,0.15);color:#ef4444;border:1px solid #ef4444;border-radius:0.4rem;padding:0.3rem 0.6rem;font-size:0.72rem;cursor:pointer;">Reject</button>
+            <button onclick="rejectDeviceRequest(event, '${req.id}')" style="background:rgba(239,68,68,0.15);color:#ef4444;border:1px solid #ef4444;border-radius:0.4rem;padding:0.3rem 0.6rem;font-size:0.72rem;cursor:pointer;">Reject</button>
           </div>
         </div>
       `;
-      }).join("");
-    } catch (err) {
-      console.error(err);
-      container.innerHTML = `<p style="color:#ef4444;font-size:0.75rem;text-align:center;">Failed to load: ${err.message || err}</p>`;
-    }
-  });
+    }).join("");
 }
 window.renderPendingDeviceApprovals = renderPendingDeviceApprovals;
 function approveDeviceFromRequest(event, reqId, deviceId) {
@@ -853,8 +868,12 @@ function approveDeviceFromRequest(event, reqId, deviceId) {
 
       users[username].deviceId = deviceId;
       users[username].deviceRegisteredAt = (/* @__PURE__ */ new Date()).toISOString();
-      const { error: delErr } = yield supabaseClient.from("pending_entries").delete().eq("id", reqId);
-      if (delErr) throw delErr;
+      
+      const idx = (db.pending_entries || []).findIndex(e => e.id === reqId);
+      if (idx !== -1) {
+        db.pending_entries[idx].status = "approved";
+        db.pending_entries[idx]._dirty = true;
+      }
       
       // Pass 'true' to saveUsers to trigger immediate sync Push
       saveUsers(users, true);
@@ -862,26 +881,48 @@ function approveDeviceFromRequest(event, reqId, deviceId) {
       showNotification("Device approved successfully!", "success");
       renderUserManagement();
       renderPendingDeviceApprovals();
+      
+      if (btn) {
+        btn.innerHTML = "Approved";
+      }
     } catch (err) {
       console.error(err);
+      const btn = event ? event.currentTarget : null;
+      if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = "Approve";
+      }
       showNotification("Error approving device. Try again.", "danger");
     }
   });
 }
 window.approveDeviceFromRequest = approveDeviceFromRequest;
-function rejectDeviceRequest(reqId) {
+function rejectDeviceRequest(event, reqId) {
   return __async(this, null, function* () {
+    const btn = event && event.currentTarget ? event.currentTarget : null;
+    if (btn && btn.disabled) return;
+
     if (!confirm("Are you sure you want to reject and delete this request?")) {
       return;
     }
-    try {
-      const { error } = yield supabaseClient.from("pending_entries").delete().eq("id", reqId);
-      if (error) throw error;
-      showNotification("Request rejected.", "info");
-      renderPendingDeviceApprovals();
-    } catch (err) {
-      console.error(err);
-      showNotification("Error rejecting request.", "danger");
+    
+    if (btn) {
+      btn.disabled = true;
+      btn.innerHTML = `<span style="opacity:0.7">Wait...</span>`;
+    }
+
+    const idx = (db.pending_entries || []).findIndex(e => e.id === reqId);
+    if (idx !== -1) {
+      db.pending_entries[idx].status = "rejected";
+      db.pending_entries[idx]._dirty = true;
+      saveDB(true);
+    }
+    
+    showNotification("Request rejected.", "info");
+    renderPendingDeviceApprovals();
+    
+    if (btn) {
+      btn.innerHTML = "Rejected";
     }
   });
 }

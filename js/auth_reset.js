@@ -155,7 +155,7 @@ window.submitNewPassword = function() {
     const users = getUsers();
     if (users[username]) {
       users[username].passwordHash = newHash;
-      saveUsers(users);
+      saveUsers(users, true);
     } else if (username === "owner") {
       users["owner"] = {
         username: "owner",
@@ -165,7 +165,7 @@ window.submitNewPassword = function() {
         active: true,
         createdAt: (/* @__PURE__ */ new Date()).toISOString()
       };
-      saveUsers(users);
+      saveUsers(users, true);
     }
     showNotification("\u{1F511} Password updated successfully! Log in using your new credentials.", "success");
     closeForgotPasswordModal();
