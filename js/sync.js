@@ -337,10 +337,6 @@ function rebuildSyncQueue() {
         const existing = db.sync_queue.find((q) => q.action === "upsert_pending" && q.payload.id === e.id && q.status !== "success" && q.status !== "dropped");
         if (existing) {
           existing.payload = e;
-          if (existing.status === "error" || existing.status === "failed") {
-            existing.status = "pending";
-            existing.retry_count = 0;
-          }
         } else {
           db.sync_queue.push({
             tx_id: "tx_pending_" + e.id + "_" + Date.now(),
@@ -379,10 +375,6 @@ function rebuildSyncQueue() {
         const existing = db.sync_queue.find((q) => q.action === "upsert_ledger" && q.payload.date === e.date && q.status !== "success" && q.status !== "dropped");
         if (existing) {
           existing.payload = JSON.parse(JSON.stringify(e));
-          if (existing.status === "error" || existing.status === "failed") {
-            existing.status = "pending";
-            existing.retry_count = 0;
-          }
         } else {
           db.sync_queue.push({
             tx_id: "tx_ledger_" + e.date + "_" + Date.now(),
