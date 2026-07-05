@@ -806,7 +806,7 @@ function renderPendingDeviceApprovals() {
           </select>
         `;
         }
-        const approveBtnHtml = unapprovedEmployees.length === 0 ? "" : `<button onclick="approveDeviceFromRequest('${req.id}', '${info.deviceId}')" style="background:#22c55e;color:#fff;border:none;border-radius:0.4rem;padding:0.3rem 0.6rem;font-size:0.72rem;cursor:pointer;font-weight:600;">Approve</button>`;
+        const approveBtnHtml = unapprovedEmployees.length === 0 ? "" : `<button onclick="approveDeviceFromRequest(event, '${req.id}', '${info.deviceId}')" style="background:#22c55e;color:#fff;border:none;border-radius:0.4rem;padding:0.3rem 0.6rem;font-size:0.72rem;cursor:pointer;font-weight:600;">Approve</button>`;
         return `
         <div style="display:flex;align-items:center;justify-content:space-between;padding:0.6rem;background:#0f1117;border-radius:0.4rem;gap:0.5rem;flex-wrap:wrap;border:1px solid #334155;">
           <div>
@@ -828,7 +828,7 @@ function renderPendingDeviceApprovals() {
   });
 }
 window.renderPendingDeviceApprovals = renderPendingDeviceApprovals;
-function approveDeviceFromRequest(reqId, deviceId) {
+function approveDeviceFromRequest(event, reqId, deviceId) {
   return __async(this, null, function* () {
     const selectEl = document.getElementById(`approve-user-select-${reqId}`);
     if (!selectEl) return;
@@ -843,11 +843,22 @@ function approveDeviceFromRequest(reqId, deviceId) {
         showNotification("Username not found.", "danger");
         return;
       }
+      
+      // Prevent double-clicking
+      if (users[username].deviceId === deviceId) return;
+
+      // Disable button during network wait
+      const btn = event ? event.currentTarget : null;
+      if (btn) btn.disabled = true;
+
       users[username].deviceId = deviceId;
       users[username].deviceRegisteredAt = (/* @__PURE__ */ new Date()).toISOString();
       const { error: delErr } = yield supabaseClient.from("pending_entries").delete().eq("id", reqId);
       if (delErr) throw delErr;
-      saveUsers(users);
+      
+      // Pass 'true' to saveUsers to trigger immediate sync Push
+      saveUsers(users, true);
+      
       showNotification("Device approved successfully!", "success");
       renderUserManagement();
       renderPendingDeviceApprovals();

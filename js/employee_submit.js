@@ -594,48 +594,54 @@ Is this an authorized meter replacement or reset? Click OK to submit for owner a
         submitBtn.disabled = false;
         submitBtn.innerHTML = originalText;
       }
+      
+      // CRITICAL FIX: Always clear the form to prevent accidental duplicate submissions, 
+      // regardless of whether the sync succeeded instantly or was queued offline.
+      [
+        "emp-du1p-open",
+        "emp-du1p-close",
+        "emp-du1p-tests",
+        "emp-du1d-open",
+        "emp-du1d-close",
+        "emp-du1d-tests",
+        "emp-du2p-open",
+        "emp-du2p-close",
+        "emp-du2p-tests",
+        "emp-du2d-open",
+        "emp-du2d-close",
+        "emp-du2d-tests",
+        "emp-cash",
+        "emp-card",
+        "emp-remarks",
+        "emp-pp-open",
+        "emp-pp-midnight",
+        "emp-pp-close",
+        "emp-deposit-amount"
+      ].forEach((id) => {
+        const el = document.getElementById(id);
+        if (el) el.value = "";
+      });
+      ["calc-du1p", "calc-du1d", "calc-du2p", "calc-du2d", "emp-live-totals", "pp-delta-preview"].forEach((id) => {
+        const el = document.getElementById(id);
+        if (el) el.style.display = "none";
+      });
+      const today = /* @__PURE__ */ new Date();
+      const dEl = document.getElementById("emp-date-day");
+      const mEl = document.getElementById("emp-date-month");
+      const yEl = document.getElementById("emp-date-year");
+      if (dEl) dEl.value = today.getDate();
+      if (mEl) mEl.value = today.getMonth() + 1;
+      if (yEl) yEl.value = today.getFullYear();
+
       if (success) {
         showNotification(`\u2705 ${typeLabel} submitted and synced to cloud! Owner can see it under Operations \u2192 Approve Shifts.`, "success");
-        [
-          "emp-du1p-open",
-          "emp-du1p-close",
-          "emp-du1p-tests",
-          "emp-du1d-open",
-          "emp-du1d-close",
-          "emp-du1d-tests",
-          "emp-du2p-open",
-          "emp-du2p-close",
-          "emp-du2p-tests",
-          "emp-du2d-open",
-          "emp-du2d-close",
-          "emp-du2d-tests",
-          "emp-cash",
-          "emp-card",
-          "emp-remarks",
-          "emp-pp-open",
-          "emp-pp-midnight",
-          "emp-pp-close",
-          "emp-deposit-amount"
-        ].forEach((id) => {
-          const el = document.getElementById(id);
-          if (el) el.value = "";
-        });
-        ["calc-du1p", "calc-du1d", "calc-du2p", "calc-du2d", "emp-live-totals", "pp-delta-preview"].forEach((id) => {
-          const el = document.getElementById(id);
-          if (el) el.style.display = "none";
-        });
-        const today = /* @__PURE__ */ new Date();
-        const dEl = document.getElementById("emp-date-day");
-        const mEl = document.getElementById("emp-date-month");
-        const yEl = document.getElementById("emp-date-year");
-        if (dEl) dEl.value = today.getDate();
-        if (mEl) mEl.value = today.getMonth() + 1;
-        if (yEl) yEl.value = today.getFullYear();
-        renderEmployeeView(session);
       } else {
         showNotification(`\u26A0\uFE0F Saved locally, but cloud sync is pending. We will automatically retry in the background.`, "warning");
-        renderEmployeeView(session);
       }
+      
+      // CRITICAL FIX: Removed the dangerous setTimeout(location.reload) which was killing 
+      // the background network request mid-flight. Just gracefully re-render the view instead.
+      renderEmployeeView(session);
     });
   });
 }

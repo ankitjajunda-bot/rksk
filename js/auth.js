@@ -83,14 +83,14 @@ function getUsers() {
   }
   return mergedUsers;
 }
-function saveUsers(u) {
+function saveUsers(u, immediate = false) {
   if (db) {
     db.users = u;
     db.dirty_app_state_keys = db.dirty_app_state_keys || [];
     if (!db.dirty_app_state_keys.includes('users')) {
       db.dirty_app_state_keys.push('users');
     }
-    saveDB();
+    saveDB(immediate);
   }
   localStorage.setItem(AUTH_USERS_KEY, JSON.stringify(u));
 }
