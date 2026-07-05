@@ -334,9 +334,13 @@ function rebuildSyncQueue() {
   if (db.pending_entries) {
     db.pending_entries.forEach((e) => {
       if (e._dirty) {
-        const existing = db.sync_queue.find((q) => q.action === "upsert_pending" && q.payload.id === e.id && q.status === "pending");
+        const existing = db.sync_queue.find((q) => q.action === "upsert_pending" && q.payload.id === e.id && q.status !== "success" && q.status !== "dropped");
         if (existing) {
           existing.payload = e;
+          if (existing.status === "error" || existing.status === "failed") {
+            existing.status = "pending";
+            existing.retry_count = 0;
+          }
         } else {
           db.sync_queue.push({
             tx_id: "tx_pending_" + e.id + "_" + Date.now(),
@@ -372,9 +376,13 @@ function rebuildSyncQueue() {
   if (isOwner && db.daily_ledger) {
     db.daily_ledger.forEach((e) => {
       if (e._dirty) {
-        const existing = db.sync_queue.find((q) => q.action === "upsert_ledger" && q.payload.date === e.date && q.status === "pending");
+        const existing = db.sync_queue.find((q) => q.action === "upsert_ledger" && q.payload.date === e.date && q.status !== "success" && q.status !== "dropped");
         if (existing) {
-          existing.payload = e;
+          existing.payload = JSON.parse(JSON.stringify(e));
+          if (existing.status === "error" || existing.status === "failed") {
+            existing.status = "pending";
+            existing.retry_count = 0;
+          }
         } else {
           db.sync_queue.push({
             tx_id: "tx_ledger_" + e.date + "_" + Date.now(),
@@ -668,8 +676,20 @@ function initSync() {
       const unsyncedPending = (db.pending_entries || []).filter((e) => e._dirty);
       const mergedPendingMap = /* @__PURE__ */ new Map();
       (cloudData.pending_entries || []).forEach((cloudEntry) => {
-        cloudEntry._dirty = false;
-        mergedPendingMap.set(cloudEntry.id, cloudEntry);
+        const localEntry = {
+          id: cloudEntry.id,
+          submittedBy: cloudEntry.submitted_by || cloudEntry.submittedBy,
+          submittedByName: cloudEntry.submitted_by_name || cloudEntry.submittedByName,
+          submittedAt: cloudEntry.submitted_at || cloudEntry.submittedAt,
+          submission_type: cloudEntry.submission_type,
+          status: cloudEntry.status,
+          entryData: cloudEntry.entry_data || cloudEntry.entryData,
+          rejectionReason: cloudEntry.rejection_reason || cloudEntry.rejectionReason,
+          reviewedBy: cloudEntry.reviewed_by || cloudEntry.reviewedBy,
+          reviewedAt: cloudEntry.reviewed_at || cloudEntry.reviewedAt,
+          _dirty: false
+        };
+        mergedPendingMap.set(localEntry.id, localEntry);
       });
       unsyncedPending.forEach((localEntry) => {
         mergedPendingMap.set(localEntry.id, localEntry);
