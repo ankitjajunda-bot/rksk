@@ -3,12 +3,17 @@
 // ============================================================================
 
 const DB_NAME = 'octaneflow_db';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 
 const STORES = [
   { name: 'master_ledger',  keyPath: 'id' },
   { name: 'pending_entries', keyPath: 'id' },
   { name: 'employees',      keyPath: 'id' },
+  { name: 'employee_sessions', keyPath: 'id', indexes: [
+    { name: 'token', keyPath: 'token', options: { unique: true } },
+    { name: 'employee_id', keyPath: 'employee_id', options: { unique: false } },
+    { name: 'expires_at', keyPath: 'expires_at', options: { unique: false } }
+  ] },
   { name: 'purchases',      keyPath: 'id' },
   { name: 'settings',       keyPath: 'key' },
   { name: 'stock',          keyPath: 'key' },
@@ -42,9 +47,12 @@ async function openDB() {
 
     request.onupgradeneeded = (event) => {
       const idb = event.target.result;
-      STORES.forEach(({ name, keyPath }) => {
+      STORES.forEach(({ name, keyPath, indexes }) => {
         if (!idb.objectStoreNames.contains(name)) {
-          idb.createObjectStore(name, { keyPath });
+          const store = idb.createObjectStore(name, { keyPath });
+          if (indexes) {
+            indexes.forEach(idx => store.createIndex(idx.name, idx.keyPath, idx.options));
+          }
         }
       });
     };

@@ -18,28 +18,13 @@ const SettingsUI = {
       <div class="card">
         <div class="card-header">👥 Employee Management</div>
         <div id="employee-list">
-          ${employees.length === 0 ? '<div class="empty-state">No employees registered.</div>' : ''}
-          ${employees.map(e => `
-            <div class="employee-row">
-              <div>
-                <strong>${Sanitize.input(e.name)}</strong>
-                <span class="text-dim">${e.phone}</span>
-                <span class="badge ${e.active !== false ? 'badge-success' : 'badge-danger'}">${e.active !== false ? 'Active' : 'Inactive'}</span>
-              </div>
-              <div>
-                <span class="text-dim" style="font-family:monospace;">Code: ${e.registration_code || '—'}</span>
-                <button class="btn btn-sm btn-ghost" onclick="SettingsUI.toggleEmployee('${e.id}')">${e.active !== false ? '🚫' : '✅'}</button>
-                <button class="btn btn-sm btn-ghost" onclick="SettingsUI.deleteEmployee('${e.id}')">🗑️</button>
-              </div>
-            </div>
-          `).join('')}
+          ${SettingsUI.renderEmployeeList(employees)}
         </div>
         <div class="form-section" style="margin-top:1rem;">
           <h4>➕ Add Employee</h4>
           <div class="form-row">
             <div class="form-group"><label>Name</label><input type="text" id="new-emp-name" placeholder="Full Name"></div>
             <div class="form-group"><label>Phone</label><input type="tel" id="new-emp-phone" placeholder="+91 98765 43210"></div>
-            <div class="form-group"><label>PIN</label><input type="text" id="new-emp-pin" placeholder="4-6 digit PIN"></div>
           </div>
           <button class="btn btn-primary" onclick="SettingsUI.addEmployee()">Add Employee</button>
         </div>
@@ -139,6 +124,53 @@ const SettingsUI = {
     `;
 
     setTimeout(this.checkStorageStatus, 100);
+  },
+
+  renderEmployeeList(employees) {
+    if (!employees || employees.length === 0) {
+      return '<p style="color:#64748b;text-align:center;padding:1rem;">No employees yet. Add one below.</p>';
+    }
+    
+    return employees.map(emp => `
+      <div style="display:flex; align-items:center; gap:0.5rem; padding:0.5rem; background:var(--surface); border-radius:0.6rem; margin-bottom:0.5rem; flex-wrap:wrap; border:1px solid var(--border);">
+        <div style="flex:1; min-width:150px;">
+          <strong style="color:var(--text);">${Sanitize.input(emp.name)}</strong>
+          <span style="color:var(--text-muted);font-size:0.78rem;margin-left:0.5rem;">${Sanitize.input(emp.phone)}</span>
+          <br>
+          <span style="font-size:0.72rem;color:${emp.active !== false ? '#22c55e' : '#ef4444'};">
+            ${emp.active !== false ? '✅ Active' : '❌ Inactive'}
+          </span>
+        </div>
+        <div style="display:flex; gap:0.4rem; flex-wrap:wrap; align-items:center;">
+          <button onclick="SettingsUI.generateAndCopyLink('${emp.id}')" class="btn btn-primary btn-sm" style="padding:0.3rem 0.6rem; font-size:0.72rem; background:linear-gradient(135deg,#f97316,#ea580c);">
+            🔗 Generate Link
+          </button>
+          <span id="link-status-${emp.id}" style="font-size:0.7rem; color:#22c55e; display:none;">
+            ✅ Copied!
+          </span>
+          <button onclick="SettingsUI.toggleEmployee('${emp.id}')" class="btn btn-sm btn-ghost">
+            ${emp.active !== false ? '🚫 Deactivate' : '✅ Activate'}
+          </button>
+        </div>
+      </div>
+    `).join('');
+  },
+
+  async generateAndCopyLink(employeeId) {
+    try {
+      const link = await LinkLogin.generateLoginLink(employeeId);
+      const statusEl = document.getElementById(`link-status-${employeeId}`);
+      if (statusEl) {
+        statusEl.style.display = 'inline';
+        setTimeout(() => {
+          statusEl.style.display = 'none';
+        }, 3000);
+      }
+      showNotification('✅ Login link copied to clipboard! Share it with the employee.', 'success');
+    } catch (error) {
+      showNotification('❌ Failed to generate link. Please try again.', 'danger');
+      console.error(error);
+    }
   },
 
   async checkStorageStatus() {

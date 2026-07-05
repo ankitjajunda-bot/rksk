@@ -93,45 +93,8 @@ const Auth = {
     return { success: true, user: owner };
   },
 
-  async loginEmployee(phone, registrationCode, pin) {
-    if (this.isLockedOut()) {
-      return { success: false, error: 'Account locked. Try again in 5 minutes.' };
-    }
-
-    const employees = await OctaneDB.dbGetAll('employees');
-    const cleanPhone = phone.replace(/\D/g, '');
-    const emp = employees.find(e => {
-      const empPhone = (e.phone || '').replace(/\D/g, '');
-      return empPhone === cleanPhone && e.active !== false;
-    });
-
-    if (!emp) {
-      this.recordFailedAttempt();
-      return { success: false, error: 'Employee not found or account inactive.' };
-    }
-
-    if (emp.registration_code !== registrationCode) {
-      const attempts = this.recordFailedAttempt();
-      const remaining = this.MAX_ATTEMPTS - attempts;
-      return { success: false, error: remaining > 0 ? `Incorrect code. ${remaining} attempts remaining.` : 'Account locked for 5 minutes.' };
-    }
-
-    if (emp.pin !== pin) {
-      const attempts = this.recordFailedAttempt();
-      const remaining = this.MAX_ATTEMPTS - attempts;
-      return { success: false, error: remaining > 0 ? `Incorrect PIN. ${remaining} attempts remaining.` : 'Account locked for 5 minutes.' };
-    }
-
-    this.clearLockout();
-    const user = { username: emp.phone, displayName: emp.name, role: emp.role || 'employee', id: emp.id };
-    
-    // Generate secure token for employee session
-    const token = crypto.randomUUID();
-    await OctaneDB.dbPut('employees', { ...emp, session_token: token, _dirty: true });
-    await window.syncQueue.enqueue('PUSH_EMPLOYEE', { ...emp, session_token: token }); // Ensure sync queue exists
-    
-    this.setSession(user, token);
-    return { success: true, user };
+  async loginEmployee() {
+    return { success: false, error: 'Employee login is now link-based. Please use the login link provided by the owner.' };
   },
 
   logout() {

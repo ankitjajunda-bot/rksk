@@ -103,6 +103,21 @@ async function initApp() {
   // 3. Initialize Supabase
   SupabaseOps.init();
 
+  // 3.5 Check for Link Auto Login
+  if (typeof LinkLogin !== 'undefined') {
+    await LinkLogin.handleAutoLogin();
+    
+    // Clean up expired sessions
+    try {
+      const cleaned = await LinkLogin.cleanupExpiredSessions();
+      if (cleaned > 0) {
+        console.log(`🧹 Cleaned ${cleaned} expired/used sessions`);
+      }
+    } catch (e) {
+      console.warn('Session cleanup error:', e);
+    }
+  }
+
   // 4. Check auth
   const session = await Auth.checkAuth();
 
