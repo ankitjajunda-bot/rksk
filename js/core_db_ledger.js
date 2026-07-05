@@ -916,6 +916,20 @@ function saveDailyReadings(data) {
   window.markAppStateDirty('stock');
   window.markAppStateDirty('cashflow');
   saveDB(true);
+
+  // Instantly update UI based on active view and role
+  const activeNav = document.querySelector('.nav-item.active');
+  const activeView = activeNav ? activeNav.dataset.view : '';
+  if (activeView !== 'settings') {
+    const session = typeof getSession === 'function' ? getSession() : null;
+    if (session && session.role === "owner") {
+      if (typeof renderCurrentView === 'function') renderCurrentView();
+    } else if (session && typeof renderEmployeeView === 'function') {
+      renderEmployeeView(session);
+    } else {
+      if (typeof renderCurrentView === 'function') renderCurrentView();
+    }
+  }
 }
 
 function deleteLedgerRow(dateStr) {
@@ -3908,7 +3922,7 @@ document.getElementById('log-readings-form').addEventListener('submit', (e) => {
 
   saveDailyReadings(ledgerEntry);
   closeModal('log-readings-modal');
-  initApp();
+  renderCurrentView();
 });
 
 document.getElementById('tanker-purchase-form').addEventListener('submit', (e) => {

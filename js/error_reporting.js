@@ -73,6 +73,16 @@ window.addEventListener("DOMContentLoaded", () => {
       try {
         yield initSync();
         updateGlobalAlertBanner();
+        const session = getSession();
+        const activeNav = document.querySelector('.nav-item.active');
+        const activeView = activeNav ? activeNav.dataset.view : '';
+        if (activeView !== 'settings') {
+          if (session && session.role === "owner") {
+            if (typeof renderCurrentView === 'function') renderCurrentView();
+          } else if (session && typeof renderEmployeeView === 'function') {
+            renderEmployeeView(session);
+          }
+        }
         showNotification("\u2705 Database refreshed successfully!", "success");
       } catch (err) {
         showNotification("\u26A0\uFE0F Sync failed. Please check network connection.", "danger");
@@ -175,25 +185,19 @@ window.addEventListener("DOMContentLoaded", () => {
       checkAuth();
     });
   });
-  setInterval(() => {
-    const currentCfg = getSyncCfg();
-    const session = getSession();
-    if (currentCfg.supabaseUrl && currentCfg.supabaseKey && session && document.visibilityState === "visible") {
-      initSync().then(() => {
-        buildIndexes();
-        // Skip re-rendering Settings page to prevent button jitter
-        const activeNav = document.querySelector('.nav-item.active');
-        const activeView = activeNav ? activeNav.dataset.view : '';
-        if (activeView === 'settings') return;
-        if (session.role === "owner") {
-          renderCurrentView();
-        } else {
-          renderEmployeeView(session);
-        }
-      }).catch(() => {
-      });
-    }
-  }, 15000);
+  // setInterval(() => {
+  //   const currentCfg = getSyncCfg();
+  //   const session = getSession();
+  //   if (currentCfg.supabaseUrl && currentCfg.supabaseKey && session && document.visibilityState === "visible") {
+  //     initSync().then(() => {
+  //       buildIndexes();
+  //       const activeNav = document.querySelector('.nav-item.active');
+  //       const activeView = activeNav ? activeNav.dataset.view : '';
+  //       if (activeView === 'settings') return;
+  //     }).catch(() => {
+  //     });
+  //   }
+  // }, 15000);
 });
 let currentTourStep = 0;
 let activeHighlightElement = null;

@@ -584,6 +584,9 @@ function initSync() {
       SystemLogger.info("initSync", "Auto-sync is disabled (no credentials).");
       return;
     }
+    
+    const dbStrBefore = db ? JSON.stringify(db) : null;
+    
     SystemLogger.info("initSync", "Initializing cloud sync checks...");
     const cloudData = yield syncPull();
     if (!cloudData || !cloudData.daily_ledger) {
@@ -734,13 +737,21 @@ function initSync() {
     cfg.last_push = cloudData._synced_at || (/* @__PURE__ */ new Date()).toISOString();
     saveSyncCfg(cfg);
     buildIndexes();
-    const activeView = ((_a = document.querySelector(".view-panel.active")) == null ? void 0 : _a.id) || "";
-    if (activeView === "view-dashboard") {
-      if (typeof initApp === "function") initApp();
-    } else if (activeView === "view-approvals") {
-      if (typeof renderApprovalsPanel === "function") renderApprovalsPanel();
+    
+    const dbStrAfter = JSON.stringify(db);
+    if (dbStrBefore !== dbStrAfter) {
+      if (typeof renderCurrentView === 'function') {
+        const session = typeof getSession === 'function' ? getSession() : null;
+        if (session && session.role === "owner") {
+          renderCurrentView();
+        } else if (session && typeof renderEmployeeView === 'function') {
+          renderEmployeeView(session);
+        }
+      }
+      SystemLogger.success("initSync", `Sync applied new changes to UI. Merged ${db.daily_ledger.length} ledger days and ${db.pending_entries.length} pending items.`);
+    } else {
+      SystemLogger.success("initSync", `Sync complete. No new changes detected.`);
     }
-    SystemLogger.success("initSync", `Sync complete. Merged ${db.daily_ledger.length} ledger days and ${db.pending_entries.length} pending items.`);
   });
 }
 const LOGS_STORAGE_KEY = "octaneflow_system_logs";
