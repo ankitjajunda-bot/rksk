@@ -871,6 +871,7 @@ function saveDailyReadings(data) {
     db.stock.petrol = targetPetrolStock;
     db.stock.diesel = targetDieselStock;
     db.daily_ledger[existingIdx] = data;
+    db.daily_ledger[existingIdx]._dirty = true;
     
     window.logAuditTrail('LEDGER_EDIT', prevRowString, JSON.stringify(data), `Modified daily ledger for date ${data.date}`);
     SystemLogger.success('saveDailyReadings', `Reconciliation modified and saved for date ${formatDate(data.date)}. Net Sales: Petrol = ${newNetP.toFixed(2)} L, Diesel = ${newNetD.toFixed(2)} L.`, newCalc.totals);
@@ -902,6 +903,7 @@ function saveDailyReadings(data) {
 
     db.stock.petrol = targetPetrolStock;
     db.stock.diesel = targetDieselStock;
+    data._dirty = true;
     db.daily_ledger.push(data);
     
     window.logAuditTrail('LEDGER_LOG', '', JSON.stringify(data), `Logged new daily readings for date ${data.date}`);
@@ -3890,6 +3892,7 @@ document.getElementById('log-readings-form').addEventListener('submit', (e) => {
     du1_d, 
     du2_p, 
     du2_d, 
+    recon: existingRow?.recon || {},
     feedback: remarks,
     expenses: tempModalExpenses,
     createdAt: existingRow?.createdAt || new Date().toISOString(),
