@@ -815,7 +815,10 @@ function renderPendingDeviceApprovals() {
       const employees = Object.values(users).filter((u) => u.role === "employee" && !u.deleted);
       const unapprovedEmployees = employees.filter((u) => !u.deviceId);
       container.innerHTML = data.map((req) => {
-        const info = req.entry_data || {};
+        const info = req.entry_data || req.entryData || {};
+        const reqName = info.name || req.submitted_by_name || req.submittedByName || "Unknown";
+        const reqPhone = info.phone || "No phone";
+        const reqDeviceId = info.deviceId || "";
         let dropdownHtml = "";
         if (unapprovedEmployees.length === 0) {
           dropdownHtml = employees.length === 0 ? '<span style="color:#ef4444;font-size:0.72rem;">Add employee profile first</span>' : '<span style="color:#94a3b8;font-size:0.72rem;">All profiles approved (Reset one above)</span>';
@@ -826,12 +829,12 @@ function renderPendingDeviceApprovals() {
           </select>
         `;
         }
-        const approveBtnHtml = unapprovedEmployees.length === 0 ? "" : `<button onclick="approveDeviceFromRequest(event, '${req.id}', '${info.deviceId}')" style="background:#22c55e;color:#fff;border:none;border-radius:0.4rem;padding:0.3rem 0.6rem;font-size:0.72rem;cursor:pointer;font-weight:600;">Approve</button>`;
+        const approveBtnHtml = unapprovedEmployees.length === 0 ? "" : `<button onclick="approveDeviceFromRequest(event, '${req.id}', '${reqDeviceId}')" style="background:#22c55e;color:#fff;border:none;border-radius:0.4rem;padding:0.3rem 0.6rem;font-size:0.72rem;cursor:pointer;font-weight:600;">Approve</button>`;
         return `
         <div style="display:flex;align-items:center;justify-content:space-between;padding:0.6rem;background:#0f1117;border-radius:0.4rem;gap:0.5rem;flex-wrap:wrap;border:1px solid #334155;">
           <div>
-            <span style="font-weight:700;color:#f8fafc;font-size:0.78rem;">${info.name || req.submitted_by_name}</span>
-            <span style="color:#64748b;font-size:0.72rem;">(${info.phone || "No phone"})</span>
+            <span style="font-weight:700;color:#f8fafc;font-size:0.78rem;">${reqName}</span>
+            <span style="color:#64748b;font-size:0.72rem;">(${reqPhone})</span>
           </div>
           <div style="display:flex;align-items:center;gap:0.4rem;">
             ${dropdownHtml}
