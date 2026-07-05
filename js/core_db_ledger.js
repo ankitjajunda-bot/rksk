@@ -913,7 +913,7 @@ function saveDailyReadings(data) {
   db.daily_ledger.sort((a, b) => new Date(b.date) - new Date(a.date));
   window.markAppStateDirty('stock');
   window.markAppStateDirty('cashflow');
-  saveDB();
+  saveDB(true);
 }
 
 function deleteLedgerRow(dateStr) {
@@ -3441,6 +3441,12 @@ function editLedgerEntry(index) {
   const remarksEl = document.getElementById('ledger-remarks');
   if (remarksEl) remarksEl.value = row.feedback || '';
 
+  // Pre-fill price fields
+  const pricePetrolEl = document.getElementById('ledger-price-petrol');
+  const priceDieselEl = document.getElementById('ledger-price-diesel');
+  if (pricePetrolEl) pricePetrolEl.value = row.prices ? row.prices.petrol : '';
+  if (priceDieselEl) priceDieselEl.value = row.prices ? row.prices.diesel : '';
+
   // Plan 21: Populate starting stock dip overrides
   document.getElementById('ledger_p_dip_override').value = row.p_dip_override !== undefined ? row.p_dip_override : '';
   document.getElementById('ledger_d_dip_override').value = row.d_dip_override !== undefined ? row.d_dip_override : '';
@@ -3484,6 +3490,13 @@ function applyLedgerPrefill() {
     p2 = latest.du2_p.close_night;
     d2 = latest.du2_d.close_night;
   }
+
+  // Auto-fill prices on date change
+  const autoP = getPricesAt(dateStr);
+  const ppEl = document.getElementById('ledger-price-petrol');
+  const dpEl = document.getElementById('ledger-price-diesel');
+  if (ppEl && !ppEl.value) ppEl.value = autoP.petrol;
+  if (dpEl && !dpEl.value) dpEl.value = autoP.diesel;
 
   setOpens('du1_p', p1);
   setOpens('du1_d', d1);
@@ -3811,7 +3824,14 @@ document.getElementById('log-readings-form').addEventListener('submit', (e) => {
   e.preventDefault();
 
   const date = document.getElementById('ledger-date').value;
-  const prices = getPricesAt(date);
+  const autoPrices = getPricesAt(date);
+  const manualPetrol = parseFloat(document.getElementById('ledger-price-petrol').value);
+  const manualDiesel = parseFloat(document.getElementById('ledger-price-diesel').value);
+  const prices = {
+    petrol: (!isNaN(manualPetrol) && manualPetrol > 0) ? manualPetrol : autoPrices.petrol,
+    diesel: (!isNaN(manualDiesel) && manualDiesel > 0) ? manualDiesel : autoPrices.diesel,
+    effective_date: autoPrices.effective_date
+  };
 
   const getFormData = (prefix) => {
     const open = parseFloat(document.getElementById(`${prefix}_open`).value) || 0;
