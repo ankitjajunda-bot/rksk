@@ -4368,6 +4368,7 @@ function renderCurrentView() {
 }
 
 function initApp() {
+  console.log("Page load fetch");
   const session = getSession();
   if (session && session.role !== 'owner') {
     checkAuth();

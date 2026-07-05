@@ -57,31 +57,31 @@ function subscribeToRealtime() {
       console.warn("Failed to remove channel:", e);
     }
   }
-  SystemLogger.info("Realtime", "Subscribing to Supabase Realtime WebSocket...");
-  realtimeChannel = supabaseClient.channel("octaneflow-realtime-changes").on(
-    "postgres_changes",
-    { event: "*", schema: "public", table: "pending_entries" },
-    (payload) => __async(this, null, function* () {
-      SystemLogger.success("Realtime", "Detected table update: pending_entries");
-      yield initSync();
-    })
-  ).on(
-    "postgres_changes",
-    { event: "*", schema: "public", table: "daily_ledger" },
-    (payload) => __async(this, null, function* () {
-      SystemLogger.success("Realtime", "Detected table update: daily_ledger");
-      yield initSync();
-    })
-  ).on(
-    "postgres_changes",
-    { event: "*", schema: "public", table: "app_state" },
-    (payload) => __async(this, null, function* () {
-      SystemLogger.success("Realtime", "Detected table update: app_state");
-      yield initSync();
-    })
-  ).subscribe((status) => {
-    SystemLogger.info("Realtime", `WebSocket status: ${status}`);
-  });
+  SystemLogger.info("Realtime", "Realtime WebSocket subscription is disabled.");
+  // realtimeChannel = supabaseClient.channel("octaneflow-realtime-changes").on(
+  //   "postgres_changes",
+  //   { event: "*", schema: "public", table: "pending_entries" },
+  //   (payload) => __async(this, null, function* () {
+  //     SystemLogger.success("Realtime", "Detected table update: pending_entries");
+  //     yield initSync();
+  //   })
+  // ).on(
+  //   "postgres_changes",
+  //   { event: "*", schema: "public", table: "daily_ledger" },
+  //   (payload) => __async(this, null, function* () {
+  //     SystemLogger.success("Realtime", "Detected table update: daily_ledger");
+  //     yield initSync();
+  //   })
+  // ).on(
+  //   "postgres_changes",
+  //   { event: "*", schema: "public", table: "app_state" },
+  //   (payload) => __async(this, null, function* () {
+  //     SystemLogger.success("Realtime", "Detected table update: app_state");
+  //     yield initSync();
+  //   })
+  // ).subscribe((status) => {
+  //   SystemLogger.info("Realtime", `WebSocket status: ${status}`);
+  // });
 }
 function initSupabaseClient() {
   const cfg = getSyncCfg();

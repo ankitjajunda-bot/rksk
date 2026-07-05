@@ -70,6 +70,7 @@ window.addEventListener("DOMContentLoaded", () => {
       const originalHtml = refreshBtn.innerHTML;
       refreshBtn.innerHTML = `<span style="font-size:0.75rem;">\u231B Syncing...</span>`;
       showNotification("Refreshing cloud database...", "info");
+      console.log("Manual sync triggered");
       try {
         yield initSync();
         updateGlobalAlertBanner();
@@ -1988,7 +1989,7 @@ let liveWhatsAppPollInterval = null;
 function startLiveWhatsAppPoll() {
   if (liveWhatsAppPollInterval) return;
   fetchLiveWhatsAppMessages();
-  liveWhatsAppPollInterval = setInterval(fetchLiveWhatsAppMessages, 2e3);
+  // liveWhatsAppPollInterval = setInterval(fetchLiveWhatsAppMessages, 2e3);
 }
 function stopLiveWhatsAppPoll() {
   if (liveWhatsAppPollInterval) {
