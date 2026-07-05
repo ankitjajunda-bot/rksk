@@ -29,7 +29,7 @@ function runReconstructionEngine() {
   STATE.proposals = [];
   STATE.decisions = {};
   
-  const ledger = STATE.liveDb.daily_ledger;
+  const ledger = STATE.liveDb.master_ledger;
   logMsg(`Loaded ${ledger.length} ledger rows for verification.`);
   
   // 2. Totalizer Reconstruction (Forward Filling & Continuity)
@@ -61,7 +61,7 @@ function runReconstructionEngine() {
             rule: 'Forward Continuity',
             reason: 'Totalizers must be continuous. Missing opening reading recovered from previous night close.',
             applyFn: (db) => {
-              const r = db.daily_ledger.find(x => x.date === row.date);
+              const r = db.master_ledger.find(x => x.date === row.date);
               if(r) { if(!r[duKey]) r[duKey] = {}; r[duKey].open = expectedOpen; }
             }
           });
@@ -80,7 +80,7 @@ function runReconstructionEngine() {
             rule: 'Mathematical Continuity',
             reason: `Morning opening (${actualOpen}) does not match previous night closing (${expectedOpen}).`,
             applyFn: (db) => {
-              const r = db.daily_ledger.find(x => x.date === row.date);
+              const r = db.master_ledger.find(x => x.date === row.date);
               if(r) { if(!r[duKey]) r[duKey] = {}; r[duKey].open = expectedOpen; }
             }
           });
@@ -106,7 +106,7 @@ function runReconstructionEngine() {
             rule: 'Cardinal Rule of Totalizers',
             reason: 'Day shift was not closed. To maintain continuity for the night shift, the reading must carry forward from the morning open.',
             applyFn: (db) => {
-              const r = db.daily_ledger.find(x => x.date === row.date);
+              const r = db.master_ledger.find(x => x.date === row.date);
               if(r) { if(!r[duKey]) r[duKey] = {}; r[duKey].close_day = du.open; }
             }
           });
@@ -132,7 +132,7 @@ function runReconstructionEngine() {
             rule: 'Backward Continuity',
             reason: 'Night close was missing. Recovered perfectly by looking at the next morning\'s opening reading.',
             applyFn: (db) => {
-              const r = db.daily_ledger.find(x => x.date === row.date);
+              const r = db.master_ledger.find(x => x.date === row.date);
               if(r) { if(!r[duKey]) r[duKey] = {}; r[duKey].close_night = nextOpen; }
             }
           });

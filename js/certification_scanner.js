@@ -6,10 +6,10 @@
 
 window.CertificationScanner = {
     scan: function(db) {
-        if (!db || !db.daily_ledger) return [];
+        if (!db || !db.master_ledger) return [];
         
         let issues = [];
-        const ledger = [...db.daily_ledger].sort((a, b) => new Date(a.date) - new Date(b.date));
+        const ledger = [...db.master_ledger].sort((a, b) => new Date(a.date) - new Date(b.date));
 
         ledger.forEach((row, index) => {
             const prevRow = index > 0 ? ledger[index - 1] : null;

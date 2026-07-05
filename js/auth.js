@@ -41,25 +41,18 @@ function getUsers() {
   let localUsers = {};
   try {
     localUsers = JSON.parse(localStorage.getItem(AUTH_USERS_KEY) || "{}");
-  } catch (e) {
+  } catch (e) {}
+  
+  const mergedUsers = { ...localUsers };
+  
+  if (db && Array.isArray(db.employees)) {
+    db.employees.forEach(emp => {
+      if (emp.phone) {
+        const phoneKey = emp.phone.replace(/\\D/g, '');
+        mergedUsers[phoneKey] = { ...mergedUsers[phoneKey], ...emp };
+      }
+    });
   }
-  let dbUsers = db && db.users ? db.users : {};
-  const mergedUsers = {};
-  const allUsernames = /* @__PURE__ */ new Set([
-    ...Object.keys(localUsers || {}),
-    ...Object.keys(dbUsers || {})
-  ]);
-  allUsernames.forEach((username) => {
-    const localUser = localUsers[username] || {};
-    const dbUser = dbUsers[username] || {};
-    const mergedUser = __spreadValues(__spreadValues({}, localUser), dbUser);
-    if (localUser.deleted || dbUser.deleted) {
-      mergedUser.deleted = true;
-    } else {
-      delete mergedUser.deleted;
-    }
-    mergedUsers[username] = mergedUser;
-  });
   if (!mergedUsers["owner"]) {
     mergedUsers["owner"] = {
       username: "owner",
@@ -79,19 +72,11 @@ function getUsers() {
   }
   localStorage.setItem(AUTH_USERS_KEY, JSON.stringify(mergedUsers));
   if (db) {
-    db.users = mergedUsers;
+    db.employees = mergedUsers;
   }
   return mergedUsers;
 }
 function saveUsers(u, immediate = false) {
-  if (db) {
-    db.users = u;
-    db.dirty_app_state_keys = db.dirty_app_state_keys || [];
-    if (!db.dirty_app_state_keys.includes('users')) {
-      db.dirty_app_state_keys.push('users');
-    }
-    saveDB(immediate);
-  }
   localStorage.setItem(AUTH_USERS_KEY, JSON.stringify(u));
 }
 function getSession() {
@@ -136,6 +121,8 @@ function loginUser(username, credential) {
     const users = getUsers();
     const uname = username.toLowerCase().trim();
     let user = users[uname];
+    
+    // Check if it's owner
     if (!user && uname === "owner") {
       const defaultHash = yield hashString("OctaneFlow@2026");
       user = {
@@ -146,28 +133,36 @@ function loginUser(username, credential) {
         active: true
       };
     }
+
+    // Try finding employee by phone number if not found by username key
+    if (!user) {
+      const phoneMatches = Object.values(users).filter(u => 
+        u.role !== 'owner' && 
+        u.phone && 
+        u.phone.replace(/\\D/g, '') === uname.replace(/\\D/g, '')
+      );
+      if (phoneMatches.length > 0) {
+        user = phoneMatches[0];
+      }
+    }
+
     if (!user || user.deleted) {
       return { success: false, error: "User account not found." };
     }
     if (!user.active) {
       return { success: false, error: "This account has been deactivated by the administrator." };
     }
-    const incomingHash = yield hashString(credential);
+    
     if (user.role === "owner") {
+      const incomingHash = yield hashString(credential);
       const targetHash = user.passwordHash || user.pinHash;
       if (incomingHash !== targetHash) {
         return { success: false, error: "Incorrect administrator password." };
       }
     } else {
-      if (incomingHash !== user.pinHash) {
-        return { success: false, error: "Incorrect employee PIN." };
-      }
-      const currentDeviceId = getDeviceId();
-      if (!user.deviceId) {
-        return { success: false, error: "DEVICE_NOT_APPROVED", user };
-      }
-      if (user.deviceId !== currentDeviceId) {
-        return { success: false, error: "DEVICE_NOT_APPROVED", user };
+      // Employee Login: credential is the Registration Code
+      if (credential !== user.registration_code) {
+        return { success: false, error: "Incorrect Registration Code." };
       }
     }
     setSession(user);

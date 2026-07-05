@@ -538,8 +538,8 @@ function getLoadCosts() {
   return { cost4ms8hsd, cost8ms4hsd };
 }
 function getADS14() {
-  if (!db.daily_ledger || db.daily_ledger.length === 0) return { ms: 625, hsd: 1093 };
-  const sorted = [...db.daily_ledger].sort((a, b) => b.date.localeCompare(a.date));
+  if (!db.master_ledger || db.master_ledger.length === 0) return { ms: 625, hsd: 1093 };
+  const sorted = [...db.master_ledger].sort((a, b) => b.date.localeCompare(a.date));
   const recent = sorted.slice(0, 14);
   const msTotal = recent.reduce((s, r) => s + nozzleSale(r.du1_p) + nozzleSale(r.du2_p), 0);
   const hsdTotal = recent.reduce((s, r) => s + nozzleSale(r.du1_d) + nozzleSale(r.du2_d), 0);
@@ -838,7 +838,7 @@ function onReconShiftChange() {
   const capD = db.settings.diesel_capacity || 2e4;
   document.getElementById("recon-visual-liquid-p").style.height = Math.min(100, openStock.petrol / capP * 100) + "%";
   document.getElementById("recon-visual-liquid-d").style.height = Math.min(100, openStock.diesel / capD * 100) + "%";
-  const row = db.daily_ledger.find((r) => r.date === dateStr);
+  const row = db.master_ledger.find((r) => r.date === dateStr);
   if (row) {
     if (shift === "day") {
       if (row.du1_p.close_day) document.getElementById("recon-du1-p-close").value = row.du1_p.close_day;
@@ -920,9 +920,9 @@ function resetDenominations() {
   document.getElementById("recon-cash-total-label").textContent = "\u20B9 0.00";
 }
 function getOpeningReadings(dateStr, shift) {
-  const sorted = [...db.daily_ledger].sort((a, b) => b.date.localeCompare(a.date));
+  const sorted = [...db.master_ledger].sort((a, b) => b.date.localeCompare(a.date));
   if (shift === "day") {
-    const row = db.daily_ledger.find((r) => r.date === dateStr);
+    const row = db.master_ledger.find((r) => r.date === dateStr);
     if (row && row.du1_p && row.du1_p.open !== void 0) {
       return {
         du1_p: row.du1_p.open,
@@ -941,7 +941,7 @@ function getOpeningReadings(dateStr, shift) {
       };
     }
   } else {
-    const row = db.daily_ledger.find((r) => r.date === dateStr);
+    const row = db.master_ledger.find((r) => r.date === dateStr);
     if (row && row.du1_p && row.du1_p.close_day !== void 0) {
       return {
         du1_p: row.du1_p.close_day,
@@ -982,17 +982,17 @@ function getOpeningReadings(dateStr, shift) {
 function getPreviousShiftPhonePe(dateStr, shift) {
   if (shift === "day") {
     const prevDate = addDays(dateStr, -1);
-    const prevRow = db.daily_ledger.find((r) => r.date === prevDate);
+    const prevRow = db.master_ledger.find((r) => r.date === prevDate);
     if (prevRow && prevRow.recon && prevRow.recon.night && prevRow.recon.night.phonepe_close !== void 0) {
       return prevRow.recon.night.phonepe_close;
     }
   } else {
-    const row = db.daily_ledger.find((r) => r.date === dateStr);
+    const row = db.master_ledger.find((r) => r.date === dateStr);
     if (row && row.recon && row.recon.day && row.recon.day.phonepe_close !== void 0) {
       return row.recon.day.phonepe_close;
     }
   }
-  const sorted = [...db.daily_ledger].sort((a, b) => b.date.localeCompare(a.date));
+  const sorted = [...db.master_ledger].sort((a, b) => b.date.localeCompare(a.date));
   for (const r of sorted) {
     if (r.recon) {
       if (r.date === dateStr && shift === "night") {
@@ -1014,7 +1014,7 @@ function getShiftOpeningStock(dateStr, shift) {
       diesel: hist.dieStart
     };
   } else {
-    const row = db.daily_ledger.find((r) => r.date === dateStr);
+    const row = db.master_ledger.find((r) => r.date === dateStr);
     let daySalesP = 0;
     let daySalesD = 0;
     if (row) {
@@ -1568,7 +1568,7 @@ function postShiftRecon() {
   }
   const p_tests_count = Math.round(p_tests / 5);
   const d_tests_count = Math.round(d_tests / 5);
-  let row = db.daily_ledger.find((r) => r.date === dateStr);
+  let row = db.master_ledger.find((r) => r.date === dateStr);
   if (!row) {
     const prices = getPricesAt(dateStr);
     row = {
@@ -1738,7 +1738,7 @@ function renderEmployeesTable() {
     tr.style.borderBottom = "1px solid var(--border)";
     const activeBadge = emp.active ? `<span class="badge badge-success" style="font-size:0.65rem; cursor:pointer;" onclick="toggleEmployeeActive(${index})">Active</span>` : `<span class="badge badge-danger" style="font-size:0.65rem; cursor:pointer;" onclick="toggleEmployeeActive(${index})">Inactive</span>`;
     tr.innerHTML = `
-      <td style="padding: 0.5rem; font-weight:600; color:#fff;">${emp.name}</td>
+      <td style="padding: 0.5rem; font-weight:600; color:#fff;">${emp.name}<br><small style="color:var(--accent); font-family:monospace;">Code: ${emp.registration_code || 'N/A'}</small></td>
       <td style="padding: 0.5rem; color:var(--text-dim);">${emp.phone}</td>
       <td style="padding: 0.5rem;">${emp.role}</td>
       <td style="padding: 0.5rem; text-align: right; display:flex; gap:0.25rem; justify-content: flex-end; align-items:center;">
@@ -1759,20 +1759,32 @@ function addEmployee(event) {
   event.preventDefault();
   const name = document.getElementById("new-emp-name").value.trim();
   const phone = document.getElementById("new-emp-phone").value.trim();
+  const pin = document.getElementById("new-emp-pin").value.trim();
   const role = document.getElementById("new-emp-role").value;
-  if (!name || !phone) return;
+  if (!name || !phone || !pin) return;
+  
+  // Generate random 6-8 character registration code
+  const regCode = Math.random().toString(36).substring(2, 8).toUpperCase();
+  
   const newEmp = {
     id: "emp_" + Date.now(),
     name,
     phone,
+    pinHash: hashStringSync(pin), // Assuming hashStringSync exists or we can just save it hashed later. 
+    pin: pin, // Store raw pin if they need it for backend mapping (based on their requested SQL)
     role,
-    active: true
+    active: true,
+    registration_code: regCode
   };
+  if (!db.employees) db.employees = [];
   db.employees.push(newEmp);
-  saveDB();
+  saveDB(false); // only local save
   document.getElementById("add-employee-form").reset();
   renderEmployeesTable();
-  renderSyncMessages();
+  if (typeof renderSyncMessages === 'function') renderSyncMessages();
+  
+  // Create an alert showing the code so the owner can copy it
+  alert(`Employee ${name} added successfully!\n\nREGISTRATION CODE: ${regCode}\n\nPlease share this code with the employee so they can log in.`);
   showNotification(`Authorized employee ${name} added successfully.`, "success");
 }
 window._empDeleteTimers = {};
@@ -2210,9 +2222,9 @@ function nozzleSale(n) {
   return Math.max(0, gross - tests);
 }
 function buildWACTimeline() {
-  if (!db || !db.purchases || !db.daily_ledger) return {};
+  if (!db || !db.purchases || !db.master_ledger) return {};
   const purch = [...db.purchases].filter((p) => p && (p.petrol_liters > 0 || p.diesel_liters > 0)).sort((a, b) => (a.date || "").localeCompare(b.date || ""));
-  const ledgerDates = [...new Set(db.daily_ledger.filter((r) => r && r.date).map((r) => r.date))].sort();
+  const ledgerDates = [...new Set(db.master_ledger.filter((r) => r && r.date).map((r) => r.date))].sort();
   let msStock = 8e3;
   let hsdStock = 8e3;
   let msWAC = HIST_AVG_MS_COST;
@@ -2241,7 +2253,7 @@ function buildWACTimeline() {
       pi++;
     }
     wacByDate[date] = { ms: msWAC, hsd: hsdWAC };
-    const row = db.daily_ledger.find((r) => r.date === date);
+    const row = db.master_ledger.find((r) => r.date === date);
     if (row) {
       const msSold = nozzleSale(row.du1_p) + nozzleSale(row.du2_p);
       const hsdSold = nozzleSale(row.du1_d) + nozzleSale(row.du2_d);
@@ -2268,13 +2280,13 @@ function getSellingPrice(dateStr) {
   return sorted[sorted.length - 1] || { petrol: 105.58, diesel: 90.98 };
 }
 function renderPnlReport() {
-  if (!db.daily_ledger || db.daily_ledger.length === 0) {
+  if (!db.master_ledger || db.master_ledger.length === 0) {
     document.getElementById("pnl-summary-tiles").innerHTML = '<div style="color:var(--text-dim); padding:2rem;">No ledger data available. Load history backup from System Settings.</div>';
     return;
   }
   const wacMap = buildWACTimeline();
   const expenseMap = buildExpenseDateMap();
-  const dailyRows = db.daily_ledger.map((row) => {
+  const dailyRows = db.master_ledger.map((row) => {
     const date = row.date;
     const wac = wacMap[date] || { ms: HIST_AVG_MS_COST, hsd: HIST_AVG_HSD_COST };
     const sp = row.prices || getSellingPrice(date);

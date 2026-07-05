@@ -9,9 +9,9 @@ window.FinancialIntegrityScanner = {
         let violations = [];
         let idCounter = 1;
 
-        if (!db || !db.daily_ledger) return violations;
+        if (!db || !db.master_ledger) return violations;
 
-        const ledger = [...db.daily_ledger].sort((a, b) => new Date(a.date) - new Date(b.date));
+        const ledger = [...db.master_ledger].sort((a, b) => new Date(a.date) - new Date(b.date));
 
         for (let i = 0; i < ledger.length; i++) {
             let row = ledger[i];

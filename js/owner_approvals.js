@@ -107,11 +107,19 @@ function refreshApprovalsPanel() {
     refreshBtn.textContent = "\u{1F504} Refreshing...";
     refreshBtn.disabled = true;
   }
-  initSync().then(() => {
+  pullPendingEntries().then(() => {
     buildIndexes();
     renderApprovalsPanel();
+    if (refreshBtn) {
+       refreshBtn.textContent = "🔄 Pull Pending Entries";
+       refreshBtn.disabled = false;
+    }
   }).catch(() => {
     renderApprovalsPanel();
+    if (refreshBtn) {
+       refreshBtn.textContent = "🔄 Pull Pending Entries";
+       refreshBtn.disabled = false;
+    }
   });
 }
 function buildLiveShiftStatus() {
@@ -420,7 +428,7 @@ function renderApprovalsPanel() {
 
                     ${function() {
           var _a2;
-          const ledgerDay = db.daily_ledger.find((r) => r.date === ed.date);
+          const ledgerDay = db.master_ledger.find((r) => r.date === ed.date);
           const depositsApproved = (((_a2 = ledgerDay == null ? void 0 : ledgerDay.recon) == null ? void 0 : _a2.deposits) || []).reduce((sum, d) => sum + d.amount, 0);
           if (depositsApproved > 0) {
             return `
@@ -497,7 +505,7 @@ function approveEntry(event, entryId, skipRender = false) {
   }
 
   const ed = entry.entryData;
-  let row = db.daily_ledger.find((r) => r.date === ed.date);
+  let row = db.master_ledger.find((r) => r.date === ed.date);
   let oldNetP = 0;
   let oldNetD = 0;
   if (row) {
@@ -523,7 +531,7 @@ function approveEntry(event, entryId, skipRender = false) {
       recon: { cash: 0, phonepe: 0, credit: 0, total_collection: 0, remarks: "" },
       _dirty: true
     };
-    db.daily_ledger.push(row);
+    db.master_ledger.push(row);
   }
   if (entry.submission_type === "deposit") {
     row.recon.cash = (row.recon.cash || 0) + (ed.deposit_amount || 0);
@@ -610,7 +618,7 @@ function approveEntry(event, entryId, skipRender = false) {
       console.error("[Approval] Error recalculating stock metrics: ", err);
     }
   }
-  db.daily_ledger.sort((a, b) => b.date.localeCompare(a.date));
+  db.master_ledger.sort((a, b) => b.date.localeCompare(a.date));
   db.pending_entries[idx].status = "approved";
   db.pending_entries[idx].reviewedBy = session.username;
   db.pending_entries[idx].reviewedAt = (/* @__PURE__ */ new Date()).toISOString();

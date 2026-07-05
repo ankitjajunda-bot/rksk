@@ -294,6 +294,7 @@ async function loadFullDB() {
     master_ledger:   await dbGetAll('master_ledger'),
     pending_entries: await dbGetAll('pending_entries'),
     employees:       await dbGetAll('employees'),
+    employee_sessions: await dbGetAll('employee_sessions'),
     purchases:       await dbGetAll('purchases'),
     prices:          await dbGetAll('prices'),
     holidays:        await dbGetAll('holidays'),

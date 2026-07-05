@@ -37,8 +37,8 @@ function loadDsrDraftData() {
     if (savedEdits) {
       try {
         let draft = JSON.parse(savedEdits);
-        if (db && db.daily_ledger) {
-          const prodDates = new Set(db.daily_ledger.map((r) => r.date));
+        if (db && db.master_ledger) {
+          const prodDates = new Set(db.master_ledger.map((r) => r.date));
           draft = draft.filter((r) => !prodDates.has(r.date));
         }
         window.dsrDraftData = draft;
@@ -52,7 +52,7 @@ function loadDsrDraftData() {
       const res = yield fetch("dsr_digitized_draft.json");
       if (!res.ok) throw new Error("Failed to load digitized DSR draft");
       const json = yield res.json();
-      window.dsrDraftData = json.daily_ledger || json;
+      window.dsrDraftData = json.master_ledger || json;
       return window.dsrDraftData;
     } catch (err) {
       console.error("Error loading DSR draft data:", err);
@@ -408,7 +408,7 @@ function renderDsrChecker() {
     const year = meta.year;
     const monthIdx = meta.index;
     const prefix = `${year}-${String(monthIdx).padStart(2, "0")}`;
-    const prodRows = db.daily_ledger.filter((row) => row.date.startsWith(prefix));
+    const prodRows = db.master_ledger.filter((row) => row.date.startsWith(prefix));
     const draftRows = data.filter((row) => row.date.startsWith(prefix));
     const combinedMap = {};
     prodRows.forEach((row) => {
@@ -633,7 +633,7 @@ window.updateDsrCell = function(date, unitKey, fieldKey, rawValue) {
   }
   let row = window.dsrDraftData.find((r) => r.date === date);
   if (!row) {
-    const prodRow = db.daily_ledger.find((r) => r.date === date);
+    const prodRow = db.master_ledger.find((r) => r.date === date);
     if (prodRow) {
       row = JSON.parse(JSON.stringify(prodRow));
       row.actual_collection = (_b = (_a = prodRow.recon) == null ? void 0 : _a.total_collection) != null ? _b : calculateRowExpectedRev(prodRow);
@@ -691,7 +691,7 @@ window.updateDsrCell = function(date, unitKey, fieldKey, rawValue) {
 };
 window.exportDsrJSON = function() {
   if (!window.dsrDraftData) return;
-  const jsonStr = JSON.stringify({ daily_ledger: window.dsrDraftData }, null, 2);
+  const jsonStr = JSON.stringify({ master_ledger: window.dsrDraftData }, null, 2);
   const blob = new Blob([jsonStr], { type: "application/json" });
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob);
@@ -715,7 +715,7 @@ window.approveAndMergeDsr = function() {
   const approvedAt = (/* @__PURE__ */ new Date()).toISOString();
   let mergeCount = 0;
   cleanRows.forEach((row) => {
-    let existingRow = db.daily_ledger.find((r) => r.date === row.date);
+    let existingRow = db.master_ledger.find((r) => r.date === row.date);
     let oldNetP = 0;
     let oldNetD = 0;
     if (existingRow) {
@@ -748,14 +748,14 @@ window.approveAndMergeDsr = function() {
     } catch (e) {
     }
     if (existingRow) {
-      const idx = db.daily_ledger.indexOf(existingRow);
-      db.daily_ledger[idx] = newRow;
+      const idx = db.master_ledger.indexOf(existingRow);
+      db.master_ledger[idx] = newRow;
     } else {
-      db.daily_ledger.push(newRow);
+      db.master_ledger.push(newRow);
     }
     mergeCount++;
   });
-  db.daily_ledger.sort((a, b) => b.date.localeCompare(a.date));
+  db.master_ledger.sort((a, b) => b.date.localeCompare(a.date));
   saveDB();
   window.dsrDraftData = dirtyRows;
   if (dirtyRows.length === 0) {
@@ -775,7 +775,7 @@ window.submitRowToLedger = function(date) {
   const session = getSession();
   const approvedBy = session ? session.username : "owner";
   const approvedAt = (/* @__PURE__ */ new Date()).toISOString();
-  let existingRow = db.daily_ledger.find((r) => r.date === row.date);
+  let existingRow = db.master_ledger.find((r) => r.date === row.date);
   let oldNetP = 0;
   let oldNetD = 0;
   if (existingRow) {
@@ -809,12 +809,12 @@ window.submitRowToLedger = function(date) {
   } catch (e) {
   }
   if (existingRow) {
-    const idx = db.daily_ledger.indexOf(existingRow);
-    db.daily_ledger[idx] = newRow;
+    const idx = db.master_ledger.indexOf(existingRow);
+    db.master_ledger[idx] = newRow;
   } else {
-    db.daily_ledger.push(newRow);
+    db.master_ledger.push(newRow);
   }
-  db.daily_ledger.sort((a, b) => b.date.localeCompare(a.date));
+  db.master_ledger.sort((a, b) => b.date.localeCompare(a.date));
   saveDB();
   window.dsrDraftData = window.dsrDraftData.filter((r) => r.date !== date);
   if (window.dsrDraftData.length === 0) {
