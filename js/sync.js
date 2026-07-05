@@ -463,7 +463,19 @@ function processSyncQueue() {
         } else if (tx.action === "upsert_pending") {
           const cleanPayload = __spreadValues({}, tx.payload);
           delete cleanPayload._dirty;
-          const { error } = yield supabaseClient.from("pending_entries").upsert([cleanPayload]);
+          const dbPayload = {
+            id: cleanPayload.id,
+            submitted_by: cleanPayload.submittedBy,
+            submitted_by_name: cleanPayload.submittedByName,
+            submitted_at: cleanPayload.submittedAt,
+            submission_type: cleanPayload.submission_type,
+            status: cleanPayload.status,
+            entry_data: cleanPayload.entryData,
+            rejection_reason: cleanPayload.rejectionReason,
+            reviewed_by: cleanPayload.reviewedBy,
+            reviewed_at: cleanPayload.reviewedAt
+          };
+          const { error } = yield supabaseClient.from("pending_entries").upsert([dbPayload]);
           if (error) throw error;
         } else if (tx.action === "delete_ledger") {
           const { error } = yield supabaseClient.from("daily_ledger").delete().eq("date", tx.payload.date);
@@ -471,7 +483,19 @@ function processSyncQueue() {
         } else if (tx.action === "upsert_ledger") {
           const cleanPayload = __spreadValues({}, tx.payload);
           delete cleanPayload._dirty;
-          const { error } = yield supabaseClient.from("daily_ledger").upsert([cleanPayload]);
+          const dbPayload = {
+            date: cleanPayload.date,
+            prices: cleanPayload.prices,
+            du1_p: cleanPayload.du1_p,
+            du1_d: cleanPayload.du1_d,
+            du2_p: cleanPayload.du2_p,
+            du2_d: cleanPayload.du2_d,
+            recon: cleanPayload.recon,
+            approved_by: cleanPayload.approvedBy,
+            approved_at: cleanPayload.approvedAt,
+            submitted_by: cleanPayload.submittedBy
+          };
+          const { error } = yield supabaseClient.from("daily_ledger").upsert([dbPayload]);
           if (error) throw error;
         }
         tx.status = "success";
