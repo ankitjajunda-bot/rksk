@@ -22252,8 +22252,8 @@ const DSR_DRAFT_DATA = {
     {
       "date": "2026-05-21",
       "prices": {
-        "petrol": 105.43,
-        "diesel": 90.85
+        "petrol": 109.62,
+        "diesel": 94.77
       },
       "du1_p": {
         "open": 1470997.25,
@@ -22290,8 +22290,8 @@ const DSR_DRAFT_DATA = {
     {
       "date": "2026-05-22",
       "prices": {
-        "petrol": 105.43,
-        "diesel": 90.85
+        "petrol": 109.62,
+        "diesel": 94.77
       },
       "du1_p": {
         "open": 1471001.25,
@@ -22328,8 +22328,8 @@ const DSR_DRAFT_DATA = {
     {
       "date": "2026-05-23",
       "prices": {
-        "petrol": 105.43,
-        "diesel": 90.85
+        "petrol": 109.62,
+        "diesel": 94.77
       },
       "du1_p": {
         "open": 1477859.25,
@@ -22366,8 +22366,8 @@ const DSR_DRAFT_DATA = {
     {
       "date": "2026-05-24",
       "prices": {
-        "petrol": 105.43,
-        "diesel": 90.85
+        "petrol": 109.62,
+        "diesel": 94.77
       },
       "du1_p": {
         "open": 1477879.25,
@@ -22404,8 +22404,8 @@ const DSR_DRAFT_DATA = {
     {
       "date": "2026-05-25",
       "prices": {
-        "petrol": 105.43,
-        "diesel": 90.85
+        "petrol": 109.62,
+        "diesel": 94.77
       },
       "du1_p": {
         "open": 1477897.25,
@@ -22442,8 +22442,8 @@ const DSR_DRAFT_DATA = {
     {
       "date": "2026-05-26",
       "prices": {
-        "petrol": 105.43,
-        "diesel": 90.85
+        "petrol": 109.62,
+        "diesel": 94.77
       },
       "du1_p": {
         "open": 1478004.25,
@@ -22480,8 +22480,8 @@ const DSR_DRAFT_DATA = {
     {
       "date": "2026-05-27",
       "prices": {
-        "petrol": 105.43,
-        "diesel": 90.85
+        "petrol": 109.62,
+        "diesel": 94.77
       },
       "du1_p": {
         "open": 1478020.25,
@@ -22518,8 +22518,8 @@ const DSR_DRAFT_DATA = {
     {
       "date": "2026-05-28",
       "prices": {
-        "petrol": 105.43,
-        "diesel": 90.85
+        "petrol": 109.62,
+        "diesel": 94.77
       },
       "du1_p": {
         "open": 1491861.25,
@@ -22556,8 +22556,8 @@ const DSR_DRAFT_DATA = {
     {
       "date": "2026-05-29",
       "prices": {
-        "petrol": 105.43,
-        "diesel": 90.85
+        "petrol": 109.62,
+        "diesel": 94.77
       },
       "du1_p": {
         "open": 1491877.25,
@@ -22594,8 +22594,8 @@ const DSR_DRAFT_DATA = {
     {
       "date": "2026-05-30",
       "prices": {
-        "petrol": 105.43,
-        "diesel": 90.85
+        "petrol": 109.62,
+        "diesel": 94.77
       },
       "du1_p": {
         "open": 1491879.25,
@@ -22632,8 +22632,8 @@ const DSR_DRAFT_DATA = {
     {
       "date": "2026-05-31",
       "prices": {
-        "petrol": 105.43,
-        "diesel": 90.85
+        "petrol": 109.62,
+        "diesel": 94.77
       },
       "du1_p": {
         "open": 1491897.25,

@@ -21997,6 +21997,10 @@ const DSR_DRAFT_DATA = {
       },
       "recon": {
         "PhonePe": 156859.62
+      },
+      "prices": {
+        "petrol": 109.62,
+        "diesel": 94.77
       }
     },
     {
@@ -22023,6 +22027,10 @@ const DSR_DRAFT_DATA = {
       },
       "recon": {
         "PhonePe": 189113.62
+      },
+      "prices": {
+        "petrol": 109.62,
+        "diesel": 94.77
       }
     },
     {
@@ -22049,6 +22057,10 @@ const DSR_DRAFT_DATA = {
       },
       "recon": {
         "PhonePe": 115100.0
+      },
+      "prices": {
+        "petrol": 109.62,
+        "diesel": 94.77
       }
     },
     {
@@ -22075,6 +22087,10 @@ const DSR_DRAFT_DATA = {
       },
       "recon": {
         "PhonePe": 77081.88
+      },
+      "prices": {
+        "petrol": 109.62,
+        "diesel": 94.77
       }
     },
     {
@@ -22101,6 +22117,10 @@ const DSR_DRAFT_DATA = {
       },
       "recon": {
         "PhonePe": 72462.02
+      },
+      "prices": {
+        "petrol": 109.62,
+        "diesel": 94.77
       }
     },
     {
@@ -22127,6 +22147,10 @@ const DSR_DRAFT_DATA = {
       },
       "recon": {
         "PhonePe": 124417.74
+      },
+      "prices": {
+        "petrol": 109.62,
+        "diesel": 94.77
       }
     },
     {
@@ -22153,6 +22177,10 @@ const DSR_DRAFT_DATA = {
       },
       "recon": {
         "PhonePe": 134895.57
+      },
+      "prices": {
+        "petrol": 109.62,
+        "diesel": 94.77
       }
     },
     {
@@ -22179,13 +22207,17 @@ const DSR_DRAFT_DATA = {
       },
       "recon": {
         "PhonePe": 101739.37
+      },
+      "prices": {
+        "petrol": 109.62,
+        "diesel": 94.77
       }
     },
     {
       "date": "2026-05-29",
       "prices": {
-        "petrol": 113.37,
-        "diesel": 98.41
+        "petrol": 109.62,
+        "diesel": 94.77
       },
       "du1_p": {
         "open": 1490464.64,
@@ -22225,8 +22257,8 @@ const DSR_DRAFT_DATA = {
     {
       "date": "2026-05-30",
       "prices": {
-        "petrol": 113.37,
-        "diesel": 98.41
+        "petrol": 109.62,
+        "diesel": 94.77
       },
       "du1_p": {
         "open": 1490615.19,
@@ -22287,6 +22319,10 @@ const DSR_DRAFT_DATA = {
       },
       "recon": {
         "PhonePe": 98831.2
+      },
+      "prices": {
+        "petrol": 109.62,
+        "diesel": 94.77
       }
     },
     {
