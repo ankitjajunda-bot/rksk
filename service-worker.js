@@ -6,7 +6,7 @@
 //   - Everything else               → Network First, fallback to cache
 // ============================================================
 
-const CACHE_NAME     = 'octaneflow-v74';
+const CACHE_NAME     = 'octaneflow-v86';
 const FONT_CACHE     = 'octaneflow-fonts-v1';
 
 // Detect base path automatically — works on localhost AND GitHub Pages /octaneflow/
@@ -158,3 +158,12 @@ async function staleWhileRevalidate(request, cacheName) {
   }).catch(() => cached);
   return cached || fetchPromise;
 }
+
+// ---- Client Version Message Listener ----
+self.addEventListener('message', event => {
+  if (event.data === 'GET_VERSION') {
+    event.ports[0].postMessage({
+      version: CACHE_NAME
+    });
+  }
+});

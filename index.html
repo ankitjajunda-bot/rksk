@@ -57,7 +57,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 
   <!-- Stylesheets -->
-  <link rel="stylesheet" href="styles.css?v=77">
+  <link rel="stylesheet" href="styles.css?v=81">
 
   <style>
     .proof-panel { padding: 1.5rem; border-left: 4px solid var(--primary); display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; background: rgba(0,0,0,0.15); box-shadow: inset 0 2px 10px rgba(0,0,0,0.2); margin: 0.5rem 0;}
@@ -122,8 +122,7 @@
           style="background:linear-gradient(135deg,#f97316,#ea580c);color:#fff;border:none;border-radius:0.75rem;padding:0.9rem;font-size:1rem;font-weight:700;cursor:pointer;transition:opacity 0.2s;">
           Log In
         </button>
-        <div style="display:flex;justify-content:space-between;margin-top:0.75rem;font-size:0.8rem;">
-          <a href="#" onclick="showForgotPasswordModal(event)" style="color:#64748b;text-decoration:none;transition:color 0.2s;" onmouseover="this.style.color='#f97316'" onmouseout="this.style.color='#64748b'">Forgot Password?</a>
+        <div style="display:flex;justify-content:flex-end;margin-top:0.75rem;font-size:0.8rem;">
           <a href="#" onclick="showDeviceRequestForm(event)" style="color:#f97316;text-decoration:none;font-weight:600;transition:color 0.2s;">Register Device</a>
         </div>
       </form>
@@ -738,6 +737,7 @@
                   <button class="btn btn-secondary btn-sm" id="shift-filter-day-btn" style="border:none; border-radius:4px; padding: 0.35rem 0.75rem; background: transparent;">Day Shift</button>
                   <button class="btn btn-secondary btn-sm" id="shift-filter-night-btn" style="border:none; border-radius:4px; padding: 0.35rem 0.75rem; background: transparent;">Night Shift</button>
                 </div>
+                <button class="btn btn-success btn-sm" id="ledger-sync-btn" onclick="triggerManualSync()" style="display:none; padding: 0.35rem 0.75rem; border: none; font-weight: 700;">☁️ Sync (0 pending)</button>
                 <button class="btn btn-primary btn-sm" id="log-readings-btn-header" onclick="openLogReadingsModal()">Log Daily Readings</button>
               <button class="btn btn-secondary btn-sm" id="export-ledger-csv-btn">Export Ledger CSV</button>
             </div>
@@ -2699,17 +2699,17 @@
   <script src="extracted_kc_expenses.js"></script>
   <script src="ocr_stock_data.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="js/schema.js?v=77"></script>
-  <script src="js/sync.js?v=77"></script>
-  <script src="js/auth.js?v=77"></script>
-  <script src="js/ui_login.js?v=77"></script>
-  <script src="js/employee_dashboard.js?v=77"></script>
-  <script src="js/employee_submit.js?v=77"></script>
-  <script src="js/owner_approvals.js?v=77"></script>
-  <script src="js/core_db_ledger.js?v=77"></script>
-  <script src="js/error_reporting.js?v=77"></script>
-  <script src="js/dsr_checker.js?v=77"></script>
-  <script src="js/auth_reset.js?v=77"></script>
+  <script src="js/schema.js?v=86"></script>
+  <script src="js/sync.js?v=86"></script>
+  <script src="js/auth.js?v=86"></script>
+  <script src="js/ui_login.js?v=86"></script>
+  <script src="js/employee_dashboard.js?v=86"></script>
+  <script src="js/submission_flow.js?v=86"></script>
+  <script src="js/employee_submit.js?v=86"></script>
+  <script src="js/owner_approvals.js?v=86"></script>
+  <script src="js/core_db_ledger.js?v=86"></script>
+  <script src="js/error_reporting.js?v=86"></script>
+  <script src="js/dsr_checker.js?v=86"></script>
 
 
   <!-- PWA: Offline banner -->
@@ -2736,6 +2736,32 @@
   </div>
 
   <script>
+    // ── Version Details & Check ──────────────────────────────
+    const APP_VERSION = 10;
+    const APP_BUILD = '1.0.10';
+    window.APP_VERSION = APP_VERSION;
+    window.APP_BUILD = APP_BUILD;
+
+    function checkAppVersion() {
+      if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+        const channel = new MessageChannel();
+        channel.port1.onmessage = (event) => {
+          const swVersion = event.data.version;
+          const expectedSwVersion = 'octaneflow-v75';
+          if (swVersion && swVersion !== expectedSwVersion) {
+            console.log('[Version Manager] Version mismatch. SW:', swVersion, 'Expected:', expectedSwVersion);
+            if (typeof showNotification === 'function') {
+              showNotification("🚀 New Update Available (Server build updated). Reloading...", "info");
+            }
+            setTimeout(() => {
+              location.reload();
+            }, 1500);
+          }
+        };
+        navigator.serviceWorker.controller.postMessage('GET_VERSION', [channel.port2]);
+      }
+    }
+
     // ── Service Worker ───────────────────────────────────────
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
@@ -2743,6 +2769,7 @@
           .then(reg => {
             console.log('[PWA] SW registered:', reg.scope);
             setInterval(() => reg.update(), 60000);
+            setTimeout(checkAppVersion, 2000);
           })
           .catch(err => console.warn('[PWA] SW failed:', err));
       });
@@ -2868,67 +2895,6 @@
       });
     });
   </script>
-  <!-- OTP Password Reset Overlay -->
-  <div id="otp-reset-overlay" style="display:none;position:fixed;inset:0;z-index:20000;background:rgba(15,23,42,0.95);backdrop-filter:blur(10px);align-items:center;justify-content:center;color:var(--text-main);font-family:var(--font-sans);">
-    <div style="width:100%;max-width:440px;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-lg);padding:2rem;box-shadow:0 10px 25px -5px rgba(0,0,0,0.5);">
-      
-      <!-- Header -->
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.5rem;border-bottom:1px solid var(--border);padding-bottom:1rem;">
-        <h3 style="font-size:1.2rem;font-weight:700;color:#fff;margin:0;">🔐 Reset Account Password</h3>
-        <button onclick="closeForgotPasswordModal()" style="background:transparent;border:none;color:var(--text-muted);font-size:1.5rem;cursor:pointer;line-height:1;">&times;</button>
-      </div>
-
-      <!-- Step 1: Input Details -->
-      <div id="otp-step-1" style="display:flex;flex-direction:column;gap:1.2rem;">
-        <p style="font-size:0.85rem;color:var(--text-muted);margin:0;line-height:1.4;">Enter your username and registered mobile number. We will generate a secure OTP and send it via WhatsApp.</p>
-        <div>
-          <label style="display:block;font-size:0.8rem;font-weight:600;color:var(--text-muted);margin-bottom:0.4rem;">Username</label>
-          <input id="otp-reset-username" type="text" placeholder="e.g. owner" style="width:100%;box-sizing:border-box;background:#0f172a;border:1px solid var(--border);color:#fff;border-radius:var(--radius-sm);padding:0.7rem;font-size:0.95rem;outline:none;">
-        </div>
-        <div>
-          <label style="display:block;font-size:0.8rem;font-weight:600;color:var(--text-muted);margin-bottom:0.4rem;">Registered Mobile Number (10 digits)</label>
-          <div style="display:flex;gap:0.5rem;align-items:center;">
-            <span style="color:var(--text-muted);font-size:0.95rem;font-weight:600;">+91</span>
-            <input id="otp-reset-phone" type="tel" placeholder="9876543210" maxlength="10" style="width:100%;box-sizing:border-box;background:#0f172a;border:1px solid var(--border);color:#fff;border-radius:var(--radius-sm);padding:0.7rem;font-size:0.95rem;outline:none;">
-          </div>
-        </div>
-        <div id="otp-error-step1" style="color:#ef4444;font-size:0.8rem;min-height:1rem;"></div>
-        <button onclick="sendOtpRequest()" style="background:linear-gradient(135deg,var(--primary),#2563eb);color:#fff;border:none;border-radius:var(--radius-sm);padding:0.8rem;font-size:0.95rem;font-weight:700;cursor:pointer;">Send OTP via WhatsApp</button>
-      </div>
-
-      <!-- Step 2: Enter OTP -->
-      <div id="otp-step-2" style="display:none;flex-direction:column;gap:1.2rem;">
-        <p style="font-size:0.85rem;color:var(--text-muted);margin:0;line-height:1.4;">An OTP code was sent to your WhatsApp number. Please check your messages and enter it below.</p>
-        <div>
-          <label style="display:block;font-size:0.8rem;font-weight:600;color:var(--text-muted);margin-bottom:0.4rem;">Enter 6-Digit OTP</label>
-          <input id="otp-input-code" type="text" maxlength="6" placeholder="******" style="width:100%;box-sizing:border-box;background:#0f172a;border:1px solid var(--border);color:#fff;border-radius:var(--radius-sm);padding:0.7rem;font-size:1.2rem;text-align:center;letter-spacing:6px;font-weight:700;outline:none;">
-        </div>
-        <div id="otp-timer" style="font-size:0.8rem;color:var(--color-diesel);text-align:center;font-weight:600;">Time remaining: 05:00</div>
-        <div id="otp-error-step2" style="color:#ef4444;font-size:0.8rem;min-height:1rem;"></div>
-        <div style="display:flex;gap:0.5rem;">
-          <button onclick="backToStep1()" style="flex:1;background:transparent;border:1px solid var(--border);color:var(--text-muted);border-radius:var(--radius-sm);padding:0.8rem;font-size:0.95rem;font-weight:700;cursor:pointer;">Back</button>
-          <button onclick="verifyOtpRequest()" style="flex:1.5;background:linear-gradient(135deg,var(--success),#059669);color:#fff;border:none;border-radius:var(--radius-sm);padding:0.8rem;font-size:0.95rem;font-weight:700;cursor:pointer;">Verify OTP</button>
-        </div>
-      </div>
-
-      <!-- Step 3: Set New Password -->
-      <div id="otp-step-3" style="display:none;flex-direction:column;gap:1.2rem;">
-        <p style="font-size:0.85rem;color:var(--text-muted);margin:0;line-height:1.4;">OTP verified successfully! Please enter your new login password or PIN below.</p>
-        <div>
-          <label style="display:block;font-size:0.8rem;font-weight:600;color:var(--text-muted);margin-bottom:0.4rem;">New Password / PIN</label>
-          <input id="otp-new-password" type="password" placeholder="Min 4 characters" style="width:100%;box-sizing:border-box;background:#0f172a;border:1px solid var(--border);color:#fff;border-radius:var(--radius-sm);padding:0.7rem;font-size:0.95rem;outline:none;">
-        </div>
-        <div>
-          <label style="display:block;font-size:0.8rem;font-weight:600;color:var(--text-muted);margin-bottom:0.4rem;">Confirm New Password</label>
-          <input id="otp-confirm-password" type="password" placeholder="Repeat new password" style="width:100%;box-sizing:border-box;background:#0f172a;border:1px solid var(--border);color:#fff;border-radius:var(--radius-sm);padding:0.7rem;font-size:0.95rem;outline:none;">
-        </div>
-        <div id="otp-error-step3" style="color:#ef4444;font-size:0.8rem;min-height:1rem;"></div>
-        <button onclick="submitNewPassword()" style="background:linear-gradient(135deg,#f97316,#ea580c);color:#fff;border:none;border-radius:var(--radius-sm);padding:0.8rem;font-size:0.95rem;font-weight:700;cursor:pointer;">Update Password</button>
-      </div>
-
-    </div>
-  </div>
-
   <script src="js/operational_rule_engine.js"></script>
   <script src="js/certification_scanner.js"></script>
   <script src="js/financial_integrity_center_ui.js"></script>

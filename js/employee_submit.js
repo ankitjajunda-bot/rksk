@@ -186,46 +186,6 @@ function updateEmpLiveCalc() {
       totalsEl.style.display = "none";
     }
   }
-
-  // --- NEW LIVE CALCULATION PREVIEW ---
-  let totalPetrol = 0;
-  let totalDiesel = 0;
-  nozzles.forEach(({ openId, closeId, testsId, fuel }) => {
-    const o = sanitizeNumber(document.getElementById(openId)?.value);
-    const c = sanitizeNumber(document.getElementById(closeId)?.value);
-    const t = sanitizeNumber(document.getElementById(testsId)?.value);
-    const l = Math.max(0, c - o - t);
-    if (fuel === 'petrol') totalPetrol += l;
-    if (fuel === 'diesel') totalDiesel += l;
-  });
-
-  const cashCollected = sanitizeNumber(document.getElementById('emp-cash')?.value);
-  // Estimate expenses from the dynamic list (if any)
-  let totalExpenses = 0;
-  const expenseInputs = document.querySelectorAll('.emp-expense-amount');
-  expenseInputs.forEach(input => { totalExpenses += sanitizeNumber(input.value); });
-  
-  const expectedCash = Math.max(0, totalRevenue - totalExpenses);
-  const cashDiscrepancy = cashCollected - expectedCash;
-
-  const petrolEl = document.getElementById('live-petrol-sold');
-  const dieselEl = document.getElementById('live-diesel-sold');
-  const expCashEl = document.getElementById('live-expected-cash');
-  const discEl = document.getElementById('live-cash-discrepancy');
-
-  if (petrolEl) petrolEl.textContent = totalPetrol.toFixed(2) + " L";
-  if (dieselEl) dieselEl.textContent = totalDiesel.toFixed(2) + " L";
-  if (expCashEl) expCashEl.textContent = "₹ " + expectedCash.toLocaleString("en-IN", { maximumFractionDigits: 0 });
-  
-  if (discEl) {
-    if (Math.abs(cashDiscrepancy) < 1) {
-      discEl.innerHTML = `✅ ₹ 0`;
-      discEl.style.color = "#22c55e"; // Green
-    } else {
-      discEl.innerHTML = `⚠️ ₹ ${cashDiscrepancy.toLocaleString("en-IN", { maximumFractionDigits: 0 })}`;
-      discEl.style.color = "#ef4444"; // Red
-    }
-  }
 }
 function updatePhonePeDeltaPreview() {
   var _a, _b, _c, _d;
@@ -431,25 +391,34 @@ function submitEmployeeReading(session) {
       const originalText2 = submitBtn2 ? submitBtn2.innerHTML : "Submit Shift Readings";
       if (submitBtn2) {
         submitBtn2.disabled = true;
-        submitBtn2.innerHTML = `\u231B Syncing to Cloud...`;
+        submitBtn2.innerHTML = `⏳ Uploading...`;
       }
+      
+      const isOnline = navigator.onLine;
+      if (!isOnline) {
+        showNotification("💾 Saved Offline (waiting for internet)", "warning");
+      } else {
+        showNotification("☁️ Uploading cash deposit...", "info");
+      }
+
       if (!db.pending_entries) db.pending_entries = [];
       db.pending_entries.push(entry2);
       buildIndexes();
-      saveDB(true).then((success) => {
+      
+      saveDB(true, true).then((success) => {
         if (submitBtn2) {
           submitBtn2.disabled = false;
           submitBtn2.innerHTML = originalText2;
         }
         if (success) {
-          showNotification(`\u2705 Office Cash Deposit of \u20B9${depositAmount.toLocaleString("en-IN")} submitted and synced to cloud!`, "success");
+          showNotification(`✅ Submitted Successfully / Upload Complete! Office Cash Deposit of ₹${depositAmount.toLocaleString("en-IN")} uploaded.`, "success");
           ["emp-deposit-amount", "emp-remarks"].forEach((id) => {
             const el = document.getElementById(id);
             if (el) el.value = "";
           });
           renderEmployeeView(session);
         } else {
-          showNotification(`\u26A0\uFE0F Saved locally, but cloud sync is pending. We will automatically retry in the background.`, "warning");
+          showNotification(`❌ Upload Failed. Saved locally, retrying in background.`, "danger");
           renderEmployeeView(session);
         }
       });
@@ -624,31 +593,26 @@ Is this an authorized meter replacement or reset? Click OK to submit for owner a
     const originalText = submitBtn ? submitBtn.innerHTML : "Submit Shift Readings";
     if (submitBtn) {
       submitBtn.disabled = true;
-      submitBtn.innerHTML = `\u231B Saving locally...`;
+      submitBtn.innerHTML = `⏳ Uploading...`;
     }
+
+    const isOnline = navigator.onLine;
+    if (!isOnline) {
+      showNotification("💾 Saved Offline (waiting for internet)", "warning");
+    } else {
+      showNotification("☁️ Uploading shift readings...", "info");
+    }
+
     if (!db.pending_entries) db.pending_entries = [];
-    
-    // Add required metadata for pending_entries
-    const finalPendingEntry = {
-      id: crypto.randomUUID(), // Assuming crypto is available, otherwise use a custom uuid gen
-      employee_id: session.uid || 'unknown',
-      date: date,
-      shift_type: shift,
-      entry_data: entry.entryData,
-      status: 'pending',
-      submitted_at: new Date().toISOString()
-    };
-    
-    db.pending_entries.push(finalPendingEntry);
+    db.pending_entries.push(entry);
     buildIndexes();
     const typeLabel = submissionType === "opening" ? "Opening Reading" : submissionType === "snapshot" ? "Mid-Shift Snapshot" : "Closing Reading";
-    saveDB(false).then(() => {
+    
+    saveDB(true, true).then((success) => {
       if (submitBtn) {
         submitBtn.disabled = false;
         submitBtn.innerHTML = originalText;
       }
-      
-      showNotification("✅ Entry saved locally. Waiting for owner approval.", "success");
       
       // CRITICAL FIX: Always clear the form to prevent accidental duplicate submissions, 
       // regardless of whether the sync succeeded instantly or was queued offline.
@@ -692,9 +656,9 @@ Is this an authorized meter replacement or reset? Click OK to submit for owner a
       if (typeof removeEmpPhoto === 'function') removeEmpPhoto();
 
       if (success) {
-        showNotification(`\u2705 ${typeLabel} submitted and synced to cloud! Owner can see it under Operations \u2192 Approve Shifts.`, "success");
+        showNotification(`✅ Submitted Successfully / Upload Complete! ${typeLabel} submitted and synced.`, "success");
       } else {
-        showNotification(`\u26A0\uFE0F Saved locally, but cloud sync is pending. We will automatically retry in the background.`, "warning");
+        showNotification(`❌ Upload Failed. Saved locally, retrying in background.`, "danger");
       }
       
       // CRITICAL FIX: Removed the dangerous setTimeout(location.reload) which was killing 

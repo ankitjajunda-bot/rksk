@@ -37,6 +37,11 @@ const DEFAULT_DB = {
   },
   prices: [
     {
+      effective_date: "2026-05-21T08:00",
+      petrol: 109.62,
+      diesel: 94.77
+    },
+    {
       effective_date: "2026-06-01T08:00",
       petrol: 113.37,
       diesel: 98.41
@@ -51,7 +56,7 @@ const DEFAULT_DB = {
     { date: "2026-11-25", name: "Guru Nanak Jayanti" },
     { date: "2026-12-25", name: "Christmas Day" }
   ],
-  master_ledger: [],
+  daily_ledger: [],
   purchases: [],
   cashflow: {
     bank_balance: 500000,
@@ -79,14 +84,25 @@ function loadDB() {
   if (data) {
     try {
       db = JSON.parse(data);
-      
+      // Migrate from old shifts format to daily_ledger if needed
+      if (db.shifts && !db.daily_ledger) {
+        db.daily_ledger = [];
+        delete db.shifts;
+        delete db.active_shift;
+      }
       // Ensure structural fields are present
       db.settings = RKSKSchema.validateSettings(db.settings);
       db.stock = { ...DEFAULT_DB.stock, ...db.stock };
       db.cashflow = { ...DEFAULT_DB.cashflow, ...db.cashflow };
-      if (!db.master_ledger) db.master_ledger = [];
-      if (!db.pending_entries) db.pending_entries = [];
-      if (!db.employees) db.employees = [];
+
+      // Migrate users to DB if not present
+      if (!db.users) {
+        try {
+          db.users = JSON.parse(localStorage.getItem(AUTH_USERS_KEY) || '{}');
+        } catch {
+          db.users = {};
+        }
+      }
 
       // --- UNIVERSAL DATA SANITIZATION SCRUBBER ---
       const safeNum = (val) => {
@@ -104,8 +120,8 @@ function loadDB() {
       db.cashflow.cash_drawer = safeNum(db.cashflow.cash_drawer);
       db.cashflow.iocl_cushion = safeNum(db.cashflow.iocl_cushion);
 
-      if (db.master_ledger && Array.isArray(db.master_ledger)) {
-        db.master_ledger = db.master_ledger.map(row => {
+      if (db.daily_ledger && Array.isArray(db.daily_ledger)) {
+        db.daily_ledger = db.daily_ledger.map(row => {
           try {
             return RKSKSchema.validateRow(row);
           } catch (e) {
@@ -125,31 +141,39 @@ function loadDB() {
 
       let dbModified = false;
       
-      if (!db.prices) {
-        db.prices = [...DEFAULT_DB.prices];
-        dbModified = true;
-      } else {
-        let p = db.prices.find(x => x.effective_date === "2026-06-01T08:00");
-        if (!p) {
-          db.prices.push({ effective_date: "2026-06-01T08:00", petrol: 113.37, diesel: 98.41 });
+      if (!db.prices) db.prices = [];
+      // Ensure price entries exist and respect monotonic increase rule
+      const ensurePriceEntry = (date, petrol, diesel) => {
+        const existing = db.prices.find(x => x.effective_date === date);
+        if (!existing) {
+          db.prices.push({ effective_date: date, petrol, diesel });
           dbModified = true;
-        } else if (Number(p.petrol) !== 113.37 || Number(p.diesel) !== 98.41) {
-          p.petrol = 113.37;
-          p.diesel = 98.41;
-          dbModified = true;
+        } else {
+          // Business rule: prices should only go up, not down
+          if (Number(existing.petrol) < petrol) {
+            existing.petrol = petrol;
+            dbModified = true;
+          }
+          if (Number(existing.diesel) < diesel) {
+            existing.diesel = diesel;
+            dbModified = true;
+          }
         }
-      }
+      };
+      // Apply for both May 21 and June 01 entries
+      ensurePriceEntry("2026-05-21T08:00", 109.62, 94.77);
+      ensurePriceEntry("2026-06-01T08:00", 113.37, 98.41);
       
       if (!db.holidays) {
         db.holidays = [...DEFAULT_DB.holidays];
         dbModified = true;
       }
-      if (!db.master_ledger) {
-        db.master_ledger = [];
+      if (!db.daily_ledger) {
+        db.daily_ledger = [];
         dbModified = true;
       }
 
-      db.master_ledger.forEach(row => {
+      db.daily_ledger.forEach(row => {
         row.recon = row.recon || {};
         const alignTests = (nozzle) => {
           if (!nozzle) return;
@@ -166,17 +190,17 @@ function loadDB() {
         alignTests(row.du2_d);
       });
 
-      if (db.master_ledger.length > 0) {
+      if (db.daily_ledger.length > 0) {
         const todayStr = new Date().toISOString().split('T')[0];
-        const origLen = db.master_ledger.length;
-        db.master_ledger = db.master_ledger.filter(row => row.date <= todayStr);
-        if (db.master_ledger.length !== origLen) {
+        const origLen = db.daily_ledger.length;
+        db.daily_ledger = db.daily_ledger.filter(row => row.date <= todayStr);
+        if (db.daily_ledger.length !== origLen) {
           dbModified = true;
-          SystemLogger.success('loadDB', `Pruned ${origLen - db.master_ledger.length} future-date rows from production ledger.`);
+          SystemLogger.success('loadDB', `Pruned ${origLen - db.daily_ledger.length} future-date rows from production ledger.`);
         }
       }
 
-      if (db.master_ledger.length > 0 && db.prices) {
+      if (db.daily_ledger.length > 0 && db.prices) {
         const origLen = db.prices.length;
         db.prices = db.prices.filter(p => p.effective_date !== "2026-06-01T08:00");
         if (db.prices.length !== origLen) {
@@ -195,39 +219,47 @@ function loadDB() {
     } catch (e) {
       console.error("Failed to parse local storage, loading defaults", e);
       db = JSON.parse(JSON.stringify(DEFAULT_DB));
-      if (!db.employees) {
-        try { db.employees = JSON.parse(localStorage.getItem(AUTH_USERS_KEY) || '{}'); }
-        catch { db.employees = {}; }
+      if (!db.users) {
+        try { db.users = JSON.parse(localStorage.getItem(AUTH_USERS_KEY) || '{}'); }
+        catch { db.users = {}; }
       }
     }
   } else {
     db = JSON.parse(JSON.stringify(DEFAULT_DB));
-    if (!db.employees) {
-      try { db.employees = JSON.parse(localStorage.getItem(AUTH_USERS_KEY) || '{}'); }
-      catch { db.employees = {}; }
+    if (!db.users) {
+      try { db.users = JSON.parse(localStorage.getItem(AUTH_USERS_KEY) || '{}'); }
+      catch { db.users = {}; }
     }
     saveDB();
   }
 
   // Automatically merge clean entries from dsr_data_certified.js into active database
-  if (typeof DSR_DRAFT_DATA !== 'undefined' && DSR_DRAFT_DATA.master_ledger) {
+  if (typeof DSR_DRAFT_DATA !== 'undefined' && DSR_DRAFT_DATA.daily_ledger) {
     let dbModified = false;
-    DSR_DRAFT_DATA.master_ledger.forEach(draftRow => {
-      const idx = db.master_ledger.findIndex(r => r.date === draftRow.date);
+    
+    // One-time migration to clear legacy dirty flags from historical certified data
+    if (!localStorage.getItem('octaneflow_dirty_reset_v1')) {
+      if (db.daily_ledger) {
+        db.daily_ledger.forEach(row => { delete row._dirty; });
+        localStorage.setItem('octaneflow_dirty_reset_v1', 'true');
+        dbModified = true;
+      }
+    }
+
+    DSR_DRAFT_DATA.daily_ledger.forEach(draftRow => {
+      const idx = db.daily_ledger.findIndex(r => r.date === draftRow.date);
       if (idx === -1) {
-        draftRow._dirty = true;
-        db.master_ledger.push(draftRow);
+        db.daily_ledger.push(draftRow);
         dbModified = true;
       } else {
-        if (JSON.stringify(db.master_ledger[idx]) !== JSON.stringify(draftRow)) {
-          draftRow._dirty = true;
-          db.master_ledger[idx] = draftRow;
+        if (JSON.stringify(db.daily_ledger[idx]) !== JSON.stringify(draftRow)) {
+          db.daily_ledger[idx] = draftRow;
           dbModified = true;
         }
       }
     });
     if (dbModified) {
-      db.master_ledger.sort((a, b) => b.date.localeCompare(a.date));
+      db.daily_ledger.sort((a, b) => b.date.localeCompare(a.date));
       saveDB();
     }
   }
@@ -249,7 +281,7 @@ function prunePendingEntries() {
 function buildIndexes() {
   db._idx = {
     pendingById:  Object.fromEntries((db.pending_entries || []).map(e => [e.id, e])),
-    ledgerByDate: Object.fromEntries((db.master_ledger   || []).map(e => [e.date, e])),
+    ledgerByDate: Object.fromEntries((db.daily_ledger   || []).map(e => [e.date, e])),
     priceByDate:  Object.fromEntries((db.prices         || []).map(p => [p.effective_date, p]))
   };
 }
@@ -301,13 +333,23 @@ function saveDB(immediate = false) {
     showNotification('⚠️ Database write failed! Storage may be full.', 'danger');
   }
   buildIndexes(); // Rebuild index after every save
-  return Promise.resolve(true);
+  // Auto-push to cloud on every save (debounced 2s to avoid hammering API, or immediate)
+  clearTimeout(saveDB._pushTimer);
+  if (window.disableAutoPush) {
+    return Promise.resolve(true);
+  }
+  if (immediate) {
+    return syncPush();
+  } else {
+    saveDB._pushTimer = setTimeout(() => syncPush(), 2000);
+    return Promise.resolve(true);
+  }
 }
 
 function resetDB() {
   db = JSON.parse(JSON.stringify(DEFAULT_DB));
-  try { db.employees = JSON.parse(localStorage.getItem(AUTH_USERS_KEY) || '{}'); }
-  catch { db.employees = {}; }
+  try { db.users = JSON.parse(localStorage.getItem(AUTH_USERS_KEY) || '{}'); }
+  catch { db.users = {}; }
   saveDB();
   SystemLogger.success('resetDB', 'Database reset to factory default state.');
   showNotification("System data reset to default.", "info");
@@ -573,7 +615,7 @@ function getStockHistoryFor(dateStr) {
 
   if (dateStr > maxDateStr) maxDateStr = dateStr;
 
-  db.master_ledger.forEach(row => {
+  db.daily_ledger.forEach(row => {
     if (row.date > maxDateStr) maxDateStr = row.date;
   });
 
@@ -593,7 +635,7 @@ function getStockHistoryFor(dateStr) {
     loopLimit--;
 
     // 1. Find if there is a daily ledger row for currentDate
-    const row = db.master_ledger.find(r => r.date === currentDate);
+    const row = db.daily_ledger.find(r => r.date === currentDate);
     let salesP = 0;
     let salesD = 0;
     if (row) {
@@ -718,13 +760,13 @@ function renderTankFlowDetails(containerId, startVal, soldVal, recdVal, finalVal
 // PREDICTIVE ORDERING ENGINE
 // -------------------------------------------------------------
 function calculateADS() {
-  if (!db.master_ledger || db.master_ledger.length === 0) {
+  if (!db.daily_ledger || db.daily_ledger.length === 0) {
     return { petrol: 550, diesel: 850 };
   }
 
   const windowDays = db.settings.ads_days || 14;
   // FIX: Always sort newest-first before slicing so we get the most recent N days
-  const recentRows = [...db.master_ledger]
+  const recentRows = [...db.daily_ledger]
     .sort((a, b) => b.date.localeCompare(a.date))
     .slice(0, windowDays);
 
@@ -812,7 +854,7 @@ function predictNextOrder() {
 // -------------------------------------------------------------
 function saveDailyReadings(data) {
   // If editing an existing date entry, reconcile stock adjustments first
-  const existingIdx = db.master_ledger.findIndex(row => row.date === data.date);
+  const existingIdx = db.daily_ledger.findIndex(row => row.date === data.date);
 
   const newCalc = computeLedgerRow(data);
   const newNetP = newCalc.totals.net_24h.petrol;
@@ -822,7 +864,7 @@ function saveDailyReadings(data) {
   const maxD = db.settings?.diesel_capacity || 25000;
 
   if (existingIdx !== -1) {
-    const oldCalc = computeLedgerRow(db.master_ledger[existingIdx]);
+    const oldCalc = computeLedgerRow(db.daily_ledger[existingIdx]);
     const oldNetP = oldCalc.totals.net_24h.petrol;
     const oldNetD = oldCalc.totals.net_24h.diesel;
 
@@ -849,11 +891,11 @@ function saveDailyReadings(data) {
       showNotification(`⚠️ Warning: Diesel stock exceeds tank capacity (${targetDieselStock.toFixed(2)} L) on modify!`, 'warning');
     }
 
-    const prevRowString = JSON.stringify(db.master_ledger[existingIdx]);
+    const prevRowString = JSON.stringify(db.daily_ledger[existingIdx]);
     db.stock.petrol = targetPetrolStock;
     db.stock.diesel = targetDieselStock;
-    db.master_ledger[existingIdx] = data;
-    db.master_ledger[existingIdx]._dirty = true;
+    db.daily_ledger[existingIdx] = data;
+    db.daily_ledger[existingIdx]._dirty = true;
     
     window.logAuditTrail('LEDGER_EDIT', prevRowString, JSON.stringify(data), `Modified daily ledger for date ${data.date}`);
     SystemLogger.success('saveDailyReadings', `Reconciliation modified and saved for date ${formatDate(data.date)}. Net Sales: Petrol = ${newNetP.toFixed(2)} L, Diesel = ${newNetD.toFixed(2)} L.`, newCalc.totals);
@@ -886,7 +928,7 @@ function saveDailyReadings(data) {
     db.stock.petrol = targetPetrolStock;
     db.stock.diesel = targetDieselStock;
     data._dirty = true;
-    db.master_ledger.push(data);
+    db.daily_ledger.push(data);
     
     window.logAuditTrail('LEDGER_LOG', '', JSON.stringify(data), `Logged new daily readings for date ${data.date}`);
     SystemLogger.success('saveDailyReadings', `Daily readings logged and saved for date ${formatDate(data.date)}. Net Sales: Petrol = ${newNetP.toFixed(2)} L, Diesel = ${newNetD.toFixed(2)} L.`, newCalc.totals);
@@ -894,7 +936,7 @@ function saveDailyReadings(data) {
   }
 
   // Sort daily ledger chronologically descending
-  db.master_ledger.sort((a, b) => new Date(b.date) - new Date(a.date));
+  db.daily_ledger.sort((a, b) => new Date(b.date) - new Date(a.date));
   window.markAppStateDirty('stock');
   window.markAppStateDirty('cashflow');
   saveDB(true);
@@ -915,11 +957,11 @@ function saveDailyReadings(data) {
 }
 
 function deleteLedgerRow(dateStr) {
-  const index = db.master_ledger.findIndex(row => row.date === dateStr);
+  const index = db.daily_ledger.findIndex(row => row.date === dateStr);
   if (index === -1) return;
 
   if (confirm(`Are you sure you want to delete the daily readings for ${formatDate(dateStr)}? Stock levels will be credited back.`)) {
-    const oldCalc = computeLedgerRow(db.master_ledger[index]);
+    const oldCalc = computeLedgerRow(db.daily_ledger[index]);
     const oldNetP = oldCalc.totals.net_24h.petrol;
     const oldNetD = oldCalc.totals.net_24h.diesel;
 
@@ -937,11 +979,11 @@ function deleteLedgerRow(dateStr) {
       showNotification(`⚠️ Warning: Stock refund exceeds Diesel tank capacity (${targetDieselStock.toFixed(2)} L)!`, 'warning');
     }
 
-    const prevRowString = JSON.stringify(db.master_ledger[index]);
+    const prevRowString = JSON.stringify(db.daily_ledger[index]);
     db.stock.petrol = targetPetrolStock;
     db.stock.diesel = targetDieselStock;
 
-    db.master_ledger.splice(index, 1);
+    db.daily_ledger.splice(index, 1);
     
     // Queue for cloud deletion
     db.deleted_ledger_dates = db.deleted_ledger_dates || [];
@@ -1190,7 +1232,7 @@ function getCSVExport(type) {
       "24h Net Petrol", "24h Net Diesel", "Revenue Petrol", "Revenue Diesel", "Total Revenue", "WAC Cost", "Profit"
     ];
 
-    rows = db.master_ledger.map(row => {
+    rows = db.daily_ledger.map(row => {
       const c = computeLedgerRow(row, wacMap);
       return [
         row.date, row.prices.petrol, row.prices.diesel,
@@ -1248,7 +1290,7 @@ function showNotification(msg, type = 'info') {
   toast.style.fontFamily = 'var(--font-sans)';
   toast.style.fontSize = '0.9rem';
   toast.style.fontWeight = '600';
-  toast.textContent = msg;
+  toast.innerHTML = msg;
 
   document.body.appendChild(toast);
   setTimeout(() => {
@@ -1423,8 +1465,8 @@ function renderDashboard() {
   let activePrice = (db.prices && db.prices[0]) ? db.prices[0] : { petrol: 103.50, diesel: 90.80 };
   let priceLastUpdatedStr = activePrice.effective_date ? `Effective: ${formatDateTime(activePrice.effective_date)}` : "No price logged";
 
-  if (db.master_ledger && db.master_ledger.length > 0) {
-    const latestRow = db.master_ledger[0];
+  if (db.daily_ledger && db.daily_ledger.length > 0) {
+    const latestRow = db.daily_ledger[0];
     if (latestRow.prices) {
       activePrice = {
         petrol: latestRow.prices.petrol || activePrice.petrol,
@@ -1442,7 +1484,7 @@ function renderDashboard() {
 
   // Today's summary: try actual today first, fall back to most recently logged date
   const todayStr2 = new Date().toISOString().split('T')[0];
-  const todayEntry = db.master_ledger.find(r => r.date === todayStr2) || db.master_ledger[0];
+  const todayEntry = db.daily_ledger.find(r => r.date === todayStr2) || db.daily_ledger[0];
   const revCard = document.getElementById('dash-shift-revenue');
   const activeInd = document.getElementById('dash-shift-active-indicator');
 
@@ -1475,7 +1517,7 @@ function renderDashboard() {
   const maxDipP = db.settings.petrol_tank_dia || 200;
   const maxDipD = db.settings.diesel_tank_dia || 200;
 
-  const latestRowForStock = db.master_ledger && db.master_ledger.length > 0 ? db.master_ledger[0] : null;
+  const latestRowForStock = db.daily_ledger && db.daily_ledger.length > 0 ? db.daily_ledger[0] : null;
   let petrolVol = db.stock.petrol;
   let dieselVol = db.stock.diesel;
 
@@ -1707,7 +1749,7 @@ function renderLedger() {
   const splitContainer = document.getElementById('ledger-split-container');
   const toggleBtn = document.getElementById('shift-filter-selector');
 
-  if (db.master_ledger.length === 0) {
+  if (db.daily_ledger.length === 0) {
     if (ledgerViewMode === 'table') {
       table.innerHTML = `<tbody><tr><td style="text-align: center; color: var(--text-dim); padding: 3rem;">No daily readings logged. Click "Log Daily Readings" to start.</td></tr></tbody>`;
     } else {
@@ -1715,6 +1757,17 @@ function renderLedger() {
       document.getElementById('ledger-analyst-panel').innerHTML = '<div style="color:var(--text-dim); text-align:center; padding: 2rem; width: 100%;">No logs.</div>';
     }
     return;
+  }
+
+  const dirtyRows = db.daily_ledger.filter(r => r._dirty);
+  const syncBtn = document.getElementById('ledger-sync-btn');
+  if (syncBtn) {
+    if (dirtyRows.length > 0) {
+      syncBtn.style.display = 'inline-block';
+      syncBtn.textContent = `☁️ Sync (${dirtyRows.length} pending)`;
+    } else {
+      syncBtn.style.display = 'none';
+    }
   }
 
   const wacMap = buildWACTimeline();
@@ -1728,7 +1781,7 @@ function renderLedger() {
   //   c) Supply always read from supply bills first, then OCR receipts.
   const stockTimeline = {};
 
-  const forwardLedger = [...db.master_ledger].sort((a, b) => a.date.localeCompare(b.date));
+  const forwardLedger = [...db.daily_ledger].sort((a, b) => a.date.localeCompare(b.date));
 
   // Helper: get supply for a date
   function getDaySupply(dateStr) {
@@ -1925,7 +1978,7 @@ function renderLedger() {
   // Build full date list — from first entry to TODAY (IST)
   // OUTSIDE if/else so ALL ledger views share the same data
   const ledgerDateMap = {};
-  db.master_ledger.forEach(r => { ledgerDateMap[r.date] = r; });
+  db.daily_ledger.forEach(r => { ledgerDateMap[r.date] = r; });
   const nowIST = new Date(Date.now() + (5.5 * 60 * 60 * 1000));
   const todayDateStr = nowIST.toISOString().split('T')[0];
   const firstLedgerDate = forwardLedger[0]?.date || todayDateStr;
@@ -1990,7 +2043,7 @@ function renderLedger() {
       const d = new Date(row.date + 'T12:00:00');
       d.setDate(d.getDate() - 1);
       const prevDateStr = d.toISOString().split('T')[0];
-      const prevRow = db.master_ledger.find(r => r.date === prevDateStr);
+      const prevRow = db.daily_ledger.find(r => r.date === prevDateStr);
       const isPriceChange = prevRow && row.prices && prevRow.prices &&
         (Number(row.prices.petrol || 0) !== Number(prevRow.prices.petrol || 0) || Number(row.prices.diesel || 0) !== Number(prevRow.prices.diesel || 0));
 
@@ -2128,7 +2181,7 @@ function renderLedger() {
           return;
         }
 
-        const index = db.master_ledger.findIndex(r => r.date === row.date);
+        const index = db.daily_ledger.findIndex(r => r.date === row.date);
         const anomaly = getAnomalyStats(row, index);
         const c = anomaly.c;
         const testsP = anomaly.testsP;
@@ -2171,7 +2224,7 @@ function renderLedger() {
 
         rowsHtml += `
           <tr>
-            <td class="sticky-col-left"><strong>${formatDate(row.date)}</strong>${anomaly.badgesHtml}</td>
+            <td class="sticky-col-left"><strong>${formatDate(row.date)}</strong>${row._dirty ? '<span style="color:#f97316; font-weight:bold; font-size:0.75rem; margin-left:2px;" title="Local unsynced edit">*</span>' : ''}${anomaly.badgesHtml}</td>
             <td class="col-petrol ${anomaly.isPriceChange ? "cell-anomaly-price-change" : ""}" style="font-weight: 500;">${(row.prices?.petrol ?? 0).toFixed(2)}</td>
             <td class="col-diesel ${anomaly.isPriceChange ? "cell-anomaly-price-change" : ""}" style="font-weight: 500;">${(row.prices?.diesel ?? 0).toFixed(2)}</td>
 
@@ -2290,7 +2343,7 @@ function renderLedger() {
           return;
         }
 
-        const index = db.master_ledger.findIndex(r => r.date === row.date);
+        const index = db.daily_ledger.findIndex(r => r.date === row.date);
         const anomaly = getAnomalyStats(row, index);
         const c = anomaly.c;
 
@@ -2346,7 +2399,7 @@ function renderLedger() {
 
         rowsHtml += `
           <tr>
-            <td class="sticky-col-left"><strong>${formatDate(row.date)}</strong>${anomaly.badgesHtml ? `<div style="margin-top: 4px; display: flex; flex-direction: column; gap: 2px;">${anomaly.badgesHtml}</div>` : ""}</td>
+            <td class="sticky-col-left"><strong>${formatDate(row.date)}</strong>${row._dirty ? '<span style="color:#f97316; font-weight:bold; font-size:0.75rem; margin-left:2px;" title="Local unsynced edit">*</span>' : ''}${anomaly.badgesHtml ? `<div style="margin-top: 4px; display: flex; flex-direction: column; gap: 2px;">${anomaly.badgesHtml}</div>` : ""}</td>
             <td class="col-petrol ${anomaly.isPriceChange ? "cell-anomaly-price-change" : ""}" style="font-weight: 500;">${pRate.toFixed(2)}</td>
             <td class="col-diesel ${anomaly.isPriceChange ? "cell-anomaly-price-change" : ""}" style="font-weight: 500;">${dRate.toFixed(2)}</td>
 
@@ -2420,7 +2473,7 @@ function renderLedger() {
     if (toggleBtn) toggleBtn.style.display = 'none';
 
     // 1. Sort daily ledger descending by date
-    const sortedLedger = [...db.master_ledger].sort((a, b) => b.date.localeCompare(a.date));
+    const sortedLedger = [...db.daily_ledger].sort((a, b) => b.date.localeCompare(a.date));
 
     if (sortedLedger.length === 0) {
       document.getElementById('ledger-date-carousel').innerHTML = '<div style="color:var(--text-dim); padding:1rem;">No sales logged yet.</div>';
@@ -2459,7 +2512,7 @@ function renderLedger() {
     });
 
     // 3. Render visual analyst panel
-    const selectedRow = db.master_ledger.find(row => row.date === selectedLedgerDate);
+    const selectedRow = db.daily_ledger.find(row => row.date === selectedLedgerDate);
     const panel = document.getElementById('ledger-analyst-panel');
 
     if (!selectedRow) {
@@ -2498,7 +2551,7 @@ function renderLedger() {
           </span>
         </div>
         <div style="display:flex; gap:0.5rem;">
-          <button class="btn btn-secondary btn-sm" onclick="editLedgerEntry(${db.master_ledger.indexOf(selectedRow)})">Edit Readings</button>
+          <button class="btn btn-secondary btn-sm" onclick="editLedgerEntry(${db.daily_ledger.indexOf(selectedRow)})">Edit Readings</button>
           <button class="btn btn-danger btn-sm" onclick="deleteLedgerRow('${selectedRow.date}')">Delete Log</button>
         </div>
       </div>
@@ -3255,7 +3308,7 @@ function renderSettings() {
     forcePullBtn.addEventListener('click', async () => {
       showNotification('Pulling latest data from cloud…', 'info');
       const cloudData = await syncPull();
-      if (cloudData && cloudData.master_ledger) {
+      if (cloudData && cloudData.daily_ledger) {
         db = cloudData;
         localStorage.setItem('octaneflow_db', JSON.stringify(db));
         showNotification('✅ Cloud data loaded successfully!', 'success');
@@ -3418,17 +3471,21 @@ function openLogReadingsModal(targetDate) {
 }
 
 function editLedgerEntry(index) {
-  const row = db.master_ledger[index];
+  const row = db.daily_ledger[index];
   if (!row) return;
 
   document.getElementById('log-readings-modal-title').textContent = `Edit Readings for ${formatDate(row.date)}`;
   document.getElementById('ledger-date').value = row.date;
 
-  // Populate form
+  // Populate form safely
   const populate = (prefix, nozzle) => {
-    document.getElementById(`${prefix}_open`).value = nozzle.open.toFixed(2);
-    document.getElementById(`${prefix}_close_day`).value = nozzle.close_day.toFixed(2);
-    document.getElementById(`${prefix}_close_night`).value = nozzle.close_night.toFixed(2);
+    const elOpen = document.getElementById(`${prefix}_open`);
+    const elDay = document.getElementById(`${prefix}_close_day`);
+    const elNight = document.getElementById(`${prefix}_close_night`);
+    
+    if (elOpen) elOpen.value = Number(nozzle?.open ?? 0).toFixed(2);
+    if (elDay) elDay.value = Number(nozzle?.close_day ?? 0).toFixed(2);
+    if (elNight) elNight.value = Number(nozzle?.close_night ?? 0).toFixed(2);
   };
 
   populate('du1_p', row.du1_p);
@@ -3442,17 +3499,21 @@ function editLedgerEntry(index) {
   // Pre-fill price fields
   const pricePetrolEl = document.getElementById('ledger-price-petrol');
   const priceDieselEl = document.getElementById('ledger-price-diesel');
-  if (pricePetrolEl) pricePetrolEl.value = row.prices ? row.prices.petrol : '';
-  if (priceDieselEl) priceDieselEl.value = row.prices ? row.prices.diesel : '';
+  if (pricePetrolEl) pricePetrolEl.value = row.prices ? Number(row.prices.petrol ?? 0).toFixed(2) : '';
+  if (priceDieselEl) priceDieselEl.value = row.prices ? Number(row.prices.diesel ?? 0).toFixed(2) : '';
 
   // Plan 21: Populate starting stock dip overrides
-  document.getElementById('ledger_p_dip_override').value = row.p_dip_override !== undefined ? row.p_dip_override : '';
-  document.getElementById('ledger_d_dip_override').value = row.d_dip_override !== undefined ? row.d_dip_override : '';
+  const pDipOverrideEl = document.getElementById('ledger_p_dip_override');
+  const dDipOverrideEl = document.getElementById('ledger_d_dip_override');
+  if (pDipOverrideEl) pDipOverrideEl.value = row.p_dip_override !== undefined ? row.p_dip_override : '';
+  if (dDipOverrideEl) dDipOverrideEl.value = row.d_dip_override !== undefined ? row.d_dip_override : '';
 
   // Pre-fill daily cash expenses
   const staticExps = (typeof KC_EXPENSES_DATA !== 'undefined') ? KC_EXPENSES_DATA[row.date] : null;
   tempModalExpenses = row.expenses ? [...row.expenses] : (staticExps ? staticExps.map(x => ({name: x.name, amount: x.amount})) : []);
-  renderModalExpenses();
+  if (typeof renderModalExpenses === 'function') {
+    renderModalExpenses();
+  }
 
   updateModalTests();
   openModal('log-readings-modal');
@@ -3465,7 +3526,7 @@ function applyLedgerPrefill() {
 
   // Find yesterday's night closing to serve as today's morning opening
   const yesterdayStr = addDays(dateStr, -1);
-  const yesterdayRow = db.master_ledger.find(row => row.date === yesterdayStr);
+  const yesterdayRow = db.daily_ledger.find(row => row.date === yesterdayStr);
 
   const setOpens = (prefix, fallbackVal) => {
     let openVal = fallbackVal;
@@ -3481,8 +3542,8 @@ function applyLedgerPrefill() {
 
   // Prefill opens from yesterday's closings, default to 0.00 if first row
   let p1 = 0, d1 = 0, p2 = 0, d2 = 0;
-  if (db.master_ledger.length > 0) {
-    const latest = db.master_ledger[0];
+  if (db.daily_ledger.length > 0) {
+    const latest = db.daily_ledger[0];
     p1 = latest.du1_p.close_night;
     d1 = latest.du1_d.close_night;
     p2 = latest.du2_p.close_night;
@@ -3880,7 +3941,7 @@ document.getElementById('log-readings-form').addEventListener('submit', (e) => {
   const pDipVal = document.getElementById('ledger_p_dip_override').value.trim();
   const dDipVal = document.getElementById('ledger_d_dip_override').value.trim();
 
-  const existingRow = db.master_ledger.find(row => row.date === date);
+  const existingRow = db.daily_ledger.find(row => row.date === date);
   const ledgerEntry = { 
     date, 
     prices: { petrol: prices.petrol, diesel: prices.diesel }, 
@@ -4087,10 +4148,10 @@ document.getElementById('restore-db-file').addEventListener('change', (e) => {
   reader.onload = (event) => {
     try {
       const parsed = JSON.parse(event.target.result);
-      if (parsed.settings && parsed.stock && (parsed.master_ledger || parsed.shifts)) {
+      if (parsed.settings && parsed.stock && (parsed.daily_ledger || parsed.shifts)) {
         db = parsed;
-        if (db.shifts && !db.master_ledger) {
-          db.master_ledger = [];
+        if (db.shifts && !db.daily_ledger) {
+          db.daily_ledger = [];
           delete db.shifts;
         }
 
@@ -4102,7 +4163,7 @@ document.getElementById('restore-db-file').addEventListener('change', (e) => {
 
         saveDB();
         SystemLogger.success('restoreDB', 'Database restored successfully from backup file.', {
-          records: db.master_ledger.length,
+          records: db.daily_ledger.length,
           purchases: db.purchases.length
         });
         showNotification("Database restored successfully!", "success");
@@ -4272,7 +4333,7 @@ function seedDemoData() {
       du2_d: { open: du2_d_curr, close_day: du2_d_mid, close_night: du2_d_end, tests_day: test2_d_day, tests_night: test2_d_night }
     };
 
-    seeded.master_ledger.unshift(ledgerEntry);
+    seeded.daily_ledger.unshift(ledgerEntry);
 
     // Carry over night endings to the next day's open
     du1_p_curr = du1_p_end;
