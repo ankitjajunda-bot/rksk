@@ -1132,3 +1132,36 @@ window.triggerManualSync = function() {
     }
   });
 };
+
+// Added to handle the conflict notification clicks
+window.openConflictsModal = function() {
+  if (!db.conflicts || Object.keys(db.conflicts).length === 0) {
+    alert("No active sync conflicts found.");
+    return;
+  }
+  let msg = "Sync Conflicts Detected:\n\n";
+  for (const k in db.conflicts) {
+    msg += `- ${k} (Local has edits not in cloud)\n`;
+  }
+  msg += "\nDo you want to KEEP YOUR LOCAL CHANGES and overwrite the cloud? \n\n[OK] = Keep Local \n[Cancel] = Discard Local & Revert to Cloud";
+  
+  if (confirm(msg)) {
+    // Keep local, clear conflict
+    db.conflicts = {};
+    saveDB();
+    if (typeof forceSync === 'function') forceSync();
+    alert("Kept local changes. Syncing to cloud now.");
+    location.reload();
+  } else {
+    // Revert to cloud
+    for (const k in db.conflicts) {
+      if (db.conflicts[k].cloud) {
+        db[k] = db.conflicts[k].cloud;
+      }
+    }
+    db.conflicts = {};
+    saveDB();
+    alert("Reverted to cloud data.");
+    location.reload();
+  }
+};
