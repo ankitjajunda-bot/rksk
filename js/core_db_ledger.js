@@ -1290,7 +1290,7 @@ function showNotification(msg, type = 'info') {
   toast.style.fontFamily = 'var(--font-sans)';
   toast.style.fontSize = '0.9rem';
   toast.style.fontWeight = '600';
-  toast.textContent = msg;
+  toast.innerHTML = msg;
 
   document.body.appendChild(toast);
   setTimeout(() => {
