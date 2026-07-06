@@ -1134,7 +1134,7 @@ window.triggerManualSync = function() {
 };
 
 // Added to handle the conflict notification clicks
-window.openConflictsModal = function() {
+window.openConflictsModal = async function() {
   if (!db.conflicts || Object.keys(db.conflicts).length === 0) {
     alert("No active sync conflicts found.");
     return;
@@ -1149,8 +1149,11 @@ window.openConflictsModal = function() {
     // Keep local, clear conflict
     db.conflicts = {};
     saveDB();
-    if (typeof forceSync === 'function') forceSync();
-    alert("Kept local changes. Syncing to cloud now.");
+    if (typeof forceSync === 'function') {
+      alert("Keeping local changes. Syncing to cloud now... Please wait a moment.");
+      await forceSync();
+    }
+    alert("Sync complete!");
     location.reload();
   } else {
     // Revert to cloud
