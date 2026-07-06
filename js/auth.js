@@ -184,15 +184,7 @@ function loginUser(username, credential) {
       return { success: false, state: "INVALID_PASSWORD", error: "Incorrect password." };
     }
 
-    if (user.role !== "owner") {
-      const currentDeviceId = getDeviceId();
-      if (!user.deviceId) {
-        return { success: false, state: "DEVICE_NOT_APPROVED", error: "DEVICE_NOT_APPROVED", user };
-      }
-      if (user.deviceId !== currentDeviceId) {
-        return { success: false, state: "DEVICE_NOT_APPROVED", error: "DEVICE_NOT_APPROVED", user };
-      }
-    }
+    // Device registration check has been disabled as per new system requirements
 
     setSession(user);
     SystemLogger.success("loginUser", `User ${user.username} (${user.id}) logged in successfully.`);
