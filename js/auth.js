@@ -2,8 +2,7 @@
 // OctaneFlow Production Authentication Module (V1)
 // ============================================================
 
-const AUTH_USERS_KEY = "octaneflow_auth_users";
-const AUTH_SESSION_KEY = "octaneflow_auth_session";
+// Using global AUTH_USERS_KEY and AUTH_SESSION_KEY defined in sync.js to prevent redeclaration collisions
 
 var __async = (__this, __arguments, generator) => {
   return new Promise((resolve, reject) => {
@@ -102,6 +101,9 @@ function setSession(user) {
     loginAt: new Date().toISOString()
   }));
 }
+
+// Global hook for checks
+window.getAuthSession = getSession;
 
 function clearSession() {
   sessionStorage.removeItem(AUTH_SESSION_KEY);
