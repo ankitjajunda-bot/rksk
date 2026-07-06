@@ -176,6 +176,7 @@ function renderApprovalsPanel() {
   }
   const pending = (db.pending_entries || []).filter((e) => ["pending", "queued", "syncing", "pending_approval"].includes(e.status) && e.entryData && e.entryData.date);
   const reviewed = (db.pending_entries || []).filter((e) => !["pending", "queued", "syncing", "pending_approval"].includes(e.status) && e.entryData && e.entryData.date).sort((a, b) => (b.reviewedAt || "").localeCompare(a.reviewedAt || "")).slice(0, 20);
+  
   if (pending.length === 0 && reviewed.length === 0) {
     container.innerHTML = '<div style="text-align:center;color:#64748b;padding:3rem;font-size:1rem;">No submissions yet. Employees submit readings from their phones.</div>';
     return;
@@ -681,24 +682,15 @@ function renderUserManagement() {
       syncStatusHtml = `<span style="font-size:0.72rem; color:#f97316; font-weight:700;">⚠️ Saved Locally (Sync Pending)</span>`;
     }
 
-    const shareButtonHtml = isReady 
-      ? `<button onclick="copyEmployeeSetupLink('${u.username}')" style="background:rgba(249, 115, 22, 0.1);color:#f97316;border:1px solid rgba(249, 115, 22, 0.4);border-radius:0.4rem;padding:0.3rem 0.6rem;font-size:0.72rem;cursor:pointer;">🔗 Copy Setup Link</button>`
-      : `<button disabled style="background:#1e293b;color:#64748b;border:1px solid #334155;border-radius:0.4rem;padding:0.3rem 0.6rem;font-size:0.72rem;cursor:not-allowed;" title="Wait until employee is verified to share credentials">⏳ Setup Pending</button>`;
-
     return `
         <div style="display:flex;align-items:center;justify-content:space-between;padding:0.75rem;background:#0f1117;border-radius:0.6rem;margin-bottom:0.5rem;flex-wrap:wrap;gap:0.5rem;">
           <div>
             <span style="font-weight:700;color:#f8fafc;">${u.displayName}</span>
-            <span style="color:#64748b;font-size:0.78rem;margin-left:0.5rem;">@${u.username} (${u.id})</span><br>
-            <span style="font-size:0.72rem;color:${u.deviceId ? "#22c55e" : "#f97316"};">
-              ${u.deviceId ? `📱 Device approved (...${u.deviceId.slice(-8)})` : "⏳ No device approved"}
-            </span>
-            &middot; ${syncStatusHtml}
+            <span style="color:#64748b;font-size:0.78rem;margin-left:0.5rem;">@${u.username}</span><br>
+            ${syncStatusHtml}
             &middot; <span style="font-size:0.72rem;color:${u.active ? "#22c55e" : "#ef4444"}; font-weight:600;">${u.active ? "Active" : "Inactive"}</span>
           </div>
           <div style="display:flex;gap:0.4rem;flex-wrap:wrap;">
-            ${shareButtonHtml}
-            <button onclick="resetEmployeeDevice('${u.id}')" style="background:#1e293b;color:#94a3b8;border:1px solid #334155;border-radius:0.4rem;padding:0.3rem 0.6rem;font-size:0.72rem;cursor:pointer;">📱 Reset Device</button>
             <button onclick="toggleEmployee('${u.id}')" style="background:${u.active ? "rgba(239,68,68,0.1)" : "rgba(34,197,94,0.1)"};color:${u.active ? "#ef4444" : "#22c55e"};border:1px solid ${u.active ? "#ef4444" : "#22c55e"};border-radius:0.4rem;padding:0.3rem 0.6rem;font-size:0.72rem;cursor:pointer;">${u.active ? "Deactivate" : "Activate"}</button>
             <button id="del-btn-${u.id}" onclick="deleteEmployeeAccount('${u.id}')" style="background:rgba(239,68,68,0.15);color:#ef4444;border:1px solid #ef4444;border-radius:0.4rem;padding:0.3rem 0.6rem;font-size:0.72rem;cursor:pointer;">🗑️ Delete</button>
           </div>
@@ -710,7 +702,7 @@ function renderUserManagement() {
     addBtn._wired = true;
     addBtn.addEventListener("click", addUserAccount);
   }
-  renderPendingDeviceApprovals();
+  // Device approvals removed — employees log in directly with credentials.
 }
 
 function addUserAccount() {
@@ -854,9 +846,16 @@ function copyEmployeeSetupLink(username) {
   }
   const token = btoa(`${cfg.supabaseUrl}|${cfg.supabaseKey}|${username}`);
   const url = `${location.origin}${location.pathname}#setup=${token}`;
-  navigator.clipboard.writeText(url).then(() => showNotification(`📋 Setup link for @${username} copied to clipboard!`, "success")).catch(() => {
-    alert(`Copy link manually: ${url}`);
-  });
+  
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(url).then(() => {
+      showNotification(`📋 Setup link copied! Paste this exactly as-is into your phone.`, "success");
+    }).catch(() => {
+      prompt(`Copy link manually:`, url);
+    });
+  } else {
+    prompt(`Your browser blocked auto-copying on local network. Please copy this link manually:`, url);
+  }
 }
 window.copyEmployeeSetupLink = copyEmployeeSetupLink;
 

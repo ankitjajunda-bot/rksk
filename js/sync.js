@@ -469,9 +469,9 @@ function processSyncQueue() {
             submission_type: cleanPayload.submission_type,
             status: cleanPayload.status,
             entry_data: cleanPayload.entryData,
-            rejection_reason: cleanPayload.rejectionReason,
-            reviewed_by: cleanPayload.reviewedBy,
-            reviewed_at: cleanPayload.reviewedAt
+            rejection_reason: cleanPayload.rejectionReason || null,
+            reviewed_by: cleanPayload.reviewedBy || null,
+            reviewed_at: cleanPayload.reviewedAt || null
           };
           const { error } = yield supabaseClient.from("pending_entries").upsert([dbPayload]);
           if (error) throw error;
@@ -489,9 +489,9 @@ function processSyncQueue() {
             du2_p: cleanPayload.du2_p,
             du2_d: cleanPayload.du2_d,
             recon: cleanPayload.recon,
-            approved_by: cleanPayload.approvedBy,
-            approved_at: cleanPayload.approvedAt,
-            submitted_by: cleanPayload.submittedBy
+            approved_by: cleanPayload.approvedBy || null,
+            approved_at: cleanPayload.approvedAt || null,
+            submitted_by: cleanPayload.submittedBy || null
           };
           const { error } = yield supabaseClient.from("daily_ledger").upsert([dbPayload]);
           if (error) throw error;

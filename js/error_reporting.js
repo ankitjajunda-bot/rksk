@@ -33,34 +33,8 @@ window.addEventListener("unhandledrejection", (event) => {
   SystemLogger.error("UnhandledPromiseRejection", msg, stack);
 });
 window.addEventListener("DOMContentLoaded", () => {
-  const hash = window.location.hash;
-  if (hash && hash.startsWith("#setup=")) {
-    try {
-      const encoded = hash.substring(7);
-      const decoded = atob(encoded);
-      const [supabaseUrl, supabaseKey, inviteUser] = decoded.split("|");
-      if (supabaseUrl && supabaseKey) {
-        saveSyncCfg({ supabaseUrl, supabaseKey });
-        if (inviteUser) {
-          localStorage.setItem("octaneflow_invited_user", inviteUser);
-        }
-        history.replaceState(null, document.title, window.location.pathname + window.location.search);
-        console.log("[Sync] Setup configuration successfully applied from link.");
-        
-        // CRITICAL FIX: The app must pull users from the cloud BEFORE the employee tries to log in.
-        // Otherwise, loginUser will fail because the local database is empty.
-        setTimeout(() => {
-          if (typeof initSupabaseClient === 'function') initSupabaseClient();
-          if (typeof initSync === 'function') {
-            if (typeof showNotification === 'function') showNotification("Setting up your device...", "info");
-            initSync().catch(console.error);
-          }
-        }, 500);
-      }
-    } catch (e) {
-      console.error("[Sync] Failed to parse setup link:", e);
-    }
-  }
+  // Setup links removed — Supabase credentials are hardcoded in getSyncCfg().
+  // Employees simply open the URL and log in with credentials the owner created.
   loadDB();
   initSupabaseClient();
   const refreshBtn = document.getElementById("manual-refresh-btn");

@@ -65,13 +65,8 @@ function initLoginForm() {
           errorMsg = "Account locked due to too many failed attempts. Contact admin.";
           break;
         case "DEVICE_NOT_APPROVED":
-          errorMsg = "This device is not approved yet. Please Register Device first.";
-          showDeviceRequestForm();
-          const reqName = document.getElementById("req-emp-name");
-          const reqUser = document.getElementById("req-emp-username");
-          if (reqName) reqName.value = result.user?.displayName || "";
-          if (reqUser) reqUser.value = result.user?.username || "";
-          showNotification("⚠️ Device not approved yet. Access request displayed below.", "warning");
+          // Device approval removed — should not occur in new flow
+          errorMsg = "Login error. Please contact the owner.";
           break;
         case "SERVER_UNAVAILABLE":
           errorMsg = "Authentication server is currently unavailable. Try again later.";
@@ -83,9 +78,7 @@ function initLoginForm() {
           errorMsg = result.error || "An unexpected error occurred during login.";
       }
 
-      if (result.state !== "DEVICE_NOT_APPROVED") {
-        if (errEl) errEl.textContent = errorMsg;
-      }
+      if (errEl) errEl.textContent = errorMsg;
       return;
     }
 
@@ -112,7 +105,7 @@ function initLoginForm() {
 }
 
 function updateApprovalsBadge() {
-  const pending = (db.pending_entries || []).filter((e) => e.status === "pending" && e.submission_type !== "device_registration").length;
+  const pending = (db.pending_entries || []).filter((e) => e.status === "pending").length;
   const badge = document.getElementById("approvals-badge");
   if (badge) {
     badge.textContent = pending || "";

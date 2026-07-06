@@ -179,7 +179,7 @@ function loginUser(username, credential) {
     }
 
     const incomingHash = yield hashString(credential.trim());
-    const targetHash = user.passwordHash;
+    const targetHash = user.passwordHash || user.pinHash;
     if (incomingHash !== targetHash) {
       return { success: false, state: "INVALID_PASSWORD", error: "Incorrect password." };
     }
