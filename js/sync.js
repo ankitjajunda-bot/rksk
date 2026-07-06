@@ -616,8 +616,14 @@ function initSync() {
               local: JSON.parse(JSON.stringify(localVal)),
               timestamp: (/* @__PURE__ */ new Date()).toISOString()
             };
-            SystemLogger.warning("initSync", `Sync Conflict detected on settings key: ${k}. Cloud changes preserved in db.conflicts.`);
-            showNotification(`\u26A0\uFE0F Sync Conflict: Concurrent edits found on ${k}. Cloud data saved in conflicts.`, "warning");
+            // Only alert owners about sync conflicts; employees see silent handling.
+            if (window.getAuthSession && window.getAuthSession()?.role === "owner") {
+              SystemLogger.warning("initSync", `Sync Conflict detected on settings key: ${k}. Cloud changes preserved in db.conflicts.`);
+              showNotification(`\u26A0\uFE0F Sync Conflict: Concurrent edits found on ${k}. Cloud data saved in conflicts. Click <a href="#" onclick="openConflictsModal(); return false;">here</a> to review.`, "warning");
+            } else {
+              // For non‑owner users, silently retain local version and log.
+              SystemLogger.info("initSync", `Sync Conflict on ${k} ignored for non‑owner user.`);
+            }
           }
         }
       });

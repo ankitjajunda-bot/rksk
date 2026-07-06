@@ -37,6 +37,11 @@ const DEFAULT_DB = {
   },
   prices: [
     {
+      effective_date: "2026-05-21T08:00",
+      petrol: 109.62,
+      diesel: 94.77
+    },
+    {
       effective_date: "2026-06-01T08:00",
       petrol: 113.37,
       diesel: 98.41
@@ -136,20 +141,28 @@ function loadDB() {
 
       let dbModified = false;
       
-      if (!db.prices) {
-        db.prices = [...DEFAULT_DB.prices];
-        dbModified = true;
-      } else {
-        let p = db.prices.find(x => x.effective_date === "2026-06-01T08:00");
-        if (!p) {
-          db.prices.push({ effective_date: "2026-06-01T08:00", petrol: 113.37, diesel: 98.41 });
+      if (!db.prices) db.prices = [];
+      // Ensure price entries exist and respect monotonic increase rule
+      const ensurePriceEntry = (date, petrol, diesel) => {
+        const existing = db.prices.find(x => x.effective_date === date);
+        if (!existing) {
+          db.prices.push({ effective_date: date, petrol, diesel });
           dbModified = true;
-        } else if (Number(p.petrol) !== 113.37 || Number(p.diesel) !== 98.41) {
-          p.petrol = 113.37;
-          p.diesel = 98.41;
-          dbModified = true;
+        } else {
+          // Business rule: prices should only go up, not down
+          if (Number(existing.petrol) < petrol) {
+            existing.petrol = petrol;
+            dbModified = true;
+          }
+          if (Number(existing.diesel) < diesel) {
+            existing.diesel = diesel;
+            dbModified = true;
+          }
         }
-      }
+      };
+      // Apply for both May 21 and June 01 entries
+      ensurePriceEntry("2026-05-21T08:00", 109.62, 94.77);
+      ensurePriceEntry("2026-06-01T08:00", 113.37, 98.41);
       
       if (!db.holidays) {
         db.holidays = [...DEFAULT_DB.holidays];
