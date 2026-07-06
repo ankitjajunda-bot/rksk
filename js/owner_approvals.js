@@ -655,6 +655,14 @@ function promptRejectEntry(event, entryId) {
   showNotification("Entry rejected.", "info");
   renderApprovalsPanel();
 }
+function generateNextEmpId(users) {
+  const keys = Object.keys(users).filter(k => k.startsWith("EMP"));
+  if (keys.length === 0) return "EMP0001";
+  const nums = keys.map(k => parseInt(k.replace("EMP", ""), 10));
+  const max = Math.max(...nums);
+  return "EMP" + String(max + 1).padStart(4, "0");
+}
+
 function renderUserManagement() {
   const session = getSession();
   if (!session || session.role !== "owner") return;
@@ -662,145 +670,196 @@ function renderUserManagement() {
   const ulistEl = document.getElementById("user-mgmt-list");
   if (!ulistEl) return;
   const employees = Object.values(users).filter((u) => u.role === "employee" && !u.deleted);
-  ulistEl.innerHTML = employees.length === 0 ? '<p style="color:#64748b;text-align:center;padding:1rem;">No employees yet. Add one below.</p>' : employees.map((u) => `
+  ulistEl.innerHTML = employees.length === 0 ? '<p style="color:#64748b;text-align:center;padding:1rem;">No employees yet. Add one below.</p>' : employees.map((u) => {
+    let syncStatusHtml = '';
+    const isReady = u.syncStatus === 'verified';
+    if (isReady) {
+      syncStatusHtml = `<span style="font-size:0.72rem; color:#22c55e; font-weight:700;">✅ Employee Ready</span>`;
+    } else if (u.syncStatus === 'uploaded') {
+      syncStatusHtml = `<span style="font-size:0.72rem; color:#eab308; font-weight:700;">⏳ Account Uploaded (Verifying...)</span>`;
+    } else {
+      syncStatusHtml = `<span style="font-size:0.72rem; color:#f97316; font-weight:700;">⚠️ Saved Locally (Sync Pending)</span>`;
+    }
+
+    const shareButtonHtml = isReady 
+      ? `<button onclick="copyEmployeeSetupLink('${u.username}')" style="background:rgba(249, 115, 22, 0.1);color:#f97316;border:1px solid rgba(249, 115, 22, 0.4);border-radius:0.4rem;padding:0.3rem 0.6rem;font-size:0.72rem;cursor:pointer;">🔗 Copy Setup Link</button>`
+      : `<button disabled style="background:#1e293b;color:#64748b;border:1px solid #334155;border-radius:0.4rem;padding:0.3rem 0.6rem;font-size:0.72rem;cursor:not-allowed;" title="Wait until employee is verified to share credentials">⏳ Setup Pending</button>`;
+
+    return `
         <div style="display:flex;align-items:center;justify-content:space-between;padding:0.75rem;background:#0f1117;border-radius:0.6rem;margin-bottom:0.5rem;flex-wrap:wrap;gap:0.5rem;">
           <div>
             <span style="font-weight:700;color:#f8fafc;">${u.displayName}</span>
-            <span style="color:#64748b;font-size:0.78rem;margin-left:0.5rem;">@${u.username}</span><br>
+            <span style="color:#64748b;font-size:0.78rem;margin-left:0.5rem;">@${u.username} (${u.id})</span><br>
             <span style="font-size:0.72rem;color:${u.deviceId ? "#22c55e" : "#f97316"};">
-              ${u.deviceId ? `\u2705 Device approved (...${u.deviceId.slice(-8)})` : "\u23F3 No device approved (pending registration)"}
+              ${u.deviceId ? `📱 Device approved (...${u.deviceId.slice(-8)})` : "⏳ No device approved"}
             </span>
-            \xB7 <span style="font-size:0.72rem;color:${u.active ? "#22c55e" : "#ef4444"};">${u.active ? "Active" : "Inactive"}</span>
+            &middot; ${syncStatusHtml}
+            &middot; <span style="font-size:0.72rem;color:${u.active ? "#22c55e" : "#ef4444"}; font-weight:600;">${u.active ? "Active" : "Inactive"}</span>
           </div>
           <div style="display:flex;gap:0.4rem;flex-wrap:wrap;">
-            <button onclick="copyEmployeeSetupLink('${u.username}')" style="background:rgba(249, 115, 22, 0.1);color:#f97316;border:1px solid rgba(249, 115, 22, 0.4);border-radius:0.4rem;padding:0.3rem 0.6rem;font-size:0.72rem;cursor:pointer;">🔗 Copy Setup Link</button>
-            <button onclick="resetEmployeeDevice('${u.username}')" style="background:#1e293b;color:#94a3b8;border:1px solid #334155;border-radius:0.4rem;padding:0.3rem 0.6rem;font-size:0.72rem;cursor:pointer;">📱 Reset Device</button>
-            <button onclick="toggleEmployee('${u.username}')" style="background:${u.active ? "rgba(239,68,68,0.1)" : "rgba(34,197,94,0.1)"};color:${u.active ? "#ef4444" : "#22c55e"};border:1px solid ${u.active ? "#ef4444" : "#22c55e"};border-radius:0.4rem;padding:0.3rem 0.6rem;font-size:0.72rem;cursor:pointer;">${u.active ? "Deactivate" : "Activate"}</button>
-            <button id="del-btn-${u.username}" onclick="deleteEmployeeAccount('${u.username}')" style="background:rgba(239,68,68,0.15);color:#ef4444;border:1px solid #ef4444;border-radius:0.4rem;padding:0.3rem 0.6rem;font-size:0.72rem;cursor:pointer;">🗑️ Delete</button>
+            ${shareButtonHtml}
+            <button onclick="resetEmployeeDevice('${u.id}')" style="background:#1e293b;color:#94a3b8;border:1px solid #334155;border-radius:0.4rem;padding:0.3rem 0.6rem;font-size:0.72rem;cursor:pointer;">📱 Reset Device</button>
+            <button onclick="toggleEmployee('${u.id}')" style="background:${u.active ? "rgba(239,68,68,0.1)" : "rgba(34,197,94,0.1)"};color:${u.active ? "#ef4444" : "#22c55e"};border:1px solid ${u.active ? "#ef4444" : "#22c55e"};border-radius:0.4rem;padding:0.3rem 0.6rem;font-size:0.72rem;cursor:pointer;">${u.active ? "Deactivate" : "Activate"}</button>
+            <button id="del-btn-${u.id}" onclick="deleteEmployeeAccount('${u.id}')" style="background:rgba(239,68,68,0.15);color:#ef4444;border:1px solid #ef4444;border-radius:0.4rem;padding:0.3rem 0.6rem;font-size:0.72rem;cursor:pointer;">🗑️ Delete</button>
           </div>
-        </div>`).join("");
+        </div>`;
+  }).join("");
+  
   const addBtn = document.getElementById("add-employee-btn");
   if (addBtn && !addBtn._wired) {
-    console.log("[User Management] Wiring add employee button listener");
     addBtn._wired = true;
     addBtn.addEventListener("click", addUserAccount);
   }
   renderPendingDeviceApprovals();
 }
+
 function addUserAccount() {
   return __async(this, null, function* () {
     var _a, _b, _c, _d;
-    console.log("[User Management] addUserAccount clicked!");
     try {
       const name = (_a = document.getElementById("new-emp-name")) == null ? void 0 : _a.value.trim();
       const user = (_b = document.getElementById("new-emp-username")) == null ? void 0 : _b.value.trim().toLowerCase().replace(/\s+/g, "");
       const pin = (_c = document.getElementById("new-emp-pin")) == null ? void 0 : _c.value.trim();
       const role = ((_d = document.getElementById("new-emp-role-select")) == null ? void 0 : _d.value) || "employee";
-      console.log("[User Management] Form inputs:", { name, user, pin, role });
+      
       if (!name || !user || !pin) {
         showNotification("Fill in all three fields.", "danger");
         return;
       }
       if (!/^\d{4,6}$/.test(pin)) {
-        showNotification("PIN must be 4\u20136 digits.", "danger");
+        showNotification("PIN/Password must be 4–6 digits.", "danger");
         return;
       }
       const users = getUsers();
-      if (users[user]) {
+      const usernameExists = Object.values(users).some(u => u.username.toLowerCase() === user && !u.deleted);
+      if (usernameExists) {
         showNotification("Username already exists.", "danger");
         return;
       }
-      users[user] = {
+      
+      const newId = generateNextEmpId(users);
+      const passwordHash = yield hashString(pin);
+      
+      users[newId] = {
+        id: newId,
         username: user,
         displayName: name,
         role,
-        pinHash: yield hashString(pin),
+        passwordHash: passwordHash,
         deviceId: null,
         deviceRegisteredAt: null,
         active: true,
-        createdAt: (/* @__PURE__ */ new Date()).toISOString()
+        syncStatus: 'local',
+        createdAt: new Date().toISOString()
       };
+      
+      // Save locally & queue for sync upload
       saveUsers(users, true);
+      
       document.getElementById("new-emp-name").value = "";
       document.getElementById("new-emp-username").value = "";
       document.getElementById("new-emp-pin").value = "";
-      showNotification(`\u2705 Account "${name}" (${role === "owner" ? "Owner" : "Employee"}) added successfully!`, "success");
+      
+      showNotification(`💾 Account "${name}" saved locally. Syncing to cloud...`, "info");
+      renderUserManagement();
+      
+      // Verification phase
+      if (navigator.onLine) {
+        try {
+          // Push local state immediately
+          yield syncPush(true);
+          
+          // Verify by downloading from Supabase
+          const pulled = yield syncPull();
+          if (pulled && pulled.users && pulled.users[newId]) {
+            if (pulled.users[newId].passwordHash === passwordHash) {
+              // Set ready status
+              const updatedUsers = getUsers();
+              if (updatedUsers[newId]) {
+                updatedUsers[newId].syncStatus = 'verified';
+                saveUsers(updatedUsers, true);
+                showNotification(`✅ Employee Ready: "${name}" is fully registered and verified on Supabase!`, "success");
+              }
+            }
+          }
+        } catch (syncErr) {
+          SystemLogger.error("addUserAccount", "Cloud sync/verification error: ", syncErr);
+        }
+      }
       renderUserManagement();
     } catch (err) {
       console.error("Failed to add user account:", err);
-      showNotification("\u274C Failed to add user account: " + err.message, "danger");
+      showNotification("❌ Failed to add user account: " + err.message, "danger");
     }
   });
 }
-function resetEmployeeDevice(username) {
-  if (!confirm(`Reset device for ${username}? They must log in again from their phone.`)) return;
+
+function resetEmployeeDevice(id) {
+  if (!confirm(`Reset device for employee? they must register their phone again.`)) return;
   const users = getUsers();
-  if (!users[username]) return;
-  users[username].deviceId = null;
-  users[username].deviceRegisteredAt = null;
+  if (!users[id]) return;
+  users[id].deviceId = null;
+  users[id].deviceRegisteredAt = null;
   saveUsers(users, true);
-  showNotification(`Device reset for ${username}.`, "info");
+  showNotification(`Device reset successful.`, "info");
   renderUserManagement();
 }
-function toggleEmployee(username) {
+
+function toggleEmployee(id) {
   const users = getUsers();
-  if (!users[username]) return;
-  users[username].active = !users[username].active;
+  if (!users[id]) return;
+  users[id].active = !users[id].active;
   saveUsers(users, true);
   renderUserManagement();
 }
+
 window._deleteTimers = {};
-function deleteEmployeeAccount(username) {
-  const btn = document.getElementById(`del-btn-${username}`);
+function deleteEmployeeAccount(id) {
+  const btn = document.getElementById(`del-btn-${id}`);
   if (!btn) return;
   if (btn.dataset.confirmed === "true") {
-    clearTimeout(window._deleteTimers[username]);
-    delete window._deleteTimers[username];
-    if (username === "owner") {
-      showNotification("\u26A0\uFE0F Cannot delete the primary administrator account!", "danger");
-      return;
-    }
-    const session = getSession();
-    if (session && session.username === username) {
-      showNotification("\u26A0\uFE0F Cannot delete the account you are currently logged in with!", "danger");
+    clearTimeout(window._deleteTimers[id]);
+    delete window._deleteTimers[id];
+    if (id === "owner") {
+      showNotification("⚠️ Cannot delete owner account!", "danger");
       return;
     }
     const users = getUsers();
-    if (!users[username]) return;
-    users[username].deleted = true;
-    users[username].deviceId = null;
+    if (!users[id]) return;
+    users[id].deleted = true;
+    users[id].deviceId = null;
     saveUsers(users, true);
-    showNotification(`Account @${username} deleted permanently.`, "info");
+    showNotification(`Account deleted permanently.`, "info");
     renderUserManagement();
   } else {
     btn.dataset.confirmed = "true";
-    btn.innerHTML = "\u26A0\uFE0F Confirm Delete?";
+    btn.innerHTML = "⚠️ Confirm Delete?";
     btn.style.background = "#ef4444";
     btn.style.color = "#fff";
-    window._deleteTimers[username] = setTimeout(() => {
+    window._deleteTimers[id] = setTimeout(() => {
       btn.dataset.confirmed = "false";
-      btn.innerHTML = "\u{1F5D1}\uFE0F Delete";
+      btn.innerHTML = "🗑️ Delete";
       btn.style.background = "rgba(239, 68, 68, 0.15)";
       btn.style.color = "#ef4444";
-    }, 3e3);
+    }, 3000);
   }
 }
 window.deleteEmployeeAccount = deleteEmployeeAccount;
+
 function copyEmployeeSetupLink(username) {
   const cfg = getSyncCfg();
   if (!cfg.supabaseUrl || !cfg.supabaseKey) {
-    showNotification("\u26A0\uFE0F Setup cloud sync first under Settings.", "danger");
+    showNotification("⚠️ Setup cloud sync first under Settings.", "danger");
     return;
   }
   const token = btoa(`${cfg.supabaseUrl}|${cfg.supabaseKey}|${username}`);
   const url = `${location.origin}${location.pathname}#setup=${token}`;
-  navigator.clipboard.writeText(url).then(() => showNotification(`\u{1F4CB} Setup link for @${username} copied to clipboard! Send this to them.`, "success")).catch(() => {
-    alert(`Could not copy automatically. Here is the link:
-
-${url}`);
+  navigator.clipboard.writeText(url).then(() => showNotification(`📋 Setup link for @${username} copied to clipboard!`, "success")).catch(() => {
+    alert(`Copy link manually: ${url}`);
   });
 }
 window.copyEmployeeSetupLink = copyEmployeeSetupLink;
+
 function renderPendingDeviceApprovals() {
   const container = document.getElementById("pending-device-approvals-list");
   if (!container) return;
@@ -816,66 +875,68 @@ function renderPendingDeviceApprovals() {
     container.innerHTML = '<p style="color:#64748b;font-size:0.75rem;text-align:center;padding:0.5rem;">No pending device approvals.</p>';
     return;
   }
-      const users = getUsers();
-      const employees = Object.values(users).filter((u) => u.role === "employee" && !u.deleted);
-      const unapprovedEmployees = employees.filter((u) => !u.deviceId);
-      container.innerHTML = data.map((req) => {
-        const info = req.entry_data || req.entryData || {};
-        const reqName = info.name || req.submitted_by_name || req.submittedByName || "Unknown";
-        const reqPhone = info.phone || "No phone";
-        const reqDeviceId = info.deviceId || "";
-        let dropdownHtml = "";
-        if (unapprovedEmployees.length === 0) {
-          dropdownHtml = employees.length === 0 ? '<span style="color:#ef4444;font-size:0.72rem;">Add employee profile first</span>' : '<span style="color:#94a3b8;font-size:0.72rem;">All profiles approved (Reset one above)</span>';
-        } else {
-          dropdownHtml = `
-          <select id="approve-user-select-${req.id}" style="padding:0.3rem;background:var(--bg-input);color:#fff;border:1px solid var(--border);border-radius:0.3rem;font-size:0.72rem;">
-            ${unapprovedEmployees.map((u) => `<option value="${u.username}">${u.displayName} (@${u.username})</option>`).join("")}
-          </select>
-        `;
-        }
-        const approveBtnHtml = unapprovedEmployees.length === 0 ? "" : `<button onclick="approveDeviceFromRequest(event, '${req.id}', '${reqDeviceId}')" style="background:#22c55e;color:#fff;border:none;border-radius:0.4rem;padding:0.3rem 0.6rem;font-size:0.72rem;cursor:pointer;font-weight:600;">Approve</button>`;
-        return `
-        <div style="display:flex;align-items:center;justify-content:space-between;padding:0.6rem;background:#0f1117;border-radius:0.4rem;gap:0.5rem;flex-wrap:wrap;border:1px solid #334155;">
-          <div>
-            <span style="font-weight:700;color:#f8fafc;font-size:0.78rem;">${reqName}</span>
-            <span style="color:#64748b;font-size:0.72rem;">(${reqPhone})</span>
-          </div>
-          <div style="display:flex;align-items:center;gap:0.4rem;">
-            ${dropdownHtml}
-            ${approveBtnHtml}
-            <button onclick="rejectDeviceRequest(event, '${req.id}')" style="background:rgba(239,68,68,0.15);color:#ef4444;border:1px solid #ef4444;border-radius:0.4rem;padding:0.3rem 0.6rem;font-size:0.72rem;cursor:pointer;">Reject</button>
-          </div>
-        </div>
-      `;
-    }).join("");
+  const users = getUsers();
+  const employees = Object.values(users).filter((u) => u.role === "employee" && !u.deleted);
+  const unapprovedEmployees = employees.filter((u) => !u.deviceId);
+  container.innerHTML = data.map((req) => {
+    const info = req.entry_data || req.entryData || {};
+    const reqName = info.name || req.submitted_by_name || req.submittedByName || "Unknown";
+    const reqPhone = info.phone || "No phone";
+    const reqDeviceId = info.deviceId || "";
+    let dropdownHtml = "";
+    if (unapprovedEmployees.length === 0) {
+      dropdownHtml = employees.length === 0 ? '<span style="color:#ef4444;font-size:0.72rem;">Add employee profile first</span>' : '<span style="color:#94a3b8;font-size:0.72rem;">All profiles approved (Reset one above)</span>';
+    } else {
+      dropdownHtml = `
+      <select id="approve-user-select-${req.id}" style="padding:0.3rem;background:var(--bg-input);color:#fff;border:1px solid var(--border);border-radius:0.3rem;font-size:0.72rem;">
+        ${unapprovedEmployees.map((u) => `<option value="${u.id}">${u.displayName} (@${u.username})</option>`).join("")}
+      </select>
+    `;
+    }
+    const approveBtnHtml = unapprovedEmployees.length === 0 ? "" : `<button onclick="approveDeviceFromRequest(event, '${req.id}', '${reqDeviceId}')" style="background:#22c55e;color:#fff;border:none;border-radius:0.4rem;padding:0.3rem 0.6rem;font-size:0.72rem;cursor:pointer;font-weight:600;">Approve</button>`;
+    return `
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:0.6rem;background:#0f1117;border-radius:0.4rem;gap:0.5rem;flex-wrap:wrap;border:1px solid #334155;">
+      <div>
+        <span style="font-weight:700;color:#f8fafc;font-size:0.78rem;">${reqName}</span>
+        <span style="color:#64748b;font-size:0.72rem;">(${reqPhone})</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:0.4rem;">
+        ${dropdownHtml}
+        ${approveBtnHtml}
+        <button onclick="rejectDeviceRequest(event, '${req.id}')" style="background:rgba(239,68,68,0.15);color:#ef4444;border:1px solid #ef4444;border-radius:0.4rem;padding:0.3rem 0.6rem;font-size:0.72rem;cursor:pointer;">Reject</button>
+      </div>
+    </div>
+  `;
+  }).join("");
 }
 window.renderPendingDeviceApprovals = renderPendingDeviceApprovals;
+
 function approveDeviceFromRequest(event, reqId, deviceId) {
   return __async(this, null, function* () {
     const selectEl = document.getElementById(`approve-user-select-${reqId}`);
     if (!selectEl) return;
-    const username = selectEl.value;
-    if (!username) return;
-    if (!confirm(`Are you sure you want to approve this device for employee @${username}?`)) {
+    const empId = selectEl.value;
+    if (!empId) return;
+    
+    const users = getUsers();
+    const targetUser = users[empId];
+    if (!targetUser) {
+      showNotification("Employee profile not found.", "danger");
+      return;
+    }
+    if (!confirm(`Are you sure you want to approve this device for employee "${targetUser.displayName}"?`)) {
       return;
     }
     try {
-      const users = getUsers();
-      if (!users[username]) {
-        showNotification("Username not found.", "danger");
-        return;
-      }
-      
       // Prevent double-clicking
-      if (users[username].deviceId === deviceId) return;
+      if (targetUser.deviceId === deviceId) return;
 
       // Disable button during network wait
       const btn = event ? event.currentTarget : null;
       if (btn) btn.disabled = true;
 
-      users[username].deviceId = deviceId;
-      users[username].deviceRegisteredAt = (/* @__PURE__ */ new Date()).toISOString();
+      targetUser.deviceId = deviceId;
+      targetUser.deviceRegisteredAt = new Date().toISOString();
       
       const idx = (db.pending_entries || []).findIndex(e => e.id === reqId);
       if (idx !== -1) {

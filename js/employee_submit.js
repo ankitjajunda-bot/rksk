@@ -391,25 +391,34 @@ function submitEmployeeReading(session) {
       const originalText2 = submitBtn2 ? submitBtn2.innerHTML : "Submit Shift Readings";
       if (submitBtn2) {
         submitBtn2.disabled = true;
-        submitBtn2.innerHTML = `\u231B Syncing to Cloud...`;
+        submitBtn2.innerHTML = `⏳ Uploading...`;
       }
+      
+      const isOnline = navigator.onLine;
+      if (!isOnline) {
+        showNotification("💾 Saved Offline (waiting for internet)", "warning");
+      } else {
+        showNotification("☁️ Uploading cash deposit...", "info");
+      }
+
       if (!db.pending_entries) db.pending_entries = [];
       db.pending_entries.push(entry2);
       buildIndexes();
-      saveDB(true).then((success) => {
+      
+      saveDB(true, true).then((success) => {
         if (submitBtn2) {
           submitBtn2.disabled = false;
           submitBtn2.innerHTML = originalText2;
         }
         if (success) {
-          showNotification(`\u2705 Office Cash Deposit of \u20B9${depositAmount.toLocaleString("en-IN")} submitted and synced to cloud!`, "success");
+          showNotification(`✅ Submitted Successfully / Upload Complete! Office Cash Deposit of ₹${depositAmount.toLocaleString("en-IN")} uploaded.`, "success");
           ["emp-deposit-amount", "emp-remarks"].forEach((id) => {
             const el = document.getElementById(id);
             if (el) el.value = "";
           });
           renderEmployeeView(session);
         } else {
-          showNotification(`\u26A0\uFE0F Saved locally, but cloud sync is pending. We will automatically retry in the background.`, "warning");
+          showNotification(`❌ Upload Failed. Saved locally, retrying in background.`, "danger");
           renderEmployeeView(session);
         }
       });
@@ -584,13 +593,22 @@ Is this an authorized meter replacement or reset? Click OK to submit for owner a
     const originalText = submitBtn ? submitBtn.innerHTML : "Submit Shift Readings";
     if (submitBtn) {
       submitBtn.disabled = true;
-      submitBtn.innerHTML = `\u231B Syncing to Cloud...`;
+      submitBtn.innerHTML = `⏳ Uploading...`;
     }
+
+    const isOnline = navigator.onLine;
+    if (!isOnline) {
+      showNotification("💾 Saved Offline (waiting for internet)", "warning");
+    } else {
+      showNotification("☁️ Uploading shift readings...", "info");
+    }
+
     if (!db.pending_entries) db.pending_entries = [];
     db.pending_entries.push(entry);
     buildIndexes();
     const typeLabel = submissionType === "opening" ? "Opening Reading" : submissionType === "snapshot" ? "Mid-Shift Snapshot" : "Closing Reading";
-    saveDB(true).then((success) => {
+    
+    saveDB(true, true).then((success) => {
       if (submitBtn) {
         submitBtn.disabled = false;
         submitBtn.innerHTML = originalText;
@@ -638,9 +656,9 @@ Is this an authorized meter replacement or reset? Click OK to submit for owner a
       if (typeof removeEmpPhoto === 'function') removeEmpPhoto();
 
       if (success) {
-        showNotification(`\u2705 ${typeLabel} submitted and synced to cloud! Owner can see it under Operations \u2192 Approve Shifts.`, "success");
+        showNotification(`✅ Submitted Successfully / Upload Complete! ${typeLabel} submitted and synced.`, "success");
       } else {
-        showNotification(`\u26A0\uFE0F Saved locally, but cloud sync is pending. We will automatically retry in the background.`, "warning");
+        showNotification(`❌ Upload Failed. Saved locally, retrying in background.`, "danger");
       }
       
       // CRITICAL FIX: Removed the dangerous setTimeout(location.reload) which was killing 

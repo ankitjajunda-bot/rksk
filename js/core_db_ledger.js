@@ -223,15 +223,23 @@ function loadDB() {
   // Automatically merge clean entries from dsr_data_certified.js into active database
   if (typeof DSR_DRAFT_DATA !== 'undefined' && DSR_DRAFT_DATA.daily_ledger) {
     let dbModified = false;
+    
+    // One-time migration to clear legacy dirty flags from historical certified data
+    if (!localStorage.getItem('octaneflow_dirty_reset_v1')) {
+      if (db.daily_ledger) {
+        db.daily_ledger.forEach(row => { delete row._dirty; });
+        localStorage.setItem('octaneflow_dirty_reset_v1', 'true');
+        dbModified = true;
+      }
+    }
+
     DSR_DRAFT_DATA.daily_ledger.forEach(draftRow => {
       const idx = db.daily_ledger.findIndex(r => r.date === draftRow.date);
       if (idx === -1) {
-        draftRow._dirty = true;
         db.daily_ledger.push(draftRow);
         dbModified = true;
       } else {
         if (JSON.stringify(db.daily_ledger[idx]) !== JSON.stringify(draftRow)) {
-          draftRow._dirty = true;
           db.daily_ledger[idx] = draftRow;
           dbModified = true;
         }
@@ -314,6 +322,9 @@ function saveDB(immediate = false) {
   buildIndexes(); // Rebuild index after every save
   // Auto-push to cloud on every save (debounced 2s to avoid hammering API, or immediate)
   clearTimeout(saveDB._pushTimer);
+  if (window.disableAutoPush) {
+    return Promise.resolve(true);
+  }
   if (immediate) {
     return syncPush();
   } else {
@@ -1735,6 +1746,17 @@ function renderLedger() {
     return;
   }
 
+  const dirtyRows = db.daily_ledger.filter(r => r._dirty);
+  const syncBtn = document.getElementById('ledger-sync-btn');
+  if (syncBtn) {
+    if (dirtyRows.length > 0) {
+      syncBtn.style.display = 'inline-block';
+      syncBtn.textContent = `☁️ Sync (${dirtyRows.length} pending)`;
+    } else {
+      syncBtn.style.display = 'none';
+    }
+  }
+
   const wacMap = buildWACTimeline();
 
   // 1. Build stock reconciliation timeline (forward + backward from anchor)
@@ -2189,7 +2211,7 @@ function renderLedger() {
 
         rowsHtml += `
           <tr>
-            <td class="sticky-col-left"><strong>${formatDate(row.date)}</strong>${anomaly.badgesHtml}</td>
+            <td class="sticky-col-left"><strong>${formatDate(row.date)}</strong>${row._dirty ? '<span style="color:#f97316; font-weight:bold; font-size:0.75rem; margin-left:2px;" title="Local unsynced edit">*</span>' : ''}${anomaly.badgesHtml}</td>
             <td class="col-petrol ${anomaly.isPriceChange ? "cell-anomaly-price-change" : ""}" style="font-weight: 500;">${(row.prices?.petrol ?? 0).toFixed(2)}</td>
             <td class="col-diesel ${anomaly.isPriceChange ? "cell-anomaly-price-change" : ""}" style="font-weight: 500;">${(row.prices?.diesel ?? 0).toFixed(2)}</td>
 
@@ -2364,7 +2386,7 @@ function renderLedger() {
 
         rowsHtml += `
           <tr>
-            <td class="sticky-col-left"><strong>${formatDate(row.date)}</strong>${anomaly.badgesHtml ? `<div style="margin-top: 4px; display: flex; flex-direction: column; gap: 2px;">${anomaly.badgesHtml}</div>` : ""}</td>
+            <td class="sticky-col-left"><strong>${formatDate(row.date)}</strong>${row._dirty ? '<span style="color:#f97316; font-weight:bold; font-size:0.75rem; margin-left:2px;" title="Local unsynced edit">*</span>' : ''}${anomaly.badgesHtml ? `<div style="margin-top: 4px; display: flex; flex-direction: column; gap: 2px;">${anomaly.badgesHtml}</div>` : ""}</td>
             <td class="col-petrol ${anomaly.isPriceChange ? "cell-anomaly-price-change" : ""}" style="font-weight: 500;">${pRate.toFixed(2)}</td>
             <td class="col-diesel ${anomaly.isPriceChange ? "cell-anomaly-price-change" : ""}" style="font-weight: 500;">${dRate.toFixed(2)}</td>
 
@@ -3442,11 +3464,15 @@ function editLedgerEntry(index) {
   document.getElementById('log-readings-modal-title').textContent = `Edit Readings for ${formatDate(row.date)}`;
   document.getElementById('ledger-date').value = row.date;
 
-  // Populate form
+  // Populate form safely
   const populate = (prefix, nozzle) => {
-    document.getElementById(`${prefix}_open`).value = nozzle.open.toFixed(2);
-    document.getElementById(`${prefix}_close_day`).value = nozzle.close_day.toFixed(2);
-    document.getElementById(`${prefix}_close_night`).value = nozzle.close_night.toFixed(2);
+    const elOpen = document.getElementById(`${prefix}_open`);
+    const elDay = document.getElementById(`${prefix}_close_day`);
+    const elNight = document.getElementById(`${prefix}_close_night`);
+    
+    if (elOpen) elOpen.value = Number(nozzle?.open ?? 0).toFixed(2);
+    if (elDay) elDay.value = Number(nozzle?.close_day ?? 0).toFixed(2);
+    if (elNight) elNight.value = Number(nozzle?.close_night ?? 0).toFixed(2);
   };
 
   populate('du1_p', row.du1_p);
@@ -3460,17 +3486,21 @@ function editLedgerEntry(index) {
   // Pre-fill price fields
   const pricePetrolEl = document.getElementById('ledger-price-petrol');
   const priceDieselEl = document.getElementById('ledger-price-diesel');
-  if (pricePetrolEl) pricePetrolEl.value = row.prices ? row.prices.petrol : '';
-  if (priceDieselEl) priceDieselEl.value = row.prices ? row.prices.diesel : '';
+  if (pricePetrolEl) pricePetrolEl.value = row.prices ? Number(row.prices.petrol ?? 0).toFixed(2) : '';
+  if (priceDieselEl) priceDieselEl.value = row.prices ? Number(row.prices.diesel ?? 0).toFixed(2) : '';
 
   // Plan 21: Populate starting stock dip overrides
-  document.getElementById('ledger_p_dip_override').value = row.p_dip_override !== undefined ? row.p_dip_override : '';
-  document.getElementById('ledger_d_dip_override').value = row.d_dip_override !== undefined ? row.d_dip_override : '';
+  const pDipOverrideEl = document.getElementById('ledger_p_dip_override');
+  const dDipOverrideEl = document.getElementById('ledger_d_dip_override');
+  if (pDipOverrideEl) pDipOverrideEl.value = row.p_dip_override !== undefined ? row.p_dip_override : '';
+  if (dDipOverrideEl) dDipOverrideEl.value = row.d_dip_override !== undefined ? row.d_dip_override : '';
 
   // Pre-fill daily cash expenses
   const staticExps = (typeof KC_EXPENSES_DATA !== 'undefined') ? KC_EXPENSES_DATA[row.date] : null;
   tempModalExpenses = row.expenses ? [...row.expenses] : (staticExps ? staticExps.map(x => ({name: x.name, amount: x.amount})) : []);
-  renderModalExpenses();
+  if (typeof renderModalExpenses === 'function') {
+    renderModalExpenses();
+  }
 
   updateModalTests();
   openModal('log-readings-modal');

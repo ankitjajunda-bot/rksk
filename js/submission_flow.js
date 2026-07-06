@@ -1,24 +1,33 @@
+// ============================================================
+// OctaneFlow Production Submission Flow (V1)
+// ============================================================
+
 function createSubmissionFingerprint(payload) {
-  const normalized = JSON.stringify(payload);
-  if (typeof crypto !== "undefined" && crypto.subtle && typeof crypto.subtle.digest) {
-    return normalized;
-  }
-  return normalized;
+  return JSON.stringify(payload);
 }
+
 function buildPendingSubmissionEntry({ session, submissionType, entryData, deviceId }) {
-  const submissionId = `sub_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  const empId = (session && session.id) ? session.id : "unknown";
+  const dateStr = (entryData && entryData.date) ? entryData.date.replace(/-/g, "") : new Date().toISOString().slice(0, 10).replace(/-/g, "");
+  const shiftStr = ((entryData && entryData.shift) ? entryData.shift : "DAY").toUpperCase();
+  const typeStr = submissionType.toUpperCase();
+  
+  // Phase 6: Deterministic Submission ID
+  const submissionId = `ENTRY_${empId}_${dateStr}_${shiftStr}_${typeStr}`;
+  
   const fingerprint = createSubmissionFingerprint({
-    submittedBy: (session == null ? void 0 : session.username) || "unknown",
+    submittedBy: (session && session.username) || "unknown",
     submissionType,
     entryData,
     deviceId: deviceId || ""
   });
+
   return {
     id: submissionId,
-    submittedBy: (session == null ? void 0 : session.username) || "unknown",
-    submittedByName: (session == null ? void 0 : session.displayName) || (session == null ? void 0 : session.username) || "Unknown",
-    submittedAt: (/* @__PURE__ */ new Date()).toISOString(),
-    locally_saved_at: (/* @__PURE__ */ new Date()).toISOString(),
+    submittedBy: (session && session.username) || "unknown",
+    submittedByName: (session && session.displayName) || (session && session.username) || "Unknown",
+    submittedAt: new Date().toISOString(),
+    locally_saved_at: new Date().toISOString(),
     deviceId: deviceId || "",
     status: "queued",
     submission_type: submissionType,
@@ -30,21 +39,34 @@ function buildPendingSubmissionEntry({ session, submissionType, entryData, devic
     _dirty: true
   };
 }
+
 function findDuplicateSubmission({ submissionType, entryData, submittedBy }) {
-  var _a;
-  const pendingEntries = Array.isArray((_a = global.db) == null ? void 0 : _a.pending_entries) ? global.db.pending_entries : [];
+  const activeDb = (typeof db !== "undefined") ? db : null;
+  const pendingEntries = (activeDb && Array.isArray(activeDb.pending_entries)) ? activeDb.pending_entries : [];
+  
   const fingerprint = createSubmissionFingerprint({
     submittedBy,
     submissionType,
     entryData
   });
+
   return pendingEntries.find((entry) => {
-    if (!entry || !entry.submission_fingerprint) return false;
-    return entry.submission_fingerprint === fingerprint && ["queued", "syncing", "pending", "pending_approval", "approved"].includes(entry.status);
+    if (!entry) return false;
+    // Match by exact deterministic ID or matching fingerprint to prevent duplicate inserts
+    const empId = entry.id ? entry.id.split('_')[1] : null;
+    const dateStr = entryData.date ? entryData.date.replace(/-/g, "") : "";
+    const shiftStr = entryData.shift ? entryData.shift.toUpperCase() : "";
+    const typeStr = submissionType.toUpperCase();
+    const targetId = `ENTRY_${empId}_${dateStr}_${shiftStr}_${typeStr}`;
+    
+    if (entry.id === targetId) return true;
+    if (entry.submission_fingerprint === fingerprint && ["queued", "syncing", "pending", "pending_approval", "approved"].includes(entry.status)) return true;
+    return false;
   });
 }
+
 function getSubmissionDisplayStatus(entry) {
-  const status = (entry == null ? void 0 : entry.status) || "queued";
+  const status = (entry && entry.status) || "queued";
   const map = {
     queued: "Queued",
     syncing: "Syncing",
@@ -58,6 +80,7 @@ function getSubmissionDisplayStatus(entry) {
   };
   return map[status] || "Queued";
 }
+
 if (typeof module !== "undefined" && module.exports) {
   module.exports = {
     buildPendingSubmissionEntry,

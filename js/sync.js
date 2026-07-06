@@ -348,7 +348,6 @@ function rebuildSyncQueue() {
             created_at: (/* @__PURE__ */ new Date()).toISOString()
           });
         }
-        e._dirty = false;
       }
     });
   }
@@ -386,7 +385,6 @@ function rebuildSyncQueue() {
             created_at: (/* @__PURE__ */ new Date()).toISOString()
           });
         }
-        e._dirty = false;
       }
     });
   }
@@ -1087,3 +1085,44 @@ function hashString(str) {
     return sha256_js(str);
   });
 }
+
+// Control auto-syncing of local changes
+window.disableAutoPush = true;
+
+window.triggerManualSync = function() {
+  return __async(this, null, function* () {
+    if (!navigator.onLine) {
+      showNotification('❌ Device is offline. Cannot sync to cloud.', 'danger');
+      return;
+    }
+    const btn = document.getElementById('ledger-sync-btn');
+    if (btn) {
+      btn.disabled = true;
+      btn.textContent = '⏳ Syncing...';
+    }
+    
+    // Temporarily bypass disableAutoPush to run sync
+    const prevDisable = window.disableAutoPush;
+    window.disableAutoPush = false;
+    
+    try {
+      showNotification('☁️ Sync started. Pushing changes...', 'info');
+      const success = yield syncPush(true);
+      if (success) {
+        showNotification('✅ Cloud sync complete!', 'success');
+      } else {
+        showNotification('⚠️ Sync skipped or failed.', 'warning');
+      }
+    } catch (e) {
+      showNotification('❌ Sync failed: ' + e.message, 'danger');
+    } finally {
+      window.disableAutoPush = prevDisable;
+      if (btn) {
+        btn.disabled = false;
+      }
+      if (typeof renderLedger === 'function') {
+        renderLedger();
+      }
+    }
+  });
+};
