@@ -3,21 +3,23 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Daily Safety Net | OctaneFlow</title>
+  <title>Financial Integrity Center & Safety Net | OctaneFlow</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <style>
     :root {
-      --bg-dark: #0f1117;
-      --bg-card: rgba(30, 41, 59, 0.7);
+      --bg-dark: #090d16;
+      --bg-card: rgba(22, 28, 45, 0.7);
       --primary: #3b82f6;
       --success: #10b981;
       --danger: #ef4444;
       --warning: #f59e0b;
       --text-main: #f8fafc;
       --text-muted: #94a3b8;
-      --border: rgba(255, 255, 255, 0.1);
-      --glass-bg: rgba(15, 23, 42, 0.6);
+      --border: rgba(255, 255, 255, 0.08);
+      --glass-bg: rgba(13, 20, 38, 0.8);
       --glass-border: rgba(255, 255, 255, 0.05);
+      --radius: 12px;
+      --radius-sm: 8px;
     }
     
     body {
@@ -63,14 +65,254 @@
       border-radius: 6px;
       transition: all 0.2s;
     }
-    .back-btn:hover { background: rgba(255,255,255,0.05); color: #fff; }
+    .back-btn:hover { background: rgba(255,255,255,0.05); color: #fff; border-color: var(--primary); }
     
-    .container { max-width: 1000px; margin: 2rem auto; padding: 0 1.5rem; }
+    .container { max-width: 1200px; margin: 2rem auto; padding: 0 1.5rem; }
+    
+    /* Tabs styling */
+    .tabs-header {
+      display: flex;
+      gap: 1rem;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 2rem;
+    }
+    
+    .tab-btn {
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      font-size: 1rem;
+      font-weight: 600;
+      padding: 0.75rem 1rem;
+      cursor: pointer;
+      border-bottom: 3px solid transparent;
+      transition: all 0.2s;
+    }
+    
+    .tab-btn.active {
+      color: var(--primary);
+      border-bottom-color: var(--primary);
+    }
+    
+    .tab-content {
+      display: none;
+    }
+    
+    .tab-content.active {
+      display: block;
+    }
+    
+    /* Stats grid */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 1.5rem;
+      margin-bottom: 2rem;
+    }
+    
+    .stat-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1.5rem;
+      position: relative;
+      overflow: hidden;
+    }
+    
+    .stat-card.alert {
+      border-left: 4px solid var(--danger);
+    }
+    
+    .stat-card.warning {
+      border-left: 4px solid var(--warning);
+    }
+    
+    .stat-card h3 {
+      margin: 0;
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    
+    .stat-card .value {
+      font-size: 2.25rem;
+      font-weight: 800;
+      margin: 0.5rem 0 0 0;
+    }
+    
+    .stat-card .subtitle {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      margin-top: 0.25rem;
+    }
+    
+    /* Filters */
+    .filters-panel {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1rem;
+      margin-bottom: 1.5rem;
+      display: flex;
+      gap: 1rem;
+      flex-wrap: wrap;
+    }
+    
+    .filter-group {
+      display: flex;
+      flex-direction: column;
+      gap: 0.35rem;
+      flex: 1;
+      min-width: 150px;
+    }
+    
+    .filter-group label {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      font-weight: 600;
+    }
+    
+    .filter-input {
+      background: rgba(15, 23, 42, 0.6);
+      border: 1px solid var(--border);
+      color: var(--text-main);
+      padding: 0.5rem;
+      border-radius: 6px;
+      font-size: 0.85rem;
+    }
+    
+    .filter-input:focus {
+      outline: none;
+      border-color: var(--primary);
+    }
+    
+    /* Table styling */
+    .table-container {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow-x: auto;
+    }
+    
+    .audit-table {
+      width: 100%;
+      border-collapse: collapse;
+      text-align: left;
+      font-size: 0.9rem;
+    }
+    
+    .audit-table th {
+      background: rgba(0,0,0,0.2);
+      padding: 1rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      border-bottom: 1px solid var(--border);
+    }
+    
+    .audit-table td {
+      padding: 1rem;
+      border-bottom: 1px solid var(--border);
+      vertical-align: middle;
+    }
+    
+    .audit-table tr:hover {
+      background: rgba(255,255,255,0.02);
+      cursor: pointer;
+    }
+    
+    .badge {
+      display: inline-block;
+      padding: 0.25rem 0.5rem;
+      border-radius: 4px;
+      font-size: 0.75rem;
+      font-weight: 700;
+    }
+    
+    .badge.red { background: rgba(239, 68, 68, 0.15); color: #fca5a5; border: 1px solid rgba(239, 68, 68, 0.3); }
+    .badge.orange { background: rgba(245, 158, 11, 0.15); color: #fde047; border: 1px solid rgba(245, 158, 11, 0.3); }
+    .badge.green { background: rgba(16, 185, 129, 0.15); color: #a7f3d0; border: 1px solid rgba(16, 185, 129, 0.3); }
+    
+    /* Modals */
+    .modal {
+      position: fixed;
+      inset: 0;
+      z-index: 100;
+      background: rgba(9, 13, 22, 0.9);
+      backdrop-filter: blur(8px);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 2rem;
+    }
+    
+    .modal-content {
+      background: #0f172a;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      width: 100%;
+      max-width: 800px;
+      max-height: 90vh;
+      overflow-y: auto;
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+    }
+    
+    .modal-header {
+      padding: 1.5rem;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    
+    .modal-body {
+      padding: 1.5rem;
+    }
+    
+    .close-btn {
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      font-size: 1.75rem;
+      cursor: pointer;
+    }
+    
+    .comparison-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1.5rem;
+      margin-bottom: 1.5rem;
+    }
+    
+    .comparison-card {
+      background: rgba(255,255,255,0.02);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 1rem;
+    }
+    
+    .comparison-card.honest {
+      border-color: rgba(16, 185, 129, 0.3);
+      background: rgba(16, 185, 129, 0.02);
+    }
+    
+    .comparison-card.active {
+      border-color: rgba(239, 68, 68, 0.3);
+      background: rgba(239, 68, 68, 0.02);
+    }
+    
+    .explanation-block {
+      background: rgba(245, 158, 11, 0.05);
+      border-left: 4px solid var(--warning);
+      padding: 1rem;
+      border-radius: 4px;
+      margin-top: 1.5rem;
+    }
     
     .quarantine-hero {
       background: rgba(239, 68, 68, 0.1);
       border: 1px solid rgba(239, 68, 68, 0.3);
-      border-radius: 12px;
+      border-radius: var(--radius);
       padding: 2rem;
       text-align: center;
       margin-bottom: 2rem;
@@ -80,17 +322,6 @@
     .quarantine-hero p { margin: 0; color: #f8fafc; font-size: 1.1rem; }
     .quarantine-hero .count { font-size: 3rem; font-weight: 800; color: #ef4444; margin: 1rem 0; line-height: 1; }
     
-    .empty-state {
-      text-align: center;
-      padding: 4rem 2rem;
-      background: var(--bg-card);
-      border: 1px dashed var(--border);
-      border-radius: 12px;
-      color: var(--text-muted);
-    }
-    
-    .empty-state h3 { color: var(--success); margin: 0 0 1rem 0; font-size: 1.5rem; }
-    
     .q-card {
       background: var(--bg-card);
       border: 1px solid rgba(239, 68, 68, 0.4);
@@ -98,71 +329,411 @@
       border-radius: 8px;
       padding: 1.5rem;
       margin-bottom: 1.5rem;
-      box-shadow: 0 4px 6px -1px rgba(0,0,0,0.2);
     }
     
-    .q-card-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 1rem;
-      border-bottom: 1px solid var(--border);
-      padding-bottom: 1rem;
+    .empty-state {
+      text-align: center;
+      padding: 4rem 2rem;
+      color: var(--text-muted);
     }
-    
-    .q-reasons { margin: 0; padding: 0 0 0 1.25rem; color: #fca5a5; font-size: 0.95rem; line-height: 1.5; }
-    
-    .action-btn {
-      background: #3b82f6;
-      color: #fff;
-      border: none;
-      padding: 0.6rem 1.2rem;
-      border-radius: 6px;
-      font-weight: 600;
-      cursor: pointer;
-      text-decoration: none;
-      font-size: 0.9rem;
-      transition: background 0.2s;
-    }
-    .action-btn:hover { background: #2563eb; }
-    
   </style>
 </head>
 <body>
 
   <nav class="navbar">
     <h1>
-      <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor" style="color:#ef4444;"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm-2 16l-4-4 1.41-1.41L10 14.17l6.59-6.59L18 9l-8 8z"/></svg>
-      Daily Safety Net
+      <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor" style="color:#ef4444; margin-right:0.5rem;"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm-2 16l-4-4 1.41-1.41L10 14.17l6.59-6.59L18 9l-8 8z"/></svg>
+      Financial Integrity Center
     </h1>
     <a href="index.html" class="back-btn">← Back to Dashboard</a>
   </nav>
 
   <div class="container">
     
-    <div class="quarantine-hero">
-      <h2>Quarantine Queue</h2>
-      <p>Submissions blocked due to mathematical continuity errors.</p>
-      <div class="count" id="q-count">0</div>
-      <p style="font-size: 0.9rem; color: #94a3b8; margin-top: 0.5rem;">These require owner override to enter the ledger.</p>
+    <div class="tabs-header">
+      <button class="tab-btn active" onclick="switchTab('audit')">AI Mutation Audit</button>
+      <button class="tab-btn" onclick="switchTab('quarantine')">Quarantine Queue (<span id="q-tab-count">0</span>)</button>
     </div>
 
-    <div id="q-list">
-      <!-- Populated by JS -->
+    <!-- TAB 1: MUTATION AUDIT -->
+    <div id="tab-audit" class="tab-content active">
+      <div class="stats-grid">
+        <div class="stat-card">
+          <h3>Total Scanned Days</h3>
+          <div class="value" id="stat-scanned">0</div>
+          <div class="subtitle">Full historical verification</div>
+        </div>
+        <div class="stat-card alert">
+          <h3>Mutated Readings</h3>
+          <div class="value" id="stat-mutations" style="color:var(--danger);">0</div>
+          <div class="subtitle">Totalizer data silently altered</div>
+        </div>
+        <div class="stat-card warning">
+          <h3>Faked Sales Volumes</h3>
+          <div class="value" id="stat-fakes" style="color:var(--warning);">0</div>
+          <div class="subtitle">Continuity-forced ghost entries</div>
+        </div>
+        <div class="stat-card">
+          <h3>Total Volume Discrepancy</h3>
+          <div class="value" id="stat-volume" style="font-size:1.8rem; padding-top:0.3rem;">0 L</div>
+          <div class="subtitle">Cumulative variance detected</div>
+        </div>
+      </div>
+
+      <div class="filters-panel">
+        <div class="filter-group">
+          <label>Filter Date</label>
+          <input type="text" id="filter-date" class="filter-input" placeholder="e.g. 2026-06" oninput="applyFilters()">
+        </div>
+        <div class="filter-group">
+          <label>Filter Nozzle</label>
+          <select id="filter-nozzle" class="filter-input" onchange="applyFilters()">
+            <option value="">All Nozzles</option>
+            <option value="DU1 Petrol">DU1 Petrol</option>
+            <option value="DU1 Diesel">DU1 Diesel</option>
+            <option value="DU2 Petrol">DU2 Petrol</option>
+            <option value="DU2 Diesel">DU2 Diesel</option>
+          </select>
+        </div>
+        <div class="filter-group">
+          <label>Filter Issue Type</label>
+          <select id="filter-type" class="filter-input" onchange="applyFilters()">
+            <option value="">All Issues</option>
+            <option value="Mutated Reading">Mutated Reading</option>
+            <option value="Faked Sales Volume">Faked Sales Volume</option>
+            <option value="Mapping Glitch">Mapping Glitch</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="table-container">
+        <table class="audit-table">
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Shift</th>
+              <th>Nozzle</th>
+              <th>Issue Type</th>
+              <th>Discrepancy (L)</th>
+              <th>Integrity Status</th>
+            </tr>
+          </thead>
+          <tbody id="audit-grid-body">
+            <tr>
+              <td colspan="6" style="text-align:center; padding: 3rem; color:var(--text-muted);">Analyzing database comparison, please wait...</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- TAB 2: QUARANTINE QUEUE -->
+    <div id="tab-quarantine" class="tab-content">
+      <div class="quarantine-hero">
+        <h2>Quarantine Queue</h2>
+        <p>Submissions blocked due to mathematical continuity errors.</p>
+        <div class="count" id="q-count">0</div>
+        <p style="font-size: 0.9rem; color: #94a3b8; margin-top: 0.5rem;">These require owner override to enter the ledger.</p>
+      </div>
+
+      <div id="q-list">
+        <div class="empty-state">
+          <p>No continuity errors detected in the current pending submissions.</p>
+        </div>
+      </div>
     </div>
     
   </div>
 
-  <!-- Load Realtime Data -->
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="js/schema.js?v=71"></script>
-  
+  <!-- Detailed Modal -->
+  <div id="details-modal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <div>
+          <h2 id="modal-title" style="margin:0; font-size:1.4rem;">Mutation Detail</h2>
+          <div id="modal-subtitle" style="font-size:0.85rem; color:var(--text-muted); margin-top:0.35rem;"></div>
+        </div>
+        <button class="close-btn" onclick="closeModal()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="comparison-grid">
+          <div class="comparison-card honest">
+            <h4 style="margin:0 0 0.5rem 0; color:var(--success);">Physical Truth (Verified Records / OCR)</h4>
+            <div id="modal-honest-val" style="font-family:monospace; font-size:1.1rem; font-weight:700;"></div>
+            <div id="modal-honest-sales" style="font-size:0.85rem; color:var(--text-muted); margin-top:0.5rem;"></div>
+          </div>
+          <div class="comparison-card active">
+            <h4 style="margin:0 0 0.5rem 0; color:var(--danger);">Active Database Record (Corrupted by AI)</h4>
+            <div id="modal-active-val" style="font-family:monospace; font-size:1.1rem; font-weight:700;"></div>
+            <div id="modal-active-sales" style="font-size:0.85rem; color:var(--text-muted); margin-top:0.5rem;"></div>
+          </div>
+        </div>
+
+        <div style="background: rgba(255,255,255,0.02); border:1px solid var(--border); padding:1rem; border-radius: var(--radius-sm);">
+          <h4 style="margin:0 0 0.5rem 0; color:var(--text-muted); text-transform:uppercase; font-size:0.75rem; letter-spacing:0.5px;">Constitution Violation</h4>
+          <div id="modal-rule" style="font-weight:700; color:var(--warning); font-size:1rem;"></div>
+        </div>
+
+        <div class="explanation-block">
+          <h4 style="margin:0 0 0.5rem 0; color:var(--warning); text-transform:uppercase; font-size:0.75rem; letter-spacing:0.5px;">Root Cause & Logical Explanation</h4>
+          <p id="modal-explanation" style="margin:0; font-size:0.95rem; line-height:1.6; color:var(--text-main);"></p>
+        </div>
+        
+        <div style="margin-top:1.5rem; display:flex; justify-content:flex-end;">
+          <button class="back-btn" onclick="closeModal()" style="background:var(--primary); color:#fff; border:none; cursor:pointer;">Close Review</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/engine/math_engine.js"></script>
+  <script src="js/honest_ledger_data.js"></script>
   <script>
-    function renderQuarantine() {
-      // Check if db is loaded from sync.js (we assume they open it via Dashboard which loads sync.js into indexedDB/localStorage)
-      // Since this is a separate page, we need to fetch the pending entries from localStorage if available, or just guide them.
+    // Tab switching
+    function switchTab(tabId) {
+      document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+      document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
       
-      const raw = localStorage.getItem('rksk_db_cache');
+      const targetBtn = Array.from(document.querySelectorAll('.tab-btn')).find(btn => btn.getAttribute('onclick').includes(tabId));
+      if (targetBtn) targetBtn.classList.add('active');
+      
+      const targetContent = document.getElementById(`tab-${tabId}`);
+      if (targetContent) targetContent.classList.add('active');
+    }
+
+    // Modal Control
+    function openModal(issue) {
+      document.getElementById('modal-title').textContent = `${issue.issueType} on ${issue.date}`;
+      document.getElementById('modal-subtitle').textContent = `Nozzle: ${issue.nozzle} | Shift: ${issue.shift}`;
+      
+      document.getElementById('modal-honest-val').textContent = issue.honestVal;
+      document.getElementById('modal-honest-sales').textContent = `Calculated Physical Sales: ${issue.rawDetails.honestSales.toFixed(2)} L`;
+      
+      document.getElementById('modal-active-val').textContent = issue.activeVal;
+      document.getElementById('modal-active-sales').textContent = `Stored Faked Sales: ${issue.rawDetails.activeSales.toFixed(2)} L`;
+      
+      document.getElementById('modal-rule').textContent = issue.rule;
+      document.getElementById('modal-explanation').textContent = issue.explanation;
+      
+      document.getElementById('details-modal').style.display = 'flex';
+    }
+
+    function closeModal() {
+      document.getElementById('details-modal').style.display = 'none';
+    }
+
+    let allDiscrepancies = [];
+    let filteredDiscrepancies = [];
+
+    function getNozzleLabel(n) {
+      const labels = {
+        'du1_p': 'DU1 Petrol',
+        'du1_d': 'DU1 Diesel',
+        'du2_p': 'DU2 Petrol',
+        'du2_d': 'DU2 Diesel'
+      };
+      return labels[n] || n;
+    }
+
+    function analyzeDiscrepancies(activeLedger) {
+      if (!window.honest_ledger_data || !window.honest_ledger_data.daily_ledger) {
+        console.error("Honest ledger data not loaded.");
+        return;
+      }
+
+      const honestMap = {};
+      window.honest_ledger_data.daily_ledger.forEach(row => {
+        honestMap[row.date] = row;
+      });
+
+      allDiscrepancies = [];
+      let totalVolumeDiff = 0;
+      let mutationsCount = 0;
+      let fakesCount = 0;
+
+      activeLedger.forEach(activeRow => {
+        const date = activeRow.date;
+        const honestRow = honestMap[date];
+        if (!honestRow) return;
+
+        ['du1_p', 'du1_d', 'du2_p', 'du2_d'].forEach(nozzle => {
+          const activeNoz = activeRow[nozzle] || {};
+          const honestNoz = honestRow[nozzle] || {};
+
+          // Day Shift
+          const activeDayOpen = activeNoz.open || 0;
+          const activeDayClose = activeNoz.close_day || 0;
+          const honestDayOpen = honestNoz.open || 0;
+          const honestDayClose = honestNoz.close_day || 0;
+          const activeDayTests = activeNoz.tests_day || 0;
+          const honestDayTests = honestNoz.tests_day || 0;
+
+          const activeDaySales = MathEngine.toLiters(MathEngine.calculateSalesML(MathEngine.toML(activeDayOpen), MathEngine.toML(activeDayClose), activeDayTests));
+          const honestDaySales = MathEngine.toLiters(MathEngine.calculateSalesML(MathEngine.toML(honestDayOpen), MathEngine.toML(honestDayClose), honestDayTests));
+
+          // Night Shift
+          const activeNightOpen = activeNoz.close_day || 0;
+          const activeNightClose = activeNoz.close_night || 0;
+          const honestNightOpen = honestNoz.close_day || 0;
+          const honestNightClose = honestNoz.close_night || 0;
+          const activeNightTests = activeNoz.tests_night || 0;
+          const honestNightTests = honestNoz.tests_night || 0;
+
+          const activeNightSales = MathEngine.toLiters(MathEngine.calculateSalesML(MathEngine.toML(activeNightOpen), MathEngine.toML(activeNightClose), activeNightTests));
+          const honestNightSales = MathEngine.toLiters(MathEngine.calculateSalesML(MathEngine.toML(honestNightOpen), MathEngine.toML(honestNightClose), honestNightTests));
+
+          // Analyze Day Shift
+          if (Math.abs(activeDayOpen - honestDayOpen) > 0.05 || Math.abs(activeDayClose - honestDayClose) > 0.05) {
+            let issueType = "Mutated Reading";
+            let diff = Math.abs(activeDayClose - honestDayClose);
+            let explanation = "";
+            let rule = "Rule 6: No Silent Mathematical Mutation";
+
+            // If it's a negative mapping glitch
+            if (activeDayOpen < 0 || activeDayClose < 0) {
+              issueType = "Mapping Glitch";
+              diff = Math.abs(activeDayClose);
+              rule = "Rule 5: Sacred Accounting Invariants";
+              explanation = `Critical mapping logic failure. The nozzle physically reported 0 or was inactive, but the database assigned negative readings (${activeDayOpen.toFixed(2)} to ${activeDayClose.toFixed(2)}) to solve continuity math constraints.`;
+            } else if (Math.abs(activeDaySales - honestDaySales) > 0.5) {
+              issueType = "Faked Sales Volume";
+              diff = Math.abs(activeDaySales - honestDaySales);
+              rule = "Rule 5 & 6: Silent Data Manipulation";
+              explanation = `The software's forced-continuity logic faked the sales calculation to bridge a meter jump. True physical sales were ${honestDaySales.toFixed(2)} Litres, but the algorithm forced a sale of ${activeDaySales.toFixed(2)} Litres, generating a phantom transaction of ${diff.toFixed(2)} Litres.`;
+              fakesCount++;
+            } else {
+              explanation = `The algorithm silently adjusted the meter readings to force continuity with the preceding day's faked closing reading, though the net sales volume remained similar. Physical close: ${honestDayClose.toFixed(2)}, Stored close: ${activeDayClose.toFixed(2)}.`;
+              mutationsCount++;
+            }
+
+            totalVolumeDiff += diff;
+
+            allDiscrepancies.push({
+              date,
+              shift: "Day",
+              nozzle: getNozzleLabel(nozzle),
+              issueType,
+              honestVal: `Open: ${honestDayOpen.toFixed(2)} | Close: ${honestDayClose.toFixed(2)}`,
+              activeVal: `Open: ${activeDayOpen.toFixed(2)} | Close: ${activeDayClose.toFixed(2)}`,
+              difference: diff,
+              rule,
+              explanation,
+              rawDetails: {
+                honestOpen: honestDayOpen,
+                honestClose: honestDayClose,
+                activeOpen: activeDayOpen,
+                activeClose: activeDayClose,
+                honestSales: honestDaySales,
+                activeSales: activeDaySales
+              }
+            });
+          }
+
+          // Analyze Night Shift
+          if (Math.abs(activeNightOpen - honestNightOpen) > 0.05 || Math.abs(activeNightClose - honestNightClose) > 0.05) {
+            let issueType = "Mutated Reading";
+            let diff = Math.abs(activeNightClose - honestNightClose);
+            let explanation = "";
+            let rule = "Rule 6: No Silent Mathematical Mutation";
+
+            if (activeNightOpen < 0 || activeNightClose < 0) {
+              issueType = "Mapping Glitch";
+              diff = Math.abs(activeNightClose);
+              rule = "Rule 5: Sacred Accounting Invariants";
+              explanation = `Critical mapping logic failure. The database assigned negative readings (${activeNightOpen.toFixed(2)} to ${activeNightClose.toFixed(2)}) to solve continuity constraints.`;
+            } else if (Math.abs(activeNightSales - honestNightSales) > 0.5) {
+              issueType = "Faked Sales Volume";
+              diff = Math.abs(activeNightSales - honestNightSales);
+              rule = "Rule 5 & 6: Silent Data Manipulation";
+              explanation = `The software faked the sales calculation to bridge a meter jump. Physical sales: ${honestNightSales.toFixed(2)} L, Stored Sales: ${activeNightSales.toFixed(2)} L. Phantom volume: ${diff.toFixed(2)} L.`;
+              fakesCount++;
+            } else {
+              explanation = `The algorithm silently adjusted the meter readings to force continuity with the preceding day's faked closing reading. Physical close: ${honestNightClose.toFixed(2)}, Stored close: ${activeNightClose.toFixed(2)}.`;
+              mutationsCount++;
+            }
+
+            totalVolumeDiff += diff;
+
+            allDiscrepancies.push({
+              date,
+              shift: "Night",
+              nozzle: getNozzleLabel(nozzle),
+              issueType,
+              honestVal: `Open: ${honestNightOpen.toFixed(2)} | Close: ${honestNightClose.toFixed(2)}`,
+              activeVal: `Open: ${activeNightOpen.toFixed(2)} | Close: ${activeNightClose.toFixed(2)}`,
+              difference: diff,
+              rule,
+              explanation,
+              rawDetails: {
+                honestOpen: honestNightOpen,
+                honestClose: honestNightClose,
+                activeOpen: activeNightOpen,
+                activeClose: activeNightClose,
+                honestSales: honestNightSales,
+                activeSales: activeNightSales
+              }
+            });
+          }
+        });
+      });
+
+      // Update UI cards
+      document.getElementById('stat-scanned').textContent = activeLedger.length;
+      document.getElementById('stat-mutations').textContent = mutationsCount;
+      document.getElementById('stat-fakes').textContent = fakesCount;
+      document.getElementById('stat-volume').textContent = `${totalVolumeDiff.toLocaleString(undefined, {maximumFractionDigits: 2})} L`;
+
+      filteredDiscrepancies = [...allDiscrepancies];
+      renderAuditTable();
+    }
+
+    function renderAuditTable() {
+      const tbody = document.getElementById('audit-grid-body');
+      if (filteredDiscrepancies.length === 0) {
+        tbody.innerHTML = `
+          <tr>
+            <td colspan="6" style="text-align:center; padding: 4rem; color:var(--text-muted);">
+              <h3>🎉 Ledger Integrity Uncompromised</h3>
+              <p>No discrepancy matches found for the current filter criteria.</p>
+            </td>
+          </tr>
+        `;
+        return;
+      }
+
+      tbody.innerHTML = filteredDiscrepancies.map((issue) => {
+        const typeClass = issue.issueType === 'Faked Sales Volume' ? 'badge orange' : (issue.issueType === 'Mapping Glitch' ? 'badge red' : 'badge red');
+        return `
+          <tr onclick='openModal(${JSON.stringify(issue).replace(/'/g, "&apos;")})'>
+            <td><strong>${issue.date}</strong></td>
+            <td>${issue.shift}</td>
+            <td>${issue.nozzle}</td>
+            <td><span class="${typeClass}">${issue.issueType}</span></td>
+            <td style="font-family:monospace; font-weight:700;">${issue.difference.toFixed(2)} L</td>
+            <td><span class="badge red">🔴 Corrupted</span></td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    function applyFilters() {
+      const dateVal = document.getElementById('filter-date').value.toLowerCase().trim();
+      const nozzleVal = document.getElementById('filter-nozzle').value;
+      const typeVal = document.getElementById('filter-type').value;
+
+      filteredDiscrepancies = allDiscrepancies.filter(item => {
+        const dateMatch = !dateVal || item.date.toLowerCase().includes(dateVal);
+        const nozzleMatch = !nozzleVal || item.nozzle === nozzleVal;
+        const typeMatch = !typeVal || item.issueType === typeVal;
+        return dateMatch && nozzleMatch && typeMatch;
+      });
+
+      renderAuditTable();
+    }
+
+    // Render Quarantine Queue
+    function renderQuarantine() {
+      const raw = localStorage.getItem('octaneflow_db');
       let pending = [];
       if (raw) {
         try {
@@ -174,6 +745,7 @@
       const quarantined = pending.filter(e => (e.flagged_for_quarantine || (e.entryData && e.entryData.flagged_for_quarantine)) && e.status === 'pending');
       
       document.getElementById('q-count').textContent = quarantined.length;
+      document.getElementById('q-tab-count').textContent = quarantined.length;
       
       const listEl = document.getElementById('q-list');
       
@@ -192,16 +764,16 @@
         const reasons = entry.quarantine_reasons || (entry.entryData && entry.entryData.quarantine_reasons) || [];
         html += `
           <div class="q-card">
-            <div class="q-card-header">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem; border-bottom:1px solid var(--border); padding-bottom:1rem;">
               <div>
-                <strong style="font-size: 1.1rem;">${entry.entryData.date} · ${entry.entryData.shift === 'day' ? 'Day' : 'Night'} Shift</strong>
+                <strong style="font-size: 1.1rem; color: #fff;">${entry.entryData.date} · ${entry.entryData.shift === 'day' ? 'Day' : 'Night'} Shift</strong>
                 <div style="font-size: 0.85rem; color: var(--text-muted); margin-top: 0.25rem;">Submitted by ${entry.submittedByName}</div>
               </div>
-              <a href="index.html" class="action-btn">Review in Approvals</a>
+              <a href="index.html" class="back-btn" style="background:var(--primary); color:#fff; border:none;">Review in Approvals</a>
             </div>
             <div>
               <strong style="color: #ef4444; margin-bottom: 0.5rem; display: block;">Identified Errors:</strong>
-              <ul class="q-reasons">
+              <ul style="margin: 0; padding: 0 0 0 1.25rem; color: #fca5a5; font-size: 0.95rem; line-height: 1.5;">
                 ${reasons.map(r => `<li>${r}</li>`).join('')}
               </ul>
             </div>
@@ -211,8 +783,34 @@
       
       listEl.innerHTML = html;
     }
-    
-    document.addEventListener('DOMContentLoaded', renderQuarantine);
+
+    // Initialize Page
+    document.addEventListener('DOMContentLoaded', () => {
+      renderQuarantine();
+
+      // Read local database
+      const localDbStr = localStorage.getItem('octaneflow_db');
+      let activeLedger = [];
+      
+      if (localDbStr) {
+        try {
+          const db = JSON.parse(localDbStr);
+          activeLedger = db.daily_ledger || [];
+        } catch (e) {
+          console.error(e);
+        }
+      }
+
+      // If activeLedger is empty, try to check if window contains a backup or dummy data
+      if (activeLedger.length === 0) {
+        // Fallback to loading dsr_data.js daily_ledger if present in window
+        if (typeof DSR_DRAFT_DATA !== 'undefined' && DSR_DRAFT_DATA.daily_ledger) {
+          activeLedger = DSR_DRAFT_DATA.daily_ledger;
+        }
+      }
+
+      analyzeDiscrepancies(activeLedger);
+    });
   </script>
 </body>
 </html>

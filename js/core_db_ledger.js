@@ -472,117 +472,7 @@ function calculateDeadlineAndRTGS(purchaseDateStr) {
 // SPREADSHEET ROW MATH ENGINE
 // -------------------------------------------------------------
 function computeLedgerRow(row, wacMap) {
-  if (!row) {
-    return {
-      sales: {
-        du1_p: { day: 0, night: 0 },
-        du1_d: { day: 0, night: 0 },
-        du2_p: { day: 0, night: 0 },
-        du2_d: { day: 0, night: 0 }
-      },
-      totals: {
-        day: { petrol: 0, diesel: 0 },
-        night: { petrol: 0, diesel: 0 },
-        net_24h: { petrol: 0, diesel: 0 }
-      },
-      financials: {
-        rev_petrol: 0,
-        rev_diesel: 0,
-        total_revenue: 0,
-        total_cost: 0,
-        profit: 0
-      }
-    };
-  }
-
-  // FIX: Read tests as local variables — NEVER mutate the stored row object.
-  // tests_day = 1 if the day shift actually ran (close_day > open), else 0.
-  const t1p_day   = (row.du1_p && (row.du1_p.close_day ?? 0) > (row.du1_p.open ?? 0))   ? (row.du1_p.tests_day   ?? 1) : 0;
-  const t1p_night = (row.du1_p && (row.du1_p.close_night ?? 0) > (row.du1_p.close_day ?? 0)) ? (row.du1_p.tests_night ?? 0) : 0;
-  const t1d_day   = (row.du1_d && (row.du1_d.close_day ?? 0) > (row.du1_d.open ?? 0))   ? (row.du1_d.tests_day   ?? 1) : 0;
-  const t1d_night = (row.du1_d && (row.du1_d.close_night ?? 0) > (row.du1_d.close_day ?? 0)) ? (row.du1_d.tests_night ?? 0) : 0;
-  const t2p_day   = (row.du2_p && (row.du2_p.close_day ?? 0) > (row.du2_p.open ?? 0))   ? (row.du2_p.tests_day   ?? 1) : 0;
-  const t2p_night = (row.du2_p && (row.du2_p.close_night ?? 0) > (row.du2_p.close_day ?? 0)) ? (row.du2_p.tests_night ?? 0) : 0;
-  const t2d_day   = (row.du2_d && (row.du2_d.close_day ?? 0) > (row.du2_d.open ?? 0))   ? (row.du2_d.tests_day   ?? 1) : 0;
-  const t2d_night = (row.du2_d && (row.du2_d.close_night ?? 0) > (row.du2_d.close_day ?? 0)) ? (row.du2_d.tests_night ?? 0) : 0;
-
-  // 1. Day Sales Qty: Close Day - Open - (Tests Day * 5L per test)
-  const d1_p_day = Math.max(0, (row.du1_p?.close_day   || 0) - (row.du1_p?.open || 0) - (t1p_day   * 5));
-  const d1_d_day = Math.max(0, (row.du1_d?.close_day   || 0) - (row.du1_d?.open || 0) - (t1d_day   * 5));
-  const d2_p_day = Math.max(0, (row.du2_p?.close_day   || 0) - (row.du2_p?.open || 0) - (t2p_day   * 5));
-  const d2_d_day = Math.max(0, (row.du2_d?.close_day   || 0) - (row.du2_d?.open || 0) - (t2d_day   * 5));
-
-  // 2. Night Sales Qty: Close Night - Close Day - (Tests Night * 5L per test)
-  const d1_p_night = Math.max(0, (row.du1_p?.close_night || 0) - (row.du1_p?.close_day || 0) - (t1p_night * 5));
-  const d1_d_night = Math.max(0, (row.du1_d?.close_night || 0) - (row.du1_d?.close_day || 0) - (t1d_night * 5));
-  const d2_p_night = Math.max(0, (row.du2_p?.close_night || 0) - (row.du2_p?.close_day || 0) - (t2p_night * 5));
-  const d2_d_night = Math.max(0, (row.du2_d?.close_night || 0) - (row.du2_d?.close_day || 0) - (t2d_night * 5));
-
-  // 3. Totals
-  const day_petrol = d1_p_day + d2_p_day;
-  const day_diesel = d1_d_day + d2_d_day;
-  const night_petrol = d1_p_night + d2_p_night;
-  const night_diesel = d1_d_night + d2_d_night;
-
-  const net_petrol_24h = day_petrol + night_petrol;
-  const net_diesel_24h = day_diesel + night_diesel;
-
-  // 4. Financials
-  const rev_petrol = net_petrol_24h * (row.prices?.petrol || 0);
-  const rev_diesel = net_diesel_24h * (row.prices?.diesel || 0);
-  const total_revenue = rev_petrol + rev_diesel;
-
-  // Determine WAC rates to use (look up from wacMap if available, else use current)
-  const fallbackWacP = (db && db.stock && typeof db.stock.petrol_cost_wac === 'number') ? db.stock.petrol_cost_wac : 0;
-  const fallbackWacD = (db && db.stock && typeof db.stock.diesel_cost_wac === 'number') ? db.stock.diesel_cost_wac : 0;
-  const rawWac = (wacMap && wacMap[row.date]) || { ms: fallbackWacP, hsd: fallbackWacD };
-
-  const dateWac = {
-    ms: parseFloat(rawWac.ms) || fallbackWacP,
-    hsd: parseFloat(rawWac.hsd) || fallbackWacD
-  };
-
-  const cost_petrol = net_petrol_24h * (dateWac.ms || 0);
-  const cost_diesel = net_diesel_24h * (dateWac.hsd || 0);
-  const total_cost = cost_petrol + cost_diesel;
-
-  const profit = total_revenue - total_cost;
-
-  // Gross commission per fuel type = selling price margin over purchase cost
-  const commission_petrol = rev_petrol - cost_petrol;
-  const commission_diesel = rev_diesel - cost_diesel;
-  const total_commission = commission_petrol + commission_diesel;
-
-  const dayExps = row.expenses || (typeof KC_EXPENSES_DATA !== 'undefined' ? KC_EXPENSES_DATA[row.date] : null) || [];
-  const total_expenses = dayExps.reduce((sum, it) => sum + (parseFloat(it.amount) || 0), 0);
-  const net_operating_profit = total_commission - total_expenses;
-
-  return {
-    sales: {
-      du1_p: { day: d1_p_day, night: d1_p_night },
-      du1_d: { day: d1_d_day, night: d1_d_night },
-      du2_p: { day: d2_p_day, night: d2_p_night },
-      du2_d: { day: d2_d_day, night: d2_d_night }
-    },
-    totals: {
-      day: { petrol: day_petrol, diesel: day_diesel },
-      night: { petrol: night_petrol, diesel: night_diesel },
-      net_24h: { petrol: net_petrol_24h, diesel: net_diesel_24h }
-    },
-    financials: {
-      rev_petrol,
-      rev_diesel,
-      total_revenue,
-      total_cost,
-      profit,
-      commission_petrol,
-      commission_diesel,
-      total_commission,
-      total_expenses,
-      net_operating_profit
-    }
-  };
-
+  return MathEngine.computeLedgerRow(row, wacMap, db);
 }
 
 // Reconstruct historical stock level start/end values based on today's current stock played back backwards day by day
@@ -2090,6 +1980,27 @@ function renderLedger() {
         badgesHtml += `<span class="anomaly-badge anomaly-badge-lowstock" title="Low Fuel Level: ${lowDetails.join(', ')}">Low Stock</span>`;
       }
 
+      // 7. Check for Continuity Breaks (Physical Gaps)
+      let hasContinuityBreak = false;
+      let breakDetails = [];
+      if (prevRow) {
+        const nozzles = ['du1_p', 'du1_d', 'du2_p', 'du2_d'];
+        nozzles.forEach(p => {
+          const open = row[p] ? (row[p].open || 0) : 0;
+          const prevClose = prevRow[p] ? (prevRow[p].close_night || 0) : 0;
+          if (Math.abs(open - prevClose) > 0.01 && (open > 0 || prevClose > 0)) {
+            hasContinuityBreak = true;
+            breakDetails.push(`${p.toUpperCase().replace('_', ' ')}: Expected ${prevClose}, Got ${open}`);
+          }
+        });
+      }
+      if (hasContinuityBreak) {
+        row.discontinuityWarning = true;
+        badgesHtml += `<span class="anomaly-badge anomaly-badge-gap" style="background:#f43f5e; color:#fff;" title="Meter Discontinuity Break: ${breakDetails.join(' | ')}">Gap</span>`;
+      } else {
+        row.discontinuityWarning = false;
+      }
+
       return {
         isPriceChange,
         isNoSalePetrol,
@@ -2118,8 +2029,8 @@ function renderLedger() {
               <th colspan="2">24hr Net Liters</th>
               <th colspan="2">Test Liters</th>
               <th colspan="3">24hr Revenue</th>
-              <th rowspan="2">Estimated Cost</th>
-              <th rowspan="2">Total Profit</th>
+              <th rowspan="2">True Cost (WAC)</th>
+              <th rowspan="2">True Profit</th>
               <th colspan="3" class="col-petrol bg-petrol-group">Petrol Stock Reconciliation</th>
               <th colspan="3" class="col-diesel bg-diesel-group">Diesel Stock Reconciliation</th>
                             <th rowspan="2">Expenses</th>
@@ -2448,6 +2359,7 @@ function renderLedger() {
       });
     }
     table.innerHTML = headerHtml + '<tbody>' + rowsHtml + '</tbody>';
+    makeSpreadsheetResizable();
 
     // Calculate and apply dynamic header group height for sticky offsets
     setTimeout(() => {
@@ -2456,6 +2368,7 @@ function renderLedger() {
         const height = headerGroup.offsetHeight;
         table.style.setProperty('--header-group-height', `${height}px`);
       }
+      makeSpreadsheetResizable(); // Call again in case DOM was fully painted
     }, 0);
   } else if (ledgerViewMode === 'pnl') {
     // P&L REPORT VIEW
@@ -4467,4 +4380,78 @@ function initApp() {
     updateGlobalAlertBanner();
   });
 }
+
+function makeSpreadsheetResizable() {
+  const table = document.getElementById('ledger-table');
+  if (!table) return;
+
+  const cols = table.querySelectorAll('thead th');
+  cols.forEach(col => {
+    if (col.querySelector('.resize-col-handle')) return;
+
+    const handle = document.createElement('div');
+    handle.className = 'resize-col-handle';
+    col.appendChild(handle);
+
+    let startX, startWidth;
+
+    handle.addEventListener('mousedown', e => {
+      e.preventDefault();
+      startX = e.pageX;
+      startWidth = col.offsetWidth;
+      handle.classList.add('dragging');
+
+      const onMouseMove = ev => {
+        const width = startWidth + (ev.pageX - startX);
+        col.style.width = `${width}px`;
+        col.style.minWidth = `${width}px`;
+      };
+
+      const onMouseUp = () => {
+        handle.classList.remove('dragging');
+        document.removeEventListener('mousemove', onMouseMove);
+        document.removeEventListener('mouseup', onMouseUp);
+      };
+
+      document.addEventListener('mousemove', onMouseMove);
+      document.addEventListener('mouseup', onMouseUp);
+    });
+  });
+
+  const rows = table.querySelectorAll('tbody tr');
+  rows.forEach(row => {
+    const firstCell = row.querySelector('td:first-child');
+    if (!firstCell || firstCell.querySelector('.resize-row-handle')) return;
+
+    firstCell.style.position = 'relative';
+
+    const handle = document.createElement('div');
+    handle.className = 'resize-row-handle';
+    firstCell.appendChild(handle);
+
+    let startY, startHeight;
+
+    handle.addEventListener('mousedown', e => {
+      e.preventDefault();
+      startY = e.pageY;
+      startHeight = row.offsetHeight;
+      handle.classList.add('dragging');
+
+      const onMouseMove = ev => {
+        const height = startHeight + (ev.pageY - startY);
+        row.style.height = `${height}px`;
+      };
+
+      const onMouseUp = () => {
+        handle.classList.remove('dragging');
+        document.removeEventListener('mousemove', onMouseMove);
+        document.removeEventListener('mouseup', onMouseUp);
+      };
+
+      document.addEventListener('mousemove', onMouseMove);
+      document.addEventListener('mouseup', onMouseUp);
+    });
+  });
+}
+
 

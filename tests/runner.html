@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OctaneFlow Test Suite Runner</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-dark: #090d16;
+      --bg-card: rgba(22, 28, 45, 0.7);
+      --primary: #3b82f6;
+      --success: #10b981;
+      --danger: #ef4444;
+      --text: #f8fafc;
+      --text-muted: #94a3b8;
+      --border: rgba(255, 255, 255, 0.08);
+      --radius: 12px;
+    }
+    body {
+      background: var(--bg-dark);
+      color: var(--text);
+      font-family: 'Inter', sans-serif;
+      margin: 0;
+      padding: 2rem;
+    }
+    .container {
+      max-width: 900px;
+      margin: 0 auto;
+    }
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 2rem;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 1rem;
+    }
+    .header h1 {
+      margin: 0;
+      font-size: 1.75rem;
+      font-weight: 800;
+    }
+    .stats {
+      display: flex;
+      gap: 1.5rem;
+    }
+    .stat-badge {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      padding: 0.5rem 1rem;
+      border-radius: var(--radius);
+      font-size: 0.9rem;
+      font-weight: 600;
+    }
+    .stat-badge.passed {
+      border-color: var(--success);
+      color: var(--success);
+    }
+    .stat-badge.failed {
+      border-color: var(--danger);
+      color: var(--danger);
+    }
+    .suite-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1.5rem;
+      margin-bottom: 1.5rem;
+    }
+    .suite-title {
+      font-size: 1.2rem;
+      font-weight: 700;
+      margin-top: 0;
+      margin-bottom: 1rem;
+      color: var(--primary);
+    }
+    .test-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      padding: 0.75rem 0;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+    }
+    .test-row:last-child {
+      border-bottom: none;
+    }
+    .test-name {
+      font-size: 0.95rem;
+      font-weight: 500;
+    }
+    .test-status {
+      font-size: 0.85rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      padding: 0.2rem 0.5rem;
+      border-radius: 4px;
+    }
+    .test-status.passed {
+      background: rgba(16, 185, 129, 0.1);
+      color: var(--success);
+    }
+    .test-status.failed {
+      background: rgba(239, 68, 68, 0.1);
+      color: var(--danger);
+    }
+    .error-details {
+      background: rgba(239, 68, 68, 0.05);
+      border: 1px solid rgba(239, 68, 68, 0.2);
+      border-radius: 6px;
+      padding: 0.75rem;
+      font-family: monospace;
+      font-size: 0.85rem;
+      color: #fca5a5;
+      margin-top: 0.5rem;
+      white-space: pre-wrap;
+      width: calc(100% - 1.5rem);
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>OctaneFlow Test Suite</h1>
+      <div class="stats">
+        <div id="stat-total" class="stat-badge">Total: 0</div>
+        <div id="stat-passed" class="stat-badge passed">Passed: 0</div>
+        <div id="stat-failed" class="stat-badge failed">Failed: 0</div>
+      </div>
+    </div>
+    
+    <div id="suites-container"></div>
+  </div>
+
+  <script src="../js/engine/math_engine.js"></script>
+  <script src="../js/engine/ledger_engine.js"></script>
+  <script>
+    // --- Jest Mocks for Client-Side execution ---
+    let currentSuite = null;
+    const suites = [];
+    let totalTests = 0;
+    let passedTests = 0;
+    let failedTests = 0;
+
+    window.describe = function(name, fn) {
+      currentSuite = { name, tests: [] };
+      suites.push(currentSuite);
+      fn();
+    };
+
+    window.test = window.it = function(name, fn) {
+      const t = { name, fn, passed: true, error: null };
+      currentSuite.tests.push(t);
+    };
+
+    window.expect = function(actual) {
+      return {
+        toBe(expected) {
+          if (actual !== expected) {
+            throw new Error(`Expected: ${expected}\nActual:   ${actual}`);
+          }
+        },
+        toEqual(expected) {
+          const actJson = JSON.stringify(actual);
+          const expJson = JSON.stringify(expected);
+          if (actJson !== expJson) {
+            throw new Error(`Expected:\n${expJson}\n\nActual:\n${actJson}`);
+          }
+        }
+      };
+    };
+
+    window.beforeEach = function(fn) {
+      // Simplistic beforeEach runner
+      window.currentBeforeEach = fn;
+    };
+
+    // Load and run the test scripts sequentially
+    Promise.all([
+      fetch('math_engine.test.js').then(r => r.text()),
+      fetch('ledger_engine.test.js').then(r => r.text())
+    ])
+    .then(([mathCode, ledgerCode]) => {
+      // Strip require statements
+      const cleanMath = mathCode.replace(/const MathEngine = typeof require[^;]+;/, '');
+      const cleanLedger = ledgerCode
+        .replace(/const MathEngine = typeof require[^;]+;/, '')
+        .replace(/const LedgerEngine = typeof require[^;]+;/, '');
+
+      eval(cleanMath);
+      eval(cleanLedger);
+      runAll();
+    })
+    .catch(err => {
+      console.error("Failed to load test suites:", err);
+    });
+
+    function runAll() {
+      const container = document.getElementById('suites-container');
+      
+      suites.forEach(suite => {
+        const suiteEl = document.createElement('div');
+        suiteEl.className = 'suite-card';
+        
+        const titleEl = document.createElement('h3');
+        titleEl.className = 'suite-title';
+        titleEl.textContent = suite.name;
+        suiteEl.appendChild(titleEl);
+        
+        suite.tests.forEach(t => {
+          totalTests++;
+          try {
+            if (window.currentBeforeEach) window.currentBeforeEach();
+            t.fn();
+            passedTests++;
+            t.passed = true;
+          } catch(e) {
+            failedTests++;
+            t.passed = false;
+            t.error = e.message;
+          }
+          
+          const testEl = document.createElement('div');
+          testEl.className = 'test-row';
+          testEl.style.flexDirection = 'column';
+          
+          const rowHeader = document.createElement('div');
+          rowHeader.style.display = 'flex';
+          rowHeader.style.justifyContent = 'space-between';
+          rowHeader.style.width = '100%';
+          
+          const nameEl = document.createElement('span');
+          nameEl.className = 'test-name';
+          nameEl.textContent = t.name;
+          
+          const statusEl = document.createElement('span');
+          statusEl.className = `test-status ${t.passed ? 'passed' : 'failed'}`;
+          statusEl.textContent = t.passed ? 'passed' : 'failed';
+          
+          rowHeader.appendChild(nameEl);
+          rowHeader.appendChild(statusEl);
+          testEl.appendChild(rowHeader);
+          
+          if (!t.passed) {
+            const errEl = document.createElement('div');
+            errEl.className = 'error-details';
+            errEl.textContent = t.error;
+            testEl.appendChild(errEl);
+          }
+          
+          suiteEl.appendChild(testEl);
+        });
+        
+        container.appendChild(suiteEl);
+      });
+      
+      document.getElementById('stat-total').textContent = `Total: ${totalTests}`;
+      document.getElementById('stat-passed').textContent = `Passed: ${passedTests}`;
+      document.getElementById('stat-failed').textContent = `Failed: ${failedTests}`;
+    }
+  </script>
+</body>
+</html>

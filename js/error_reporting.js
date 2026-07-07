@@ -2264,34 +2264,24 @@ function renderPnlReport() {
     const date = row.date;
     const wac = wacMap[date] || { ms: HIST_AVG_MS_COST, hsd: HIST_AVG_HSD_COST };
     const sp = row.prices || getSellingPrice(date);
-    const msSold = nozzleSale(row.du1_p) + nozzleSale(row.du2_p);
-    const hsdSold = nozzleSale(row.du1_d) + nozzleSale(row.du2_d);
-    const msRev = msSold * sp.petrol;
-    const hsdRev = hsdSold * sp.diesel;
-    const revenue = msRev + hsdRev;
-    const msCost = msSold * wac.ms;
-    const hsdCost = hsdSold * wac.hsd;
-    const totalCost = msCost + hsdCost;
-    const grossProfit = revenue - totalCost;
-    const dayExpenses = expenseMap[date] || 0;
-    const netPnl = grossProfit - dayExpenses;
+    const c = MathEngine.computeLedgerRow(row, wacMap, db);
     return {
       date,
-      msSold,
-      hsdSold,
+      msSold: c.totals.net_24h.petrol,
+      hsdSold: c.totals.net_24h.diesel,
       sellMs: sp.petrol,
       sellHsd: sp.diesel,
       wacMs: wac.ms,
       wacHsd: wac.hsd,
-      msRev,
-      hsdRev,
-      revenue,
-      msCost,
-      hsdCost,
-      totalCost,
-      grossProfit,
-      dayExpenses,
-      netPnl
+      msRev: c.financials.rev_petrol,
+      hsdRev: c.financials.rev_diesel,
+      revenue: c.financials.total_revenue,
+      msCost: c.totals.net_24h.petrol * wac.ms,
+      hsdCost: c.totals.net_24h.diesel * wac.hsd,
+      totalCost: c.financials.total_cost,
+      grossProfit: c.financials.profit,
+      dayExpenses: c.financials.total_expenses,
+      netPnl: c.financials.net_operating_profit
     };
   }).sort((a, b) => b.date.localeCompare(a.date));
   const monthMap = {};

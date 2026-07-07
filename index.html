@@ -732,6 +732,10 @@
                 <button class="btn btn-secondary btn-sm" id="view-type-split-btn" style="border:none; border-radius:4px; padding: 0.35rem 0.75rem; background: transparent;">Split Analyst View</button>
                 <button class="btn btn-secondary btn-sm" id="view-type-pnl-btn" style="border:none; border-radius:4px; padding: 0.35rem 0.75rem; background: transparent;">P&amp;L Report</button>
               </div>
+              <div class="view-mode-selector" id="data-source-selector" style="display: flex; gap: 2px; background: rgba(255,255,255,0.03); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 2px;">
+                <button class="btn btn-secondary btn-sm" id="data-source-active-btn" onclick="toggleHonestLedger(false)" style="border:none; border-radius:4px; padding: 0.35rem 0.75rem; background: var(--primary);">Active Ledger</button>
+                <button class="btn btn-secondary btn-sm" id="data-source-honest-btn" onclick="toggleHonestLedger(true)" style="border:none; border-radius:4px; padding: 0.35rem 0.75rem; background: transparent; color: #10b981;">Honest Ledger</button>
+              </div>
                 <div class="view-mode-selector" id="shift-filter-selector" style="display: flex; gap: 2px; background: rgba(255,255,255,0.03); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 2px;">
                   <button class="btn btn-secondary btn-sm" id="shift-filter-24h-btn" style="border:none; border-radius:4px; padding: 0.35rem 0.75rem; background: var(--primary);">24-Hour</button>
                   <button class="btn btn-secondary btn-sm" id="shift-filter-day-btn" style="border:none; border-radius:4px; padding: 0.35rem 0.75rem; background: transparent;">Day Shift</button>
@@ -2699,6 +2703,8 @@
   <script src="extracted_kc_expenses.js"></script>
   <script src="ocr_stock_data.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="js/engine/math_engine.js?v=86"></script>
+  <script src="js/engine/ledger_engine.js?v=86"></script>
   <script src="js/schema.js?v=86"></script>
   <script src="js/sync.js?v=86"></script>
   <script src="js/auth.js?v=86"></script>
@@ -2707,6 +2713,7 @@
   <script src="js/submission_flow.js?v=86"></script>
   <script src="js/employee_submit.js?v=86"></script>
   <script src="js/owner_approvals.js?v=86"></script>
+  <script src="js/honest_ledger_data.js"></script>
   <script src="js/core_db_ledger.js?v=86"></script>
   <script src="js/error_reporting.js?v=86"></script>
   <script src="js/dsr_checker.js?v=86"></script>
@@ -2898,6 +2905,38 @@
   <script src="js/operational_rule_engine.js"></script>
   <script src="js/certification_scanner.js"></script>
   <script src="js/financial_integrity_center_ui.js"></script>
+
+  <script src="js/calc_panel.js?v=86"></script>
+
+  <script>
+    window.useHonestLedger = false;
+    window.original_db_ledger = null;
+
+    function toggleHonestLedger(isHonest) {
+        if (isHonest && !window.useHonestLedger) {
+            if (!window.original_db_ledger) {
+                window.original_db_ledger = [...db.daily_ledger];
+            }
+            if(window.honest_ledger_data && window.honest_ledger_data.daily_ledger) {
+                db.daily_ledger = window.honest_ledger_data.daily_ledger;
+            }
+            window.useHonestLedger = true;
+            document.getElementById('data-source-honest-btn').style.background = 'var(--primary)';
+            document.getElementById('data-source-honest-btn').style.color = '#fff';
+            document.getElementById('data-source-active-btn').style.background = 'transparent';
+            document.getElementById('data-source-active-btn').style.color = 'inherit';
+            if(typeof renderLedger === 'function') renderLedger();
+        } else if (!isHonest && window.useHonestLedger) {
+            db.daily_ledger = window.original_db_ledger || db.daily_ledger;
+            window.useHonestLedger = false;
+            document.getElementById('data-source-active-btn').style.background = 'var(--primary)';
+            document.getElementById('data-source-active-btn').style.color = '#fff';
+            document.getElementById('data-source-honest-btn').style.background = 'transparent';
+            document.getElementById('data-source-honest-btn').style.color = '#10b981';
+            if(typeof renderLedger === 'function') renderLedger();
+        }
+    }
+  </script>
 </body>
 
 </html>
