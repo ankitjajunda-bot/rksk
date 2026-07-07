@@ -2280,9 +2280,6 @@ textarea {
 }
 
 /* Drag-to-Resize Spreadsheet UI */
-.spreadsheet-table th {
-  position: relative !important;
-}
 
 .resize-col-handle {
   position: absolute;
