@@ -20,10 +20,16 @@ var __async = (__this, __arguments, generator) => {
 };
 function calculateNozzleSale(nozzleData, shift) {
   if (!nozzleData) return 0;
-  const open = nozzleData.open || 0;
-  const close = shift === "day" ? nozzleData.close_day || 0 : nozzleData.close_night || 0;
-  const tests = shift === "day" ? nozzleData.tests_day || 0 : nozzleData.tests_night || 0;
-  return Math.max(0, close - open - tests);
+  const openML = MathEngine.toML(nozzleData.open || 0);
+  const closeML = MathEngine.toML(shift === "day" ? nozzleData.close_day || 0 : nozzleData.close_night || 0);
+  let tests = 0;
+  if (shift === "day") {
+    tests = (closeML > openML) ? (nozzleData.tests_day ?? 1) : 0;
+  } else {
+    const dayCloseML = MathEngine.toML(nozzleData.close_day || 0);
+    tests = (closeML > dayCloseML) ? (nozzleData.tests_night ?? 0) : 0;
+  }
+  return MathEngine.toLiters(MathEngine.calculateSalesML(openML, closeML, tests));
 }
 function getPendingGroupLabel(year, month, groupSuffix) {
   const months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
@@ -323,6 +329,17 @@ function renderApprovalsPanel() {
         const varianceSign = variance > 0 ? "+" : "";
         const typeLabel = entry.submission_type === "opening" ? "\u{1F305} Opening" : entry.submission_type === "snapshot" ? "\u{1F4F8} Snapshot" : "\u{1F3C1} Closing";
         const isSnapshot = entry.submission_type === "snapshot";
+
+        const exp_du1_p = getNozzleOpeningReading("du1_p", ed.date, shift);
+        const exp_du1_d = getNozzleOpeningReading("du1_d", ed.date, shift);
+        const exp_du2_p = getNozzleOpeningReading("du2_p", ed.date, shift);
+        const exp_du2_d = getNozzleOpeningReading("du2_d", ed.date, shift);
+
+        const hasGap_du1_p = Math.abs(du1_p_open - exp_du1_p) > 0.01 && (du1_p_open > 0 || exp_du1_p > 0);
+        const hasGap_du1_d = Math.abs(du1_d_open - exp_du1_d) > 0.01 && (du1_d_open > 0 || exp_du1_d > 0);
+        const hasGap_du2_p = Math.abs(du2_p_open - exp_du2_p) > 0.01 && (du2_p_open > 0 || exp_du2_p > 0);
+        const hasGap_du2_d = Math.abs(du2_d_open - exp_du2_d) > 0.01 && (du2_d_open > 0 || exp_du2_d > 0);
+
         return `
                 <div style="background:#0f111a; border:1px solid ${isSnapshot ? "#1d4ed8" : "#1e293b"}; border-left: 3px solid ${isSnapshot ? "#3b82f6" : "#334155"}; border-radius:0.75rem; padding:1rem; display:flex; gap:0.75rem;">
                   <!-- Checkbox Column -->
@@ -363,29 +380,29 @@ function renderApprovalsPanel() {
                       </thead>
                       <tbody>
                         <tr style="border-bottom:1px solid rgba(255,255,255,0.02); color:#e2e8f0;">
-                          <td style="padding:0.3rem 0.5rem;"><span style="color:#ef4444;">\u25CF</span> DU1-P (E2) ${((_y = ed.du1_p) == null ? void 0 : _y.is_reset) ? '<span style="font-size:0.6rem; background:rgba(239,68,68,0.2); color:#fca5a5; padding:0.1rem 0.3rem; border-radius:3px; margin-left:4px;">\u26A0\uFE0F RESET</span>' : ""}</td>
-                          <td style="padding:0.3rem 0.5rem; text-align:right; color:#94a3b8;">${du1_p_open.toFixed(2)}</td>
+                          <td style="padding:0.3rem 0.5rem;"><span style="color:#ef4444;">&#9679;</span> DU1-P (E2) ${((_y = ed.du1_p) == null ? void 0 : _y.is_reset) ? '<span style="font-size:0.6rem; background:rgba(239,68,68,0.2); color:#fca5a5; padding:0.1rem 0.3rem; border-radius:3px; margin-left:4px;">&#9888;&#65039; RESET</span>' : ""}</td>
+                          <td style="padding:0.3rem 0.5rem; text-align:right; color:#94a3b8;">${du1_p_open.toFixed(2)}${hasGap_du1_p ? ` <span style="color:#f43f5e; font-weight:bold; cursor:help;" title="Continuity Break! Expected: ${exp_du1_p.toFixed(2)}">⚠️</span>` : ''}</td>
                           <td style="padding:0.3rem 0.5rem; text-align:right;">${du1_p_close.toFixed(2)}</td>
                           <td style="padding:0.3rem 0.5rem; text-align:right; color:#64748b;">${du1_p_tests} L</td>
                           <td style="padding:0.3rem 0.5rem; text-align:right; font-weight:700; color:#fff;">${du1_p_sale.toFixed(2)} L</td>
                         </tr>
                         <tr style="border-bottom:1px solid rgba(255,255,255,0.02); color:#e2e8f0;">
-                          <td style="padding:0.3rem 0.5rem;"><span style="color:#eab308;">\u25CF</span> DU1-D (HSD) ${((_z = ed.du1_d) == null ? void 0 : _z.is_reset) ? '<span style="font-size:0.6rem; background:rgba(239,68,68,0.2); color:#fca5a5; padding:0.1rem 0.3rem; border-radius:3px; margin-left:4px;">\u26A0\uFE0F RESET</span>' : ""}</td>
-                          <td style="padding:0.3rem 0.5rem; text-align:right; color:#94a3b8;">${du1_d_open.toFixed(2)}</td>
+                          <td style="padding:0.3rem 0.5rem;"><span style="color:#eab308;">&#9679;</span> DU1-D (HSD) ${((_z = ed.du1_d) == null ? void 0 : _z.is_reset) ? '<span style="font-size:0.6rem; background:rgba(239,68,68,0.2); color:#fca5a5; padding:0.1rem 0.3rem; border-radius:3px; margin-left:4px;">&#9888;&#65039; RESET</span>' : ""}</td>
+                          <td style="padding:0.3rem 0.5rem; text-align:right; color:#94a3b8;">${du1_d_open.toFixed(2)}${hasGap_du1_d ? ` <span style="color:#f43f5e; font-weight:bold; cursor:help;" title="Continuity Break! Expected: ${exp_du1_d.toFixed(2)}">⚠️</span>` : ''}</td>
                           <td style="padding:0.3rem 0.5rem; text-align:right;">${du1_d_close.toFixed(2)}</td>
                           <td style="padding:0.3rem 0.5rem; text-align:right; color:#64748b;">${du1_d_tests} L</td>
                           <td style="padding:0.3rem 0.5rem; text-align:right; font-weight:700; color:#fff;">${du1_d_sale.toFixed(2)} L</td>
                         </tr>
                         <tr style="border-bottom:1px solid rgba(255,255,255,0.02); color:#e2e8f0;">
-                          <td style="padding:0.3rem 0.5rem;"><span style="color:#ef4444;">\u25CF</span> DU2-P (E2) ${((_A = ed.du2_p) == null ? void 0 : _A.is_reset) ? '<span style="font-size:0.6rem; background:rgba(239,68,68,0.2); color:#fca5a5; padding:0.1rem 0.3rem; border-radius:3px; margin-left:4px;">\u26A0\uFE0F RESET</span>' : ""}</td>
-                          <td style="padding:0.3rem 0.5rem; text-align:right; color:#94a3b8;">${du2_p_open.toFixed(2)}</td>
+                          <td style="padding:0.3rem 0.5rem;"><span style="color:#ef4444;">&#9679;</span> DU2-P (E2) ${((_A = ed.du2_p) == null ? void 0 : _A.is_reset) ? '<span style="font-size:0.6rem; background:rgba(239,68,68,0.2); color:#fca5a5; padding:0.1rem 0.3rem; border-radius:3px; margin-left:4px;">&#9888;&#65039; RESET</span>' : ""}</td>
+                          <td style="padding:0.3rem 0.5rem; text-align:right; color:#94a3b8;">${du2_p_open.toFixed(2)}${hasGap_du2_p ? ` <span style="color:#f43f5e; font-weight:bold; cursor:help;" title="Continuity Break! Expected: ${exp_du2_p.toFixed(2)}">⚠️</span>` : ''}</td>
                           <td style="padding:0.3rem 0.5rem; text-align:right;">${du2_p_close.toFixed(2)}</td>
                           <td style="padding:0.3rem 0.5rem; text-align:right; color:#64748b;">${du2_p_tests} L</td>
                           <td style="padding:0.3rem 0.5rem; text-align:right; font-weight:700; color:#fff;">${du2_p_sale.toFixed(2)} L</td>
                         </tr>
                         <tr style="color:#e2e8f0;">
-                          <td style="padding:0.3rem 0.5rem;"><span style="color:#eab308;">\u25CF</span> DU2-D (HSD) ${((_B = ed.du2_d) == null ? void 0 : _B.is_reset) ? '<span style="font-size:0.6rem; background:rgba(239,68,68,0.2); color:#fca5a5; padding:0.1rem 0.3rem; border-radius:3px; margin-left:4px;">\u26A0\uFE0F RESET</span>' : ""}</td>
-                          <td style="padding:0.3rem 0.5rem; text-align:right; color:#94a3b8;">${du2_d_open.toFixed(2)}</td>
+                          <td style="padding:0.3rem 0.5rem;"><span style="color:#eab308;">&#9679;</span> DU2-D (HSD) ${((_B = ed.du2_d) == null ? void 0 : _B.is_reset) ? '<span style="font-size:0.6rem; background:rgba(239,68,68,0.2); color:#fca5a5; padding:0.1rem 0.3rem; border-radius:3px; margin-left:4px;">&#9888;&#65039; RESET</span>' : ""}</td>
+                          <td style="padding:0.3rem 0.5rem; text-align:right; color:#94a3b8;">${du2_d_open.toFixed(2)}${hasGap_du2_d ? ` <span style="color:#f43f5e; font-weight:bold; cursor:help;" title="Continuity Break! Expected: ${exp_du2_d.toFixed(2)}">⚠️</span>` : ''}</td>
                           <td style="padding:0.3rem 0.5rem; text-align:right;">${du2_d_close.toFixed(2)}</td>
                           <td style="padding:0.3rem 0.5rem; text-align:right; color:#64748b;">${du2_d_tests} L</td>
                           <td style="padding:0.3rem 0.5rem; text-align:right; font-weight:700; color:#fff;">${du2_d_sale.toFixed(2)} L</td>

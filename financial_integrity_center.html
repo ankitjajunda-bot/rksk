@@ -486,6 +486,7 @@
     </div>
   </div>
 
+  <script src="js/engine/math_engine.js"></script>
   <script src="js/honest_ledger_data.js"></script>
   <script>
     // Tab switching
@@ -567,8 +568,8 @@
           const activeDayTests = activeNoz.tests_day || 0;
           const honestDayTests = honestNoz.tests_day || 0;
 
-          const activeDaySales = activeDayClose - activeDayOpen - (activeDayTests * 5);
-          const honestDaySales = honestDayClose - honestDayOpen - (honestDayTests * 5);
+          const activeDaySales = MathEngine.toLiters(MathEngine.calculateSalesML(MathEngine.toML(activeDayOpen), MathEngine.toML(activeDayClose), activeDayTests));
+          const honestDaySales = MathEngine.toLiters(MathEngine.calculateSalesML(MathEngine.toML(honestDayOpen), MathEngine.toML(honestDayClose), honestDayTests));
 
           // Night Shift
           const activeNightOpen = activeNoz.close_day || 0;
@@ -578,8 +579,8 @@
           const activeNightTests = activeNoz.tests_night || 0;
           const honestNightTests = honestNoz.tests_night || 0;
 
-          const activeNightSales = activeNightClose - activeNightOpen - (activeNightTests * 5);
-          const honestNightSales = honestNightClose - honestNightOpen - (honestNightTests * 5);
+          const activeNightSales = MathEngine.toLiters(MathEngine.calculateSalesML(MathEngine.toML(activeNightOpen), MathEngine.toML(activeNightClose), activeNightTests));
+          const honestNightSales = MathEngine.toLiters(MathEngine.calculateSalesML(MathEngine.toML(honestNightOpen), MathEngine.toML(honestNightClose), honestNightTests));
 
           // Analyze Day Shift
           if (Math.abs(activeDayOpen - honestDayOpen) > 0.05 || Math.abs(activeDayClose - honestDayClose) > 0.05) {

@@ -143,7 +143,7 @@ function updateEmpLiveCalc() {
       previewEl.style.display = "none";
       return;
     }
-    const litres = Math.max(0, close - open - tests);
+    const litres = MathEngine.toLiters(MathEngine.calculateSalesML(MathEngine.toML(open), MathEngine.toML(close), tests / 5));
     const price = prices[fuel] || 0;
     const manualPriceEl = document.getElementById(previewId + "-manual-price");
     const effectivePrice = manualPriceEl && sanitizeNumber(manualPriceEl.value) > 0 ? sanitizeNumber(manualPriceEl.value) : price;
@@ -475,7 +475,7 @@ Is this an authorized meter replacement or reset? Click OK to submit for owner a
       const open = val(`${prefix}-open`);
       const close = val(`${prefix}-close`);
       const tests = val(`${prefix}-tests`);
-      return Math.max(0, close - open - tests);
+      return MathEngine.toLiters(MathEngine.calculateSalesML(MathEngine.toML(open), MathEngine.toML(close), tests / 5));
     };
     const du1_p_liters = getNozzleLiters("emp-du1p");
     const du2_p_liters = getNozzleLiters("emp-du2p");
