@@ -594,6 +594,19 @@ function initSync() {
     if (!db) {
       db = cloudData;
     } else {
+      // Remote Database Reset Coordinator
+      if (cloudData.settings && cloudData.settings.database_reset_timestamp) {
+        db.settings = db.settings || {};
+        if (db.settings.database_reset_timestamp !== cloudData.settings.database_reset_timestamp) {
+          SystemLogger.warning("initSync", "Remote database reset detected. Wiping local ledger and sync queue.");
+          db.daily_ledger = [];
+          db.sync_queue = [];
+          db.deleted_ledger_dates = [];
+          db.conflicts = {};
+          db.settings.database_reset_timestamp = cloudData.settings.database_reset_timestamp;
+          localStorage.setItem("octaneflow_db", JSON.stringify(db));
+        }
+      }
       const isKeyProtected = (key) => {
         const session = typeof getSession === 'function' ? getSession() : null;
         const isOwner = session && session.role === "owner";
