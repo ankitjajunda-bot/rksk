@@ -22996,8 +22996,8 @@ const DSR_DRAFT_DATA = {
       },
       "du2_p": {
         "open": 44880.6,
-        "close_day": 45069.88,
-        "close_night": 45069.88,
+        "close_day": 45064.88,
+        "close_night": 45064.88,
         "tests_day": 1,
         "tests_night": 0
       },
@@ -23042,7 +23042,7 @@ const DSR_DRAFT_DATA = {
         "tests_night": 0
       },
       "du2_p": {
-        "open": 45069.88,
+        "open": 45064.88,
         "close_day": 45198.44,
         "close_night": 45198.44,
         "tests_day": 1,
