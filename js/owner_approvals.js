@@ -110,7 +110,7 @@ function bulkApproveEntries(groupId) {
 function refreshApprovalsPanel() {
   const refreshBtn = document.getElementById("approvals-refresh-btn");
   if (refreshBtn) {
-    refreshBtn.textContent = "\u{1F504} Refreshing...";
+    refreshBtn.textContent = "⏳ Pulling Submissions...";
     refreshBtn.disabled = true;
   }
   initSync().then(() => {
@@ -177,7 +177,7 @@ function renderApprovalsPanel() {
   });
   const refreshBtn = document.getElementById("approvals-refresh-btn");
   if (refreshBtn) {
-    refreshBtn.textContent = "\u{1F504} Refresh Now";
+    refreshBtn.textContent = "📥 Pull Submissions";
     refreshBtn.disabled = false;
   }
   const pending = (db.pending_entries || []).filter((e) => ["pending", "queued", "syncing", "pending_approval"].includes(e.status) && e.entryData && e.entryData.date);
