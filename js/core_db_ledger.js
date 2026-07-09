@@ -4519,41 +4519,6 @@ function makeSpreadsheetResizable() {
       document.addEventListener('mouseup', onMouseUp);
     });
   });
-
-  const rows = table.querySelectorAll('tbody tr');
-  rows.forEach(row => {
-    const firstCell = row.querySelector('td:first-child');
-    if (!firstCell || firstCell.querySelector('.resize-row-handle')) return;
-
-    firstCell.style.position = 'relative';
-
-    const handle = document.createElement('div');
-    handle.className = 'resize-row-handle';
-    firstCell.appendChild(handle);
-
-    let startY, startHeight;
-
-    handle.addEventListener('mousedown', e => {
-      e.preventDefault();
-      startY = e.pageY;
-      startHeight = row.offsetHeight;
-      handle.classList.add('dragging');
-
-      const onMouseMove = ev => {
-        const height = startHeight + (ev.pageY - startY);
-        row.style.height = `${height}px`;
-      };
-
-      const onMouseUp = () => {
-        handle.classList.remove('dragging');
-        document.removeEventListener('mousemove', onMouseMove);
-        document.removeEventListener('mouseup', onMouseUp);
-      };
-
-      document.addEventListener('mousemove', onMouseMove);
-      document.addEventListener('mouseup', onMouseUp);
-    });
-  });
 }
 
 
