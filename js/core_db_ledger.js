@@ -4487,26 +4487,86 @@ function makeSpreadsheetResizable() {
   const table = document.getElementById('ledger-table');
   if (!table) return;
 
-  const cols = table.querySelectorAll('thead th');
-  cols.forEach(col => {
-    if (col.querySelector('.resize-col-handle')) return;
+  // 1. Build colgroup dynamically to allow strict column widths
+  let colgroup = table.querySelector('colgroup');
+  if (!colgroup) {
+    colgroup = document.createElement('colgroup');
+    table.insertBefore(colgroup, table.firstChild);
+  }
+  
+  // Find a completed data row to count columns
+  const dataRows = Array.from(table.querySelectorAll('tbody tr'));
+  const firstFullRow = dataRows.find(tr => {
+    const tdCount = tr.querySelectorAll('td').length;
+    return tdCount > 5 && !tr.style.background?.includes('rgba(239,68,68');
+  });
+
+  if (!firstFullRow) return;
+  const colCount = firstFullRow.querySelectorAll('td').length;
+
+  if (colgroup.querySelectorAll('col').length !== colCount) {
+    colgroup.innerHTML = '';
+    for (let i = 0; i < colCount; i++) {
+      const col = document.createElement('col');
+      if (i === 0) {
+        col.style.width = '85px';
+      } else {
+        col.style.width = '100px';
+      }
+      colgroup.appendChild(col);
+    }
+  }
+
+  // 2. Identify leaf header cells mapped 1-to-1 with visual columns
+  const leafHeaders = [];
+  const row1 = table.querySelector('tr.header-group');
+  const row2 = table.querySelector('tr.header-cols');
+  if (!row1) return;
+
+  const row1Ths = Array.from(row1.querySelectorAll('th'));
+  const row2Ths = row2 ? Array.from(row2.querySelectorAll('th')) : [];
+
+  let row2Idx = 0;
+  row1Ths.forEach(th => {
+    const colspan = parseInt(th.getAttribute('colspan') || '1');
+    if (colspan === 1) {
+      leafHeaders.push(th);
+    } else {
+      for (let c = 0; c < colspan; c++) {
+        if (row2Ths[row2Idx]) {
+          leafHeaders.push(row2Ths[row2Idx]);
+          row2Idx++;
+        }
+      }
+    }
+  });
+
+  // 3. Attach resize handles and modify corresponding <col> widths
+  const cols = colgroup.querySelectorAll('col');
+  leafHeaders.forEach((th, idx) => {
+    if (th.querySelector('.resize-col-handle')) return;
 
     const handle = document.createElement('div');
     handle.className = 'resize-col-handle';
-    col.appendChild(handle);
+    th.appendChild(handle);
 
     let startX, startWidth;
 
     handle.addEventListener('mousedown', e => {
       e.preventDefault();
       startX = e.pageX;
-      startWidth = col.offsetWidth;
+      startWidth = cols[idx] ? cols[idx].offsetWidth : th.offsetWidth;
       handle.classList.add('dragging');
 
       const onMouseMove = ev => {
-        const width = startWidth + (ev.pageX - startX);
-        col.style.width = `${width}px`;
-        col.style.minWidth = `${width}px`;
+        const width = Math.max(40, startWidth + (ev.pageX - startX));
+        if (cols[idx]) {
+          cols[idx].style.width = `${width}px`;
+          cols[idx].style.minWidth = `${width}px`;
+        } else {
+          th.style.width = `${width}px`;
+          th.style.minWidth = `${width}px`;
+        }
       };
 
       const onMouseUp = () => {
