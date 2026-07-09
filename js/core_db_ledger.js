@@ -260,17 +260,28 @@ function loadDB() {
         db.daily_ledger.forEach((row, idx) => {
           const refined = refinedByDate[row.date];
           if (refined) {
+            let rowChanged = false;
             ['du1_p', 'du1_d', 'du2_p', 'du2_d'].forEach(nozzle => {
               if (refined[nozzle]) {
-                db.daily_ledger[idx][nozzle] = { ...refined[nozzle] };
+                const fields = ['open', 'close_day', 'close_night', 'tests_day', 'tests_night'];
+                fields.forEach(f => {
+                  if (db.daily_ledger[idx][nozzle][f] !== refined[nozzle][f]) {
+                    db.daily_ledger[idx][nozzle][f] = refined[nozzle][f];
+                    rowChanged = true;
+                  }
+                });
               }
             });
             // Also sync recon, prices, dips from refined source
-            if (refined.recon) db.daily_ledger[idx].recon = refined.recon;
-            if (refined.prices) db.daily_ledger[idx].prices = refined.prices;
-            if (refined.actual_collection !== undefined) db.daily_ledger[idx].actual_collection = refined.actual_collection;
-            if (refined.dip_ms_cm !== undefined) db.daily_ledger[idx].dip_ms_cm = refined.dip_ms_cm;
-            if (refined.dip_hsd_cm !== undefined) db.daily_ledger[idx].dip_hsd_cm = refined.dip_hsd_cm;
+            if (refined.recon) { db.daily_ledger[idx].recon = refined.recon; rowChanged = true; }
+            if (refined.prices) { db.daily_ledger[idx].prices = refined.prices; rowChanged = true; }
+            if (refined.actual_collection !== undefined) { db.daily_ledger[idx].actual_collection = refined.actual_collection; rowChanged = true; }
+            if (refined.dip_ms_cm !== undefined) { db.daily_ledger[idx].dip_ms_cm = refined.dip_ms_cm; rowChanged = true; }
+            if (refined.dip_hsd_cm !== undefined) { db.daily_ledger[idx].dip_hsd_cm = refined.dip_hsd_cm; rowChanged = true; }
+            
+            if (rowChanged) {
+              db.daily_ledger[idx]._dirty = true;
+            }
           }
         });
         localStorage.setItem('octaneflow_refined_ledger_migration_v1', 'true');
@@ -282,6 +293,7 @@ function loadDB() {
     sourceLedger.forEach(draftRow => {
       const idx = db.daily_ledger.findIndex(r => r.date === draftRow.date);
       if (idx === -1) {
+        draftRow._dirty = true;
         db.daily_ledger.push(draftRow);
         dbModified = true;
       } else {
@@ -315,6 +327,7 @@ function loadDB() {
         }
 
         if (rowChanged) {
+          db.daily_ledger[idx]._dirty = true;
           dbModified = true;
         }
       }
