@@ -32,9 +32,19 @@ window.addEventListener("unhandledrejection", (event) => {
   const stack = reason && reason.stack ? reason.stack : "";
   SystemLogger.error("UnhandledPromiseRejection", msg, stack);
 });
-window.addEventListener("DOMContentLoaded", () => {
-  // Setup links removed — Supabase credentials are hardcoded in getSyncCfg().
-  // Employees simply open the URL and log in with credentials the owner created.
+window.addEventListener("DOMContentLoaded", () => __async(this, null, function* () {
+  // Attempt async database load from IndexedDB first
+  if (typeof window.loadAppDatabase === 'function') {
+    try {
+      const record = yield window.loadAppDatabase();
+      if (record) {
+        window.db = record;
+      }
+    } catch (err) {
+      console.error("[IndexedDB] Init load failed, falling back:", err);
+    }
+  }
+
   loadDB();
   initSupabaseClient();
   const refreshBtn = document.getElementById("manual-refresh-btn");
@@ -173,7 +183,7 @@ window.addEventListener("DOMContentLoaded", () => {
   //     });
   //   }
   // }, 15000);
-});
+}));
 let currentTourStep = 0;
 let activeHighlightElement = null;
 const tourSteps = [
@@ -2185,44 +2195,105 @@ function nozzleSale(n) {
 }
 function buildWACTimeline() {
   if (!db || !db.purchases || !db.daily_ledger) return {};
-  const purch = [...db.purchases].filter((p) => p && (p.petrol_liters > 0 || p.diesel_liters > 0)).sort((a, b) => (a.date || "").localeCompare(b.date || ""));
+  const purch = [...db.purchases]
+    .filter((p) => p && (p.petrol_liters > 0 || p.diesel_liters > 0))
+    .sort((a, b) => (a.date || "").localeCompare(b.date || ""));
   const ledgerDates = [...new Set(db.daily_ledger.filter((r) => r && r.date).map((r) => r.date))].sort();
-  let msStock = 8e3;
-  let hsdStock = 8e3;
-  let msWAC = HIST_AVG_MS_COST;
-  let hsdWAC = HIST_AVG_HSD_COST;
+
+  // Starting FIFO queues
+  const msQueue = [{ qty: 8e3, rate: HIST_AVG_MS_COST }];
+  const hsdQueue = [{ qty: 8e3, rate: HIST_AVG_HSD_COST }];
+
+  // Starting cost baselines (fallbacks)
+  let msLastRate = HIST_AVG_MS_COST;
+  let hsdLastRate = HIST_AVG_HSD_COST;
   if (purch.length > 0) {
-    msWAC = purch[0].price_petrol || HIST_AVG_MS_COST;
-    hsdWAC = purch[0].price_diesel || HIST_AVG_HSD_COST;
+    msLastRate = purch[0].price_petrol || HIST_AVG_MS_COST;
+    hsdLastRate = purch[0].price_diesel || HIST_AVG_HSD_COST;
   }
+
   const wacByDate = {};
   let pi = 0;
+
   for (const date of ledgerDates) {
+    // 1. Process purchase invoices on or before the current date
     while (pi < purch.length && (purch[pi].date || "").split("T")[0] <= date) {
       const p = purch[pi];
       const pMs = p.petrol_liters || 0;
       const pHsd = p.diesel_liters || 0;
-      const pMsPrice = pMs > 0 && p.price_petrol > 0 ? p.price_petrol : HIST_AVG_MS_COST;
-      const pHsdPrice = pHsd > 0 && p.price_diesel > 0 ? p.price_diesel : HIST_AVG_HSD_COST;
+      const pMsPrice = pMs > 0 && p.price_petrol > 0 ? p.price_petrol : msLastRate;
+      const pHsdPrice = pHsd > 0 && p.price_diesel > 0 ? p.price_diesel : hsdLastRate;
+
       if (pMs > 0) {
-        msWAC = (msStock * msWAC + pMs * pMsPrice) / (msStock + pMs);
-        msStock += pMs;
+        msQueue.push({ qty: pMs, rate: pMsPrice });
+        msLastRate = pMsPrice;
       }
       if (pHsd > 0) {
-        hsdWAC = (hsdStock * hsdWAC + pHsd * pHsdPrice) / (hsdStock + pHsd);
-        hsdStock += pHsd;
+        hsdQueue.push({ qty: pHsd, rate: pHsdPrice });
+        hsdLastRate = pHsdPrice;
       }
       pi++;
     }
-    wacByDate[date] = { ms: msWAC, hsd: hsdWAC };
+
+    // 2. Process sales for this date and calculate FIFO rates
     const row = db.daily_ledger.find((r) => r.date === date);
+    let msRate = msLastRate;
+    let hsdRate = hsdLastRate;
+
     if (row) {
       const msSold = nozzleSale(row.du1_p) + nozzleSale(row.du2_p);
       const hsdSold = nozzleSale(row.du1_d) + nozzleSale(row.du2_d);
-      msStock = Math.max(0, msStock - msSold);
-      hsdStock = Math.max(0, hsdStock - hsdSold);
+
+      // --- Calculate Petrol FIFO Cost ---
+      let remMs = msSold;
+      let msCogs = 0;
+      while (remMs > 0 && msQueue.length > 0) {
+        const front = msQueue[0];
+        if (front.qty <= remMs) {
+          msCogs += front.qty * front.rate;
+          remMs -= front.qty;
+          msQueue.shift();
+        } else {
+          msCogs += remMs * front.rate;
+          front.qty -= remMs;
+          remMs = 0;
+        }
+      }
+      if (remMs > 0) {
+        // Queue went negative / empty. Consume at the last known rate.
+        msCogs += remMs * msLastRate;
+      }
+      msRate = msSold > 0 ? msCogs / msSold : (msQueue.length > 0 ? msQueue[0].rate : msLastRate);
+
+      // --- Calculate Diesel FIFO Cost ---
+      let remHsd = hsdSold;
+      let hsdCogs = 0;
+      while (remHsd > 0 && hsdQueue.length > 0) {
+        const front = hsdQueue[0];
+        if (front.qty <= remHsd) {
+          hsdCogs += front.qty * front.rate;
+          remHsd -= front.qty;
+          hsdQueue.shift();
+        } else {
+          hsdCogs += remHsd * front.rate;
+          front.qty -= remHsd;
+          remHsd = 0;
+        }
+      }
+      if (remHsd > 0) {
+        // Queue went negative / empty. Consume at the last known rate.
+        hsdCogs += remHsd * hsdLastRate;
+      }
+      hsdRate = hsdSold > 0 ? hsdCogs / hsdSold : (hsdQueue.length > 0 ? hsdQueue[0].rate : hsdLastRate);
+    } else {
+      msRate = msQueue.length > 0 ? msQueue[0].rate : msLastRate;
+      hsdRate = hsdQueue.length > 0 ? hsdQueue[0].rate : hsdLastRate;
     }
+
+    // Save final FIFO-based rates into the wacByDate mapping
+    wacByDate[date] = { ms: msRate, hsd: hsdRate };
   }
+
   return wacByDate;
 }
 function buildExpenseDateMap() {
@@ -2334,9 +2405,9 @@ function renderPnlReport() {
       <div class="stat-card">
         <div class="stat-icon" style="background:rgba(239,68,68,0.15); color:#ef4444;">\u{1F4E6}</div>
         <div class="stat-info">
-          <div class="stat-label">Total Purchase Cost (WAC)</div>
+          <div class="stat-label">Total Purchase Cost (FIFO)</div>
           <div class="stat-value" style="font-size:1.05rem;">${formatCurrency(grand.totalCost)}</div>
-          <div class="stat-sub">MS \u20B9${HIST_AVG_MS_COST}/L avg \xB7 HSD \u20B9${HIST_AVG_HSD_COST}/L avg</div>
+          <div class="stat-sub">FIFO cost based on invoice layers</div>
         </div>
       </div>
       <div class="stat-card">
@@ -2376,13 +2447,13 @@ function renderPnlReport() {
       const monthLabel = (/* @__PURE__ */ new Date(m.month + "-15")).toLocaleString("en-IN", { month: "long", year: "numeric" });
       return `<tr>
         <td style="font-weight:700; white-space:nowrap;">${monthLabel}</td>
-        <td style="text-align:right;">${m.msSold.toFixed(0)}</td>
-        <td style="text-align:right;">${m.hsdSold.toFixed(0)}</td>
-        <td style="text-align:right;">${formatCurrency(m.msRev)}</td>
-        <td style="text-align:right;">${formatCurrency(m.hsdRev)}</td>
+        <td style="text-align:right; color:var(--color-petrol); font-weight:600;">${m.msSold.toFixed(0)}</td>
+        <td style="text-align:right; color:var(--color-diesel); font-weight:600;">${m.hsdSold.toFixed(0)}</td>
+        <td style="text-align:right; color:var(--color-petrol); font-weight:500;">${formatCurrency(m.msRev)}</td>
+        <td style="text-align:right; color:var(--color-diesel); font-weight:500;">${formatCurrency(m.hsdRev)}</td>
         <td style="text-align:right; font-weight:700;">${formatCurrency(m.revenue)}</td>
-        <td style="text-align:right; color:var(--text-dim);">${formatCurrency(m.msCost)}</td>
-        <td style="text-align:right; color:var(--text-dim);">${formatCurrency(m.hsdCost)}</td>
+        <td style="text-align:right; color:var(--color-petrol); opacity:0.8;">${formatCurrency(m.msCost)}</td>
+        <td style="text-align:right; color:var(--color-diesel); opacity:0.8;">${formatCurrency(m.hsdCost)}</td>
         <td style="text-align:right; color:#fbbf24; font-weight:600;">${formatCurrency(m.grossProfit)}</td>
         <td style="text-align:right; color:#ef4444;">${m.expenses > 0 ? formatCurrency(m.expenses) : "\u2014"}</td>
         <td style="text-align:right; font-weight:700; color:${pnlColor};">${formatCurrency(m.netPnl)}</td>
@@ -2418,10 +2489,10 @@ function renderPnlReport() {
       const rowBg = r.netPnl < 0 ? "background:rgba(239,68,68,0.04);" : "";
       return `<tr style="${rowBg}">
         <td style="white-space:nowrap; font-weight:600;">${formatDate(r.date)}</td>
-        <td style="text-align:right;">${r.msSold.toFixed(2)}</td>
-        <td style="text-align:right;">${r.hsdSold.toFixed(2)}</td>
-        <td style="text-align:right; color:#818cf8;">\u20B9${r.sellMs.toFixed(2)}</td>
-        <td style="text-align:right; color:#818cf8;">\u20B9${r.sellHsd.toFixed(2)}</td>
+        <td style="text-align:right; color:var(--color-petrol); font-weight:600;">${r.msSold.toFixed(2)}</td>
+        <td style="text-align:right; color:var(--color-diesel); font-weight:600;">${r.hsdSold.toFixed(2)}</td>
+        <td style="text-align:right; color:var(--color-petrol); font-weight:500;">\u20B9${r.sellMs.toFixed(2)}</td>
+        <td style="text-align:right; color:var(--color-diesel); font-weight:500;">\u20B9${r.sellHsd.toFixed(2)}</td>
         <td style="text-align:right; font-weight:600;">${formatCurrency(r.revenue)}</td>
         <td style="text-align:right; color:var(--text-dim);">${formatCurrency(r.totalCost)}</td>
         <td style="text-align:right; color:#fbbf24;">${formatCurrency(r.grossProfit)}</td>

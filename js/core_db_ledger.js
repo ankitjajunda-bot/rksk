@@ -80,10 +80,23 @@ let analystTab = 'flow'; // 'flow' or 'comparison'
 
 // Initialize Database
 function loadDB() {
-  const data = localStorage.getItem('octaneflow_db');
-  if (data) {
+  if (!db) {
+    const data = localStorage.getItem('octaneflow_db');
+    if (data) {
+      try {
+        db = JSON.parse(data);
+      } catch (e) {
+        db = null;
+      }
+    }
+  }
+
+  if (!db) {
+    db = JSON.parse(JSON.stringify(DEFAULT_DB));
+  }
+
+  if (db) {
     try {
-      db = JSON.parse(data);
       // Migrate from old shifts format to daily_ledger if needed
       if (db.shifts && !db.daily_ledger) {
         db.daily_ledger = [];
@@ -407,10 +420,16 @@ function dipToLiters(dipCm, maxCapacity, maxDipCm) {
 function saveDB(immediate = false) {
   prunePendingEntries();
   try {
-    // Exclude runtime index from serialization
     const { _idx, ...dbToSave } = db;
     const dbStr = JSON.stringify(dbToSave);
     localStorage.setItem('octaneflow_db', dbStr);
+    
+    // Save to unlimited IndexedDB in the background
+    if (typeof window.saveAppDatabase === 'function') {
+      window.saveAppDatabase(dbToSave).catch(err => {
+        console.error("[IndexedDB] Background save failed:", err);
+      });
+    }
     const bytes = new Blob([dbStr]).size;
     const kb = (bytes / 1024).toFixed(2);
     SystemLogger.success('saveDB', `Database saved locally successfully (${kb} KB).`);
