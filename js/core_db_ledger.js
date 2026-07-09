@@ -389,6 +389,21 @@ window.markAppStateDirty = function(key) {
   }
 };
 
+function dipToLiters(dipCm, maxCapacity, maxDipCm) {
+  if (!dipCm || dipCm <= 0) return 0;
+  if (dipCm >= maxDipCm) return maxCapacity;
+  const r = maxDipCm / 2;
+  const h = dipCm;
+  try {
+    const theta = 2 * Math.acos((r - h) / r);
+    const segmentArea = 0.5 * r * r * (theta - Math.sin(theta));
+    const totalArea = Math.PI * r * r;
+    return maxCapacity * (segmentArea / totalArea);
+  } catch (e) {
+    return 0;
+  }
+}
+
 function saveDB(immediate = false) {
   prunePendingEntries();
   try {
@@ -1271,7 +1286,6 @@ const SUB_TABS = {
     { id: 'shift-recon', label: 'Shift Recon' },
     { id: 'ledger',      label: 'Sales Ledger' },
     { id: 'approvals',   label: 'Pending Approvals', badge: 'approvals-badge' },
-    { id: 'dsr-checker', label: 'DSR Data Checker' },
     { id: 'kc-dsr-live', label: 'Live Shift Reconciliation' }
   ],
   logistics: [
@@ -1308,16 +1322,11 @@ const titles = {
   'shift-recon': "Shift Reconciliation & Cash Count",
   expenses: "Expense Ledger",
   approvals: "Shift Approvals",
-  'dsr-checker': "DSR Data Checker & OCR Verifier",
   'kc-dsr-live': "Live Shift Reconciliation Dashboard"
 };
 
 function switchSubview(mainView, subviewId) {
   const session = getSession();
-  if (subviewId === 'dsr-checker' && (!session || session.role !== 'owner')) {
-    showNotification("Access denied: Owners only.", "danger");
-    return;
-  }
   currentSubviews[mainView] = subviewId;
 
   // Update view visibility
@@ -1415,7 +1424,6 @@ function renderActiveView(viewName) {
   if (viewName === 'shift-recon') renderShiftRecon();
   if (viewName === 'expenses')    renderExpenseLedger();
   if (viewName === 'approvals')   renderApprovalsPanel();
-  if (viewName === 'dsr-checker') renderDsrChecker();
   if (viewName === 'kc-dsr-live') renderKcDsrLive();
 }
 
@@ -3475,6 +3483,11 @@ function openLogReadingsModal(targetDate) {
   document.getElementById('ledger-date').value = activeDate;
   const remarksEl = document.getElementById('ledger-remarks');
   if (remarksEl) remarksEl.value = '';
+  
+  const pHelper = document.getElementById('p_dip_cm_helper');
+  const dHelper = document.getElementById('d_dip_cm_helper');
+  if (pHelper) pHelper.value = '';
+  if (dHelper) dHelper.value = '';
 
   tempModalExpenses = [];
   renderModalExpenses();
@@ -3579,6 +3592,31 @@ function applyLedgerPrefill() {
 }
 
 document.getElementById('ledger-date').addEventListener('change', applyLedgerPrefill);
+
+// Active Data Safety Net: Live inline cm-to-liters calculations on input overrides
+document.getElementById('p_dip_cm_helper').addEventListener('input', (e) => {
+  const cmVal = parseFloat(e.target.value);
+  if (!isNaN(cmVal) && cmVal > 0) {
+    // Petrol Tank: Max capacity 20,000L, diameter 213cm, Dead stock 600L
+    const totalL = dipToLiters(cmVal, 20000, 213);
+    const usableL = Math.max(0, totalL - 600);
+    document.getElementById('ledger_p_dip_override').value = Math.round(usableL);
+  } else {
+    document.getElementById('ledger_p_dip_override').value = '';
+  }
+});
+
+document.getElementById('d_dip_cm_helper').addEventListener('input', (e) => {
+  const cmVal = parseFloat(e.target.value);
+  if (!isNaN(cmVal) && cmVal > 0) {
+    // Diesel Tank: Max capacity 20,000L, diameter 213cm, Dead stock 40L
+    const totalL = dipToLiters(cmVal, 20000, 213);
+    const usableL = Math.max(0, totalL - 40);
+    document.getElementById('ledger_d_dip_override').value = Math.round(usableL);
+  } else {
+    document.getElementById('ledger_d_dip_override').value = '';
+  }
+});
 
 let astmTable = null;
 
