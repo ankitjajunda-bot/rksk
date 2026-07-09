@@ -233,11 +233,16 @@ function loadDB() {
     saveDB();
   }
 
-  // Automatically merge clean entries from dsr_data_certified.js into active database
-  if (typeof DSR_DRAFT_DATA !== 'undefined' && DSR_DRAFT_DATA.daily_ledger) {
+  // Automatically merge clean physical readings from refined sales ledger into database
+  // Priority: REFINED_SALES_LEDGER (verified honest totalizer readings) > honest_ledger_data > DSR_DRAFT_DATA
+  const sourceLedger = (window.REFINED_SALES_LEDGER && window.REFINED_SALES_LEDGER.daily_ledger)
+    || (window.honest_ledger_data && window.honest_ledger_data.daily_ledger) 
+    || (typeof DSR_DRAFT_DATA !== 'undefined' ? DSR_DRAFT_DATA.daily_ledger : null);
+
+  if (sourceLedger) {
     let dbModified = false;
     
-    // One-time migration to clear legacy dirty flags from historical certified data
+    // One-time migration to clear legacy dirty flags
     if (!localStorage.getItem('octaneflow_dirty_reset_v1')) {
       if (db.daily_ledger) {
         db.daily_ledger.forEach(row => { delete row._dirty; });
@@ -246,18 +251,75 @@ function loadDB() {
       }
     }
 
-    DSR_DRAFT_DATA.daily_ledger.forEach(draftRow => {
+    // One-time migration: force-overwrite all totalizer readings with refined (honest) data
+    // This ensures any stale falsified readings in localStorage are purged
+    if (!localStorage.getItem('octaneflow_refined_ledger_migration_v1')) {
+      if (db.daily_ledger && window.REFINED_SALES_LEDGER) {
+        const refinedByDate = {};
+        window.REFINED_SALES_LEDGER.daily_ledger.forEach(r => { refinedByDate[r.date] = r; });
+        db.daily_ledger.forEach((row, idx) => {
+          const refined = refinedByDate[row.date];
+          if (refined) {
+            ['du1_p', 'du1_d', 'du2_p', 'du2_d'].forEach(nozzle => {
+              if (refined[nozzle]) {
+                db.daily_ledger[idx][nozzle] = { ...refined[nozzle] };
+              }
+            });
+            // Also sync recon, prices, dips from refined source
+            if (refined.recon) db.daily_ledger[idx].recon = refined.recon;
+            if (refined.prices) db.daily_ledger[idx].prices = refined.prices;
+            if (refined.actual_collection !== undefined) db.daily_ledger[idx].actual_collection = refined.actual_collection;
+            if (refined.dip_ms_cm !== undefined) db.daily_ledger[idx].dip_ms_cm = refined.dip_ms_cm;
+            if (refined.dip_hsd_cm !== undefined) db.daily_ledger[idx].dip_hsd_cm = refined.dip_hsd_cm;
+          }
+        });
+        localStorage.setItem('octaneflow_refined_ledger_migration_v1', 'true');
+        dbModified = true;
+        console.log('[REFINED LEDGER MIGRATION] Force-synced all totalizer readings from verified honest data.');
+      }
+    }
+
+    sourceLedger.forEach(draftRow => {
       const idx = db.daily_ledger.findIndex(r => r.date === draftRow.date);
       if (idx === -1) {
         db.daily_ledger.push(draftRow);
         dbModified = true;
       } else {
-        if (JSON.stringify(db.daily_ledger[idx]) !== JSON.stringify(draftRow)) {
-          db.daily_ledger[idx] = draftRow;
+        // Enforce honest physical readings: nozzles opens/closes/tests, density dips
+        let rowChanged = false;
+        ['du1_p', 'du1_d', 'du2_p', 'du2_d'].forEach(nozzle => {
+          if (draftRow[nozzle]) {
+            if (!db.daily_ledger[idx][nozzle]) {
+              db.daily_ledger[idx][nozzle] = { ...draftRow[nozzle] };
+              rowChanged = true;
+            } else {
+              // Update open, close_day, close_night, and tests to reflect honest truth
+              const fields = ['open', 'close_day', 'close_night', 'tests_day', 'tests_night'];
+              fields.forEach(f => {
+                if (db.daily_ledger[idx][nozzle][f] !== draftRow[nozzle][f]) {
+                  db.daily_ledger[idx][nozzle][f] = draftRow[nozzle][f];
+                  rowChanged = true;
+                }
+              });
+            }
+          }
+        });
+        
+        if (db.daily_ledger[idx].dip_ms_cm !== draftRow.dip_ms_cm) {
+          db.daily_ledger[idx].dip_ms_cm = draftRow.dip_ms_cm;
+          rowChanged = true;
+        }
+        if (db.daily_ledger[idx].dip_hsd_cm !== draftRow.dip_hsd_cm) {
+          db.daily_ledger[idx].dip_hsd_cm = draftRow.dip_hsd_cm;
+          rowChanged = true;
+        }
+
+        if (rowChanged) {
           dbModified = true;
         }
       }
     });
+
     if (dbModified) {
       db.daily_ledger.sort((a, b) => b.date.localeCompare(a.date));
       saveDB();
@@ -1119,7 +1181,7 @@ function getCSVExport(type) {
       "Day Sales DU1 Petrol", "Day Sales DU1 Diesel", "Day Sales DU2 Petrol", "Day Sales DU2 Diesel",
       "Night Sales DU1 Petrol", "Night Sales DU1 Diesel", "Night Sales DU2 Petrol", "Night Sales DU2 Diesel",
       "Day Tests Petrol", "Day Tests Diesel",
-      "24h Net Petrol", "24h Net Diesel", "Revenue Petrol", "Revenue Diesel", "Total Revenue", "WAC Cost", "Profit"
+      "24h Net Petrol", "24h Net Diesel", "Revenue Petrol", "Revenue Diesel", "Total Revenue", "FIFO Cost", "Profit"
     ];
 
     rows = db.daily_ledger.map(row => {
@@ -1368,8 +1430,8 @@ function renderDashboard() {
 
   document.getElementById('current-date-span').textContent = formatDate(new Date().toISOString().split('T')[0]);
 
-  document.getElementById('dash-selling-prices').textContent =
-    `P: ${formatCurrency(activePrice.petrol)} | D: ${formatCurrency(activePrice.diesel)}`;
+  document.getElementById('dash-selling-prices').innerHTML =
+    `P: <span style="color:var(--color-petrol); font-weight:700;">${formatCurrency(activePrice.petrol)}</span> | D: <span style="color:var(--color-diesel); font-weight:700;">${formatCurrency(activePrice.diesel)}</span>`;
   document.getElementById('dash-prices-last-updated').textContent = priceLastUpdatedStr;
 
   // Today's summary: try actual today first, fall back to most recently logged date
@@ -1386,7 +1448,7 @@ function renderDashboard() {
 
     const totalTodaySales = c.totals.net_24h.petrol + c.totals.net_24h.diesel;
     document.getElementById('dash-net-sales-volume').textContent = formatVol(totalTodaySales);
-    document.getElementById('dash-net-sales-split').textContent = `Petrol: ${formatVol(c.totals.net_24h.petrol)} | Diesel: ${formatVol(c.totals.net_24h.diesel)}`;
+    document.getElementById('dash-net-sales-split').innerHTML = `Petrol: <span style="color:var(--color-petrol); font-weight:700;">${formatVol(c.totals.net_24h.petrol)}</span> | Diesel: <span style="color:var(--color-diesel); font-weight:700;">${formatVol(c.totals.net_24h.diesel)}</span>`;
   } else {
     revCard.textContent = "₹ 0.00";
     revCard.className = "metric-value text-muted";
@@ -2029,7 +2091,7 @@ function renderLedger() {
               <th colspan="2">24hr Net Liters</th>
               <th colspan="2">Test Liters</th>
               <th colspan="3">24hr Revenue</th>
-              <th rowspan="2">True Cost (WAC)</th>
+              <th rowspan="2">True Cost (FIFO)</th>
               <th rowspan="2">True Profit</th>
               <th colspan="3" class="col-petrol bg-petrol-group">Petrol Stock Reconciliation</th>
               <th colspan="3" class="col-diesel bg-diesel-group">Diesel Stock Reconciliation</th>
@@ -2315,16 +2377,16 @@ function renderLedger() {
             <td class="col-diesel ${anomaly.isPriceChange ? "cell-anomaly-price-change" : ""}" style="font-weight: 500;">${dRate.toFixed(2)}</td>
 
             <!-- DU 1 -->
-            <td class="bg-petrol-group ${ (Number(msOpen1) > 0 && Number(msOpen1) === Number(msClose1)) ? 'cell-anomaly-no-sale' : '' }">${msOpen1 ? msOpen1.toFixed(1) : "-"}</td>
-            <td class="bg-petrol-group ${ (Number(msOpen1) > 0 && Number(msOpen1) === Number(msClose1)) ? 'cell-anomaly-no-sale' : '' }">${msClose1 ? msClose1.toFixed(1) : "-"}</td>
-            <td class="bg-diesel-group ${ (Number(hsdOpen1) > 0 && Number(hsdOpen1) === Number(hsdClose1)) ? 'cell-anomaly-no-sale' : '' }">${hsdOpen1 ? hsdOpen1.toFixed(1) : "-"}</td>
-            <td class="bg-diesel-group ${ (Number(hsdOpen1) > 0 && Number(hsdOpen1) === Number(hsdClose1)) ? 'cell-anomaly-no-sale' : '' }">${hsdClose1 ? hsdClose1.toFixed(1) : "-"}</td>
+            <td class="col-petrol bg-petrol-group ${ (Number(msOpen1) > 0 && Number(msOpen1) === Number(msClose1)) ? 'cell-anomaly-no-sale' : '' }">${msOpen1 ? msOpen1.toFixed(1) : "-"}</td>
+            <td class="col-petrol bg-petrol-group ${ (Number(msOpen1) > 0 && Number(msOpen1) === Number(msClose1)) ? 'cell-anomaly-no-sale' : '' }">${msClose1 ? msClose1.toFixed(1) : "-"}</td>
+            <td class="col-diesel bg-diesel-group ${ (Number(hsdOpen1) > 0 && Number(hsdOpen1) === Number(hsdClose1)) ? 'cell-anomaly-no-sale' : '' }">${hsdOpen1 ? hsdOpen1.toFixed(1) : "-"}</td>
+            <td class="col-diesel bg-diesel-group ${ (Number(hsdOpen1) > 0 && Number(hsdOpen1) === Number(hsdClose1)) ? 'cell-anomaly-no-sale' : '' }">${hsdClose1 ? hsdClose1.toFixed(1) : "-"}</td>
 
             <!-- DU 2 -->
-            <td class="bg-petrol-group ${ (Number(msOpen2) > 0 && Number(msOpen2) === Number(msClose2)) ? 'cell-anomaly-no-sale' : '' }">${msOpen2 ? msOpen2.toFixed(1) : "-"}</td>
-            <td class="bg-petrol-group ${ (Number(msOpen2) > 0 && Number(msOpen2) === Number(msClose2)) ? 'cell-anomaly-no-sale' : '' }">${msClose2 ? msClose2.toFixed(1) : "-"}</td>
-            <td class="bg-diesel-group ${ (Number(hsdOpen2) > 0 && Number(hsdOpen2) === Number(hsdClose2)) ? 'cell-anomaly-no-sale' : '' }">${hsdOpen2 ? hsdOpen2.toFixed(1) : "-"}</td>
-            <td class="bg-diesel-group ${ (Number(hsdOpen2) > 0 && Number(hsdOpen2) === Number(hsdClose2)) ? 'cell-anomaly-no-sale' : '' }">${hsdClose2 ? hsdClose2.toFixed(1) : "-"}</td>
+            <td class="col-petrol bg-petrol-group ${ (Number(msOpen2) > 0 && Number(msOpen2) === Number(msClose2)) ? 'cell-anomaly-no-sale' : '' }">${msOpen2 ? msOpen2.toFixed(1) : "-"}</td>
+            <td class="col-petrol bg-petrol-group ${ (Number(msOpen2) > 0 && Number(msOpen2) === Number(msClose2)) ? 'cell-anomaly-no-sale' : '' }">${msClose2 ? msClose2.toFixed(1) : "-"}</td>
+            <td class="col-diesel bg-diesel-group ${ (Number(hsdOpen2) > 0 && Number(hsdOpen2) === Number(hsdClose2)) ? 'cell-anomaly-no-sale' : '' }">${hsdOpen2 ? hsdOpen2.toFixed(1) : "-"}</td>
+            <td class="col-diesel bg-diesel-group ${ (Number(hsdOpen2) > 0 && Number(hsdOpen2) === Number(hsdClose2)) ? 'cell-anomaly-no-sale' : '' }">${hsdClose2 ? hsdClose2.toFixed(1) : "-"}</td>
 
             <!-- Net Liters -->
             <td class="col-petrol bg-petrol-group" style="font-weight:600;">${msVol ? msVol.toFixed(1) : "0.0"} L</td>
@@ -2705,15 +2767,15 @@ function renderLedger() {
               </div>
 
               <div style="display:flex; justify-content:space-between; border-top:1px dashed var(--border); padding-top:0.5rem; margin-top:0.25rem;">
-                <span style="color:var(--text-muted);">WAC Purchase Cost:</span>
+                <span style="color:var(--text-muted);">FIFO Purchase Cost:</span>
                 <span style="font-weight:600; color:#fff;">${formatCurrency(c.financials.total_cost)}</span>
               </div>
               <div style="display:flex; justify-content:space-between; font-size:0.75rem; color:var(--text-dim); padding-left:0.5rem; border-left:1px solid var(--border);">
-                <span>P WAC Cost (₹${(db.stock?.petrol_cost_wac ?? 0).toFixed(2)}):</span>
+                <span>P FIFO Cost (₹${(db.stock?.petrol_cost_wac ?? 0).toFixed(2)}):</span>
                 <span>${formatCurrency((c.totals?.net_24h?.petrol ?? 0) * (db.stock?.petrol_cost_wac ?? 0))}</span>
               </div>
               <div style="display:flex; justify-content:space-between; font-size:0.75rem; color:var(--text-dim); padding-left:0.5rem; border-left:1px solid var(--border);">
-                <span>D WAC Cost (₹${(db.stock?.diesel_cost_wac ?? 0).toFixed(2)}):</span>
+                <span>D FIFO Cost (₹${(db.stock?.diesel_cost_wac ?? 0).toFixed(2)}):</span>
                 <span>${formatCurrency((c.totals?.net_24h?.diesel ?? 0) * (db.stock?.diesel_cost_wac ?? 0))}</span>
               </div>
             </div>

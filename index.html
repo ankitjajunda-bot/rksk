@@ -57,7 +57,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 
   <!-- Stylesheets -->
-  <link rel="stylesheet" href="styles.css?v=81">
+  <link rel="stylesheet" href="styles.css?v=87">
 
   <style>
     .proof-panel { padding: 1.5rem; border-left: 4px solid var(--primary); display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; background: rgba(0,0,0,0.15); box-shadow: inset 0 2px 10px rgba(0,0,0,0.2); margin: 0.5rem 0;}
@@ -710,7 +710,7 @@
                 <button class="btn btn-secondary btn-sm" id="view-type-split-btn" style="border:none; border-radius:4px; padding: 0.35rem 0.75rem; background: transparent;">Split Analyst View</button>
                 <button class="btn btn-secondary btn-sm" id="view-type-pnl-btn" style="border:none; border-radius:4px; padding: 0.35rem 0.75rem; background: transparent;">P&amp;L Report</button>
               </div>
-              <div class="view-mode-selector" id="data-source-selector" style="display: flex; gap: 2px; background: rgba(255,255,255,0.03); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 2px;">
+              <div class="view-mode-selector" id="data-source-selector" style="display: none; gap: 2px; background: rgba(255,255,255,0.03); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 2px;">
                 <button class="btn btn-secondary btn-sm" id="data-source-active-btn" onclick="toggleHonestLedger(false)" style="border:none; border-radius:4px; padding: 0.35rem 0.75rem; background: var(--primary);">Active Ledger</button>
                 <button class="btn btn-secondary btn-sm" id="data-source-honest-btn" onclick="toggleHonestLedger(true)" style="border:none; border-radius:4px; padding: 0.35rem 0.75rem; background: transparent; color: #10b981;">Honest Ledger</button>
               </div>
@@ -810,7 +810,7 @@
                       <th style="text-align:right;">Sell Price MS</th>
                       <th style="text-align:right;">Sell Price HSD</th>
                       <th style="text-align:right;">Revenue</th>
-                      <th style="text-align:right;">Cost (WAC)</th>
+                      <th style="text-align:right;">Cost (FIFO)</th>
                       <th style="text-align:right;">Gross Profit</th>
                       <th style="text-align:right;">Expenses</th>
                       <th style="text-align:right;">Net P&amp;L</th>
@@ -1346,7 +1346,7 @@
                   <th>Delivery Date</th>
                   <th>Petrol L</th>
                   <th>Diesel L</th>
-                  <th>WAC Costs</th>
+                  <th>FIFO Costs</th>
                   <th>Due Date</th>
                   <th>File RTGS By</th>
                   <th>Paid Date</th>
@@ -1994,11 +1994,11 @@
 
               <div style="background: rgba(255,255,255,0.02); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; display: flex; flex-direction: column; gap: 0.75rem;">
                 <div style="display: flex; justify-content: space-between; font-size: 0.85rem;">
-                  <span style="color: var(--text-muted);">Petrol WAC Rate:</span>
+                  <span style="color: var(--text-muted);">Petrol FIFO Rate:</span>
                   <span style="color: #fff;" id="cfg-capital-wac-petrol">₹ 0.00 / L</span>
                 </div>
                 <div style="display: flex; justify-content: space-between; font-size: 0.85rem;">
-                  <span style="color: var(--text-muted);">Diesel WAC Rate:</span>
+                  <span style="color: var(--text-muted);">Diesel FIFO Rate:</span>
                   <span style="color: #fff;" id="cfg-capital-wac-diesel">₹ 0.00 / L</span>
                 </div>
 
@@ -2163,7 +2163,7 @@
           </div>
           <div style="display: flex; flex-direction: column; gap: 1rem;">
             <p style="font-size: 0.85rem; color: var(--text-muted); line-height: 1.5;">
-              If you are opening this system for the first time, click below to populate mock pricing, 14 days of simulated sales, and purchase records. This gives you an immediate preview of the predictive ordering model, WAC valuations, and holiday reminders in action.
+              If you are opening this system for the first time, click below to populate mock pricing, 14 days of simulated sales, and purchase records. This gives you an immediate preview of the predictive ordering model, FIFO valuations, and holiday reminders in action.
             </p>
             <button class="btn btn-accent" id="seed-mock-data-btn" style="align-self: flex-start;">Seed Demo Database</button>
           </div>
@@ -2667,25 +2667,25 @@
   </div>
 
   <!-- Scripts -->
-  <script>document.write('<script src="dsr_data_certified.js?v=' + Date.now() + '"><\/script>');</script>
+  <script>document.write('<script src="js/refined_sales_ledger.js?v=' + Date.now() + '"><\/script>');</script>
   <script src="supply_bills_data.js"></script>
   <script src="extracted_kc_expenses.js"></script>
   <script src="ocr_stock_data.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="js/engine/math_engine.js?v=86"></script>
-  <script src="js/engine/ledger_engine.js?v=86"></script>
-  <script src="js/schema.js?v=86"></script>
-  <script src="js/sync.js?v=86"></script>
-  <script src="js/auth.js?v=86"></script>
-  <script src="js/ui_login.js?v=86"></script>
-  <script src="js/employee_dashboard.js?v=86"></script>
-  <script src="js/submission_flow.js?v=86"></script>
-  <script src="js/employee_submit.js?v=86"></script>
-  <script src="js/owner_approvals.js?v=86"></script>
+  <script src="js/engine/math_engine.js?v=87"></script>
+  <script src="js/engine/ledger_engine.js?v=87"></script>
+  <script src="js/schema.js?v=87"></script>
+  <script src="js/sync.js?v=87"></script>
+  <script src="js/auth.js?v=87"></script>
+  <script src="js/ui_login.js?v=87"></script>
+  <script src="js/employee_dashboard.js?v=87"></script>
+  <script src="js/submission_flow.js?v=87"></script>
+  <script src="js/employee_submit.js?v=87"></script>
+  <script src="js/owner_approvals.js?v=87"></script>
   <script src="js/honest_ledger_data.js"></script>
-  <script src="js/core_db_ledger.js?v=86"></script>
-  <script src="js/error_reporting.js?v=86"></script>
-  <script src="js/dsr_checker.js?v=86"></script>
+  <script src="js/core_db_ledger.js?v=87"></script>
+  <script src="js/error_reporting.js?v=87"></script>
+  <script src="js/dsr_checker.js?v=87"></script>
 
 
   <!-- PWA: Offline banner -->
@@ -2875,10 +2875,10 @@
   <script src="js/certification_scanner.js"></script>
   <script src="js/financial_integrity_center_ui.js"></script>
 
-  <script src="js/calc_panel.js?v=86"></script>
+  <script src="js/calc_panel.js?v=87"></script>
 
   <script>
-    window.useHonestLedger = false;
+    window.useHonestLedger = true;
     window.original_db_ledger = null;
 
     function toggleHonestLedger(isHonest) {
@@ -2886,8 +2886,11 @@
             if (!window.original_db_ledger) {
                 window.original_db_ledger = [...db.daily_ledger];
             }
-            if(window.honest_ledger_data && window.honest_ledger_data.daily_ledger) {
-                db.daily_ledger = window.honest_ledger_data.daily_ledger;
+            // Use refined sales ledger (verified honest totalizer readings)
+            const refinedData = (window.REFINED_SALES_LEDGER && window.REFINED_SALES_LEDGER.daily_ledger)
+                || (window.honest_ledger_data && window.honest_ledger_data.daily_ledger);
+            if(refinedData) {
+                db.daily_ledger = refinedData;
             }
             window.useHonestLedger = true;
             document.getElementById('data-source-honest-btn').style.background = 'var(--primary)';

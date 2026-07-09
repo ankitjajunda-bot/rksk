@@ -101,7 +101,7 @@ let allIssues = [];
 
 window.renderFinancialIntegrity = function() {
     const db = {
-        daily_ledger: typeof DSR_DRAFT_DATA !== 'undefined' ? DSR_DRAFT_DATA.daily_ledger : [],
+        daily_ledger: (typeof REFINED_SALES_LEDGER !== 'undefined' && window.REFINED_SALES_LEDGER) ? window.REFINED_SALES_LEDGER.daily_ledger : (typeof DSR_DRAFT_DATA !== 'undefined' ? DSR_DRAFT_DATA.daily_ledger : []),
         supply_bills: typeof SUPPLY_BILLS_DATA !== 'undefined' ? SUPPLY_BILLS_DATA : []
     };
 
