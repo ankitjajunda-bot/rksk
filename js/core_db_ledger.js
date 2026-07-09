@@ -600,7 +600,7 @@ function getStockHistoryFor(dateStr) {
     loopLimit--;
 
     // 1. Find if there is a daily ledger row for currentDate
-    const row = db.daily_ledger.find(r => r.date === currentDate);
+    const row = window.DataManager ? window.DataManager.getDay(currentDate) : db.daily_ledger.find(r => r.date === currentDate);
     let salesP = 0;
     let salesD = 0;
     if (row) {
@@ -1449,7 +1449,7 @@ function renderDashboard() {
 
   // Today's summary: try actual today first, fall back to most recently logged date
   const todayStr2 = new Date().toISOString().split('T')[0];
-  const todayEntry = db.daily_ledger.find(r => r.date === todayStr2) || db.daily_ledger[0];
+  const todayEntry = (window.DataManager ? window.DataManager.getDay(todayStr2) : null) || db.daily_ledger.find(r => r.date === todayStr2) || db.daily_ledger[0];
   const revCard = document.getElementById('dash-shift-revenue');
   const activeInd = document.getElementById('dash-shift-active-indicator');
 
@@ -1957,6 +1957,11 @@ function renderLedger() {
   }
   fullLedgerRows.reverse(); // newest first — today at top
 
+  if (!window.ledgerRenderLimit) {
+    window.ledgerRenderLimit = 45;
+  }
+  const slicedLedgerRows = fullLedgerRows.slice(0, window.ledgerRenderLimit);
+
   if (ledgerViewMode === 'table') {
 
     tableContainer.style.display = 'block';
@@ -2008,7 +2013,7 @@ function renderLedger() {
       const d = new Date(row.date + 'T12:00:00');
       d.setDate(d.getDate() - 1);
       const prevDateStr = d.toISOString().split('T')[0];
-      const prevRow = db.daily_ledger.find(r => r.date === prevDateStr);
+      const prevRow = window.DataManager ? window.DataManager.getDay(prevDateStr) : db.daily_ledger.find(r => r.date === prevDateStr);
       const isPriceChange = prevRow && row.prices && prevRow.prices &&
         (Number(row.prices.petrol || 0) !== Number(prevRow.prices.petrol || 0) || Number(row.prices.diesel || 0) !== Number(prevRow.prices.diesel || 0));
 
@@ -2146,7 +2151,7 @@ function renderLedger() {
           </thead>
       `;
 
-      fullLedgerRows.forEach((row) => {
+      slicedLedgerRows.forEach((row) => {
         if (row._isPending) {
           const stkEst = stockTimeline[row.date];
           const stkEstHtml = stkEst ? `<span style="color:#10b981; font-size:0.72rem; margin-left:0.5rem;">≈ P: ${stkEst.start_p.toFixed(0)} L | D: ${stkEst.start_d.toFixed(0)} L</span>` : "";
@@ -2266,6 +2271,17 @@ function renderLedger() {
           </tr>
         `;
       });
+      if (fullLedgerRows.length > window.ledgerRenderLimit) {
+        rowsHtml += `
+          <tr>
+            <td colspan="27" style="text-align: center; padding: 1.25rem; background: rgba(255,255,255,0.01);">
+              <button class="btn btn-secondary btn-sm" onclick="window.ledgerRenderLimit += 45; renderLedger();" style="font-weight: 700; padding: 0.5rem 1.5rem; background: var(--primary); border: none; color: #fff; border-radius: 4px; cursor: pointer;">
+                🔍 Load 45 More Operating Days (${fullLedgerRows.length - window.ledgerRenderLimit} days remaining)
+              </button>
+            </td>
+          </tr>
+        `;
+      }
     } else {
       let shiftLabel = ledgerShiftFilter === 'day' ? 'Day Shift' : 'Night Shift';
       headerHtml = `
@@ -2310,7 +2326,7 @@ function renderLedger() {
           </thead>
       `;
 
-      fullLedgerRows.forEach((row) => {
+      slicedLedgerRows.forEach((row) => {
         if (row._isPending) {
           rowsHtml += `
             <tr style="background: rgba(239,68,68,0.05); border-left: 3px solid #ef4444;">
@@ -2432,6 +2448,17 @@ function renderLedger() {
           </tr>
         `;
       });
+      if (fullLedgerRows.length > window.ledgerRenderLimit) {
+        rowsHtml += `
+          <tr>
+            <td colspan="27" style="text-align: center; padding: 1.25rem; background: rgba(255,255,255,0.01);">
+              <button class="btn btn-secondary btn-sm" onclick="window.ledgerRenderLimit += 45; renderLedger();" style="font-weight: 700; padding: 0.5rem 1.5rem; background: var(--primary); border: none; color: #fff; border-radius: 4px; cursor: pointer;">
+                🔍 Load 45 More Operating Days (${fullLedgerRows.length - window.ledgerRenderLimit} days remaining)
+              </button>
+            </td>
+          </tr>
+        `;
+      }
     }
     table.innerHTML = headerHtml + '<tbody>' + rowsHtml + '</tbody>';
     makeSpreadsheetResizable();
@@ -2500,7 +2527,7 @@ function renderLedger() {
     });
 
     // 3. Render visual analyst panel
-    const selectedRow = db.daily_ledger.find(row => row.date === selectedLedgerDate);
+    const selectedRow = window.DataManager ? window.DataManager.getDay(selectedLedgerDate) : db.daily_ledger.find(row => row.date === selectedLedgerDate);
     const panel = document.getElementById('ledger-analyst-panel');
 
     if (!selectedRow) {
@@ -3514,7 +3541,7 @@ function applyLedgerPrefill() {
 
   // Find yesterday's night closing to serve as today's morning opening
   const yesterdayStr = addDays(dateStr, -1);
-  const yesterdayRow = db.daily_ledger.find(row => row.date === yesterdayStr);
+  const yesterdayRow = window.DataManager ? window.DataManager.getDay(yesterdayStr) : db.daily_ledger.find(row => row.date === yesterdayStr);
 
   const setOpens = (prefix, fallbackVal) => {
     let openVal = fallbackVal;
@@ -3929,7 +3956,7 @@ document.getElementById('log-readings-form').addEventListener('submit', (e) => {
   const pDipVal = document.getElementById('ledger_p_dip_override').value.trim();
   const dDipVal = document.getElementById('ledger_d_dip_override').value.trim();
 
-  const existingRow = db.daily_ledger.find(row => row.date === date);
+  const existingRow = window.DataManager ? window.DataManager.getDay(date) : db.daily_ledger.find(row => row.date === date);
   const ledgerEntry = { 
     date, 
     prices: { petrol: prices.petrol, diesel: prices.diesel }, 
