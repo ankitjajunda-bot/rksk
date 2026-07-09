@@ -2102,7 +2102,7 @@ function renderLedger() {
       headerHtml = `
           <thead>
             <tr class="header-group">
-              <th rowspan="2" class="sticky-col-left" style="min-width: 110px;">Date</th>
+              <th rowspan="2" class="sticky-col-left" style="min-width: 85px;">Date</th>
               <th colspan="2">Selling Rate</th>
               <th colspan="4">DU 1 (24Hr Readings)</th>
               <th colspan="4">DU 2 (24Hr Readings)</th>
@@ -2215,7 +2215,7 @@ function renderLedger() {
 
         rowsHtml += `
           <tr>
-            <td class="sticky-col-left"><strong>${formatDate(row.date)}</strong>${row._dirty ? '<span style="color:#f97316; font-weight:bold; font-size:0.75rem; margin-left:2px;" title="Local unsynced edit">*</span>' : ''}${anomaly.badgesHtml}</td>
+            <td class="sticky-col-left"><strong>${formatDate(row.date)}</strong>${row._dirty ? '<span style="color:#f97316; font-weight:bold; font-size:0.75rem; margin-left:2px;" title="Local unsynced edit">*</span>' : ''}${anomaly.badgesHtml ? `<div style="margin-top: 4px; display: flex; flex-direction: column; gap: 2px;">${anomaly.badgesHtml}</div>` : ""}</td>
             <td class="col-petrol ${anomaly.isPriceChange ? "cell-anomaly-price-change" : ""}" style="font-weight: 500;">${(row.prices?.petrol ?? 0).toFixed(2)}</td>
             <td class="col-diesel ${anomaly.isPriceChange ? "cell-anomaly-price-change" : ""}" style="font-weight: 500;">${(row.prices?.diesel ?? 0).toFixed(2)}</td>
 
@@ -2287,7 +2287,7 @@ function renderLedger() {
       headerHtml = `
           <thead>
             <tr class="header-group">
-              <th rowspan="2" class="sticky-col-left" style="min-width: 110px;">Date</th>
+              <th rowspan="2" class="sticky-col-left" style="min-width: 85px;">Date</th>
               <th colspan="2">Selling Rate</th>
               <th colspan="4">DU 1 (${shiftLabel})</th>
               <th colspan="4">DU 2 (${shiftLabel})</th>
