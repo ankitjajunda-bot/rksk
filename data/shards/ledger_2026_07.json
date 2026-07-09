@@ -1,0 +1,120 @@
+{
+  "2026-07-04": {
+    "du1_p": {
+      "open": 1512796.1,
+      "close_day": 1513202.13,
+      "close_night": 1513202.13,
+      "tests": 0.0
+    },
+    "du1_d": {
+      "open": 1259352.24,
+      "close_day": 1259797.82,
+      "close_night": 1259797.82,
+      "tests": 0.0
+    },
+    "du2_p": {
+      "open": 47480.59,
+      "close_day": 47551.53,
+      "close_night": 47551.53,
+      "tests": 0.0
+    },
+    "du2_d": {
+      "open": 1250874.89,
+      "close_day": 1251230.0,
+      "close_night": 1251230.0,
+      "tests": 0.0
+    },
+    "_flags": [
+      "du1_p_zero_sale_night",
+      "du1_d_zero_sale_night",
+      "du2_p_zero_sale_night",
+      "du2_d_zero_sale_night"
+    ],
+    "_source": "honest"
+  },
+  "2026-07-03": {
+    "du1_p": {
+      "open": 1512190.13,
+      "close_day": 1512796.1,
+      "close_night": 1512796.1,
+      "tests": 0.0
+    },
+    "du1_d": {
+      "open": 1258867.92,
+      "close_day": 1259205.55,
+      "close_night": 1259352.24,
+      "tests": 0.0
+    },
+    "du2_p": {
+      "open": 47343.0,
+      "close_day": 47480.59,
+      "close_night": 47480.59,
+      "tests": 0.0
+    },
+    "du2_d": {
+      "open": 1250109.33,
+      "close_day": 1250647.78,
+      "close_night": 1250874.89,
+      "tests": 0.0
+    },
+    "_flags": [
+      "du1_p_zero_sale_night",
+      "du2_p_zero_sale_night"
+    ],
+    "_source": "honest"
+  },
+  "2026-07-02": {
+    "du1_p": {
+      "open": 1511580.54,
+      "close_day": 1512085.72,
+      "close_night": 1512190.13,
+      "tests": 0.0
+    },
+    "du1_d": {
+      "open": 1258151.46,
+      "close_day": 1258684.39,
+      "close_night": 1258867.92,
+      "tests": 0.0
+    },
+    "du2_p": {
+      "open": 47258.23,
+      "close_day": 47341.06,
+      "close_night": 47343.0,
+      "tests": 0.0
+    },
+    "du2_d": {
+      "open": 1249589.02,
+      "close_day": 1249970.8,
+      "close_night": 1250109.33,
+      "tests": 0.0
+    },
+    "_source": "honest"
+  },
+  "2026-07-01": {
+    "du1_p": {
+      "open": 1511096.01,
+      "close_day": 1511476.09,
+      "close_night": 1511580.54,
+      "tests": 0.0
+    },
+    "du1_d": {
+      "open": 1257572.49,
+      "close_day": 1257987.08,
+      "close_night": 1258151.46,
+      "tests": 0.0
+    },
+    "du2_p": {
+      "open": 47124.69,
+      "close_day": 47248.32,
+      "close_night": 47258.23,
+      "tests": 0.0
+    },
+    "du2_d": {
+      "open": 1248947.64,
+      "close_day": 1249446.77,
+      "close_night": 1249589.02,
+      "tests": 0.0
+    },
+    "_source": "honest"
+  }
+}
