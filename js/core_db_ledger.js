@@ -2309,6 +2309,206 @@ function renderLedger() {
           </tr>
         `;
       }
+    } else if (ledgerShiftFilter === "both") {
+      headerHtml = `
+          <thead>
+            <tr class="header-group">
+              <th rowspan="2" class="sticky-col-left" style="min-width: 85px;">Date</th>
+              <th colspan="2">Selling Rate</th>
+              <th colspan="4">DU 1 (Shift Net Sales)</th>
+              <th colspan="4">DU 2 (Shift Net Sales)</th>
+              <th colspan="2">Day Shift Sales</th>
+              <th colspan="2">Night Shift Sales</th>
+              <th colspan="2">24hr Net Liters</th>
+              <th rowspan="2">Day Revenue</th>
+              <th rowspan="2">Night Revenue</th>
+              <th rowspan="2">24hr Revenue</th>
+              <th rowspan="2">24hr Profit</th>
+              <th rowspan="2">Expenses</th>
+              <th rowspan="2" class="sticky-col-right" style="min-width: 90px;">Actions</th>
+            </tr>
+            <tr class="header-cols">
+              <th class="col-petrol">Petrol</th>
+              <th class="col-diesel">Diesel</th>
+
+              <th class="col-petrol bg-petrol-group">MS Day</th>
+              <th class="col-petrol bg-petrol-group">MS Night</th>
+              <th class="col-diesel bg-diesel-group">HSD Day</th>
+              <th class="col-diesel bg-diesel-group">HSD Night</th>
+
+              <th class="col-petrol bg-petrol-group">MS Day</th>
+              <th class="col-petrol bg-petrol-group">MS Night</th>
+              <th class="col-diesel bg-diesel-group">HSD Day</th>
+              <th class="col-diesel bg-diesel-group">HSD Night</th>
+
+              <th class="col-petrol bg-petrol-group">MS (Petrol)</th>
+              <th class="col-diesel bg-diesel-group">HSD (Diesel)</th>
+
+              <th class="col-petrol bg-petrol-group">MS (Petrol)</th>
+              <th class="col-diesel bg-diesel-group">HSD (Diesel)</th>
+
+              <th class="col-petrol bg-petrol-group">MS (Petrol)</th>
+              <th class="col-diesel bg-diesel-group">HSD (Diesel)</th>
+            </tr>
+          </thead>
+      `;
+
+      slicedLedgerRows.forEach((row) => {
+        if (row._isPending) {
+          rowsHtml += `
+            <tr style="background: rgba(239,68,68,0.05); border-left: 3px solid #ef4444;">
+              <td class="sticky-col-left" style="color: #ef4444;">
+                <strong>${formatDate(row.date)}</strong>
+                <span style="display:block; font-size:0.68rem; color:#ef4444; margin-top:2px;">⏳ Pending</span>
+              </td>
+              <td colspan="22" style="text-align:center; color: var(--text-muted); font-size:0.78rem; font-style:italic; padding: 0.6rem 0;">
+                No readings entered yet
+              </td>
+              <td class="sticky-col-right">
+                <button class="btn btn-primary btn-sm" onclick="openLogReadingsModal('${row.date}')" style="padding: 0.25rem 0.5rem; font-size:0.72rem;">Enter Data</button>
+              </td>
+            </tr>
+          `;
+          return;
+        }
+
+        const index = db.daily_ledger.findIndex(r => r.date === row.date);
+        const anomaly = getAnomalyStats(row, index);
+        const c = anomaly.c;
+
+        // DU 1 Day / Night Liters
+        let du1_ms_day = c.sales?.du1_p?.day || 0;
+        let du1_ms_night = c.sales?.du1_p?.night || 0;
+        let du1_hsd_day = c.sales?.du1_d?.day || 0;
+        let du1_hsd_night = c.sales?.du1_d?.night || 0;
+
+        // DU 2 Day / Night Liters
+        let du2_ms_day = c.sales?.du2_p?.day || 0;
+        let du2_ms_night = c.sales?.du2_p?.night || 0;
+        let du2_hsd_day = c.sales?.du2_d?.day || 0;
+        let du2_hsd_night = c.sales?.du2_d?.night || 0;
+
+        // Day Shift Totals
+        let day_ms_total = du1_ms_day + du2_ms_day;
+        let day_hsd_total = du1_hsd_day + du2_hsd_day;
+
+        // Night Shift Totals
+        let night_ms_total = du1_ms_night + du2_ms_night;
+        let night_hsd_total = du1_hsd_night + du2_hsd_night;
+
+        // 24hr Net Liters
+        let msVol = day_ms_total + night_ms_total;
+        let hsdVol = day_hsd_total + night_hsd_total;
+
+        // Selling rates
+        let pRate = row.prices?.petrol || 0;
+        let dRate = row.prices?.diesel || 0;
+
+        // Day shift tests
+        let tP_day = (row.du1_p?.close_day > row.du1_p?.open ? (row.du1_p?.tests_day || 1) : 0) + (row.du2_p?.close_day > row.du2_p?.open ? (row.du2_p?.tests_day || 1) : 0);
+        let tD_day = (row.du1_d?.close_day > row.du1_d?.open ? (row.du1_d?.tests_day || 1) : 0) + (row.du2_d?.close_day > row.du2_d?.open ? (row.du2_d?.tests_day || 1) : 0);
+
+        // Night shift tests
+        let tP_night = (row.du1_p?.close_night > row.du1_p?.close_day ? (row.du1_p?.tests_night || 0) : 0) + (row.du2_p?.close_night > row.du2_p?.close_day ? (row.du2_p?.tests_night || 0) : 0);
+        let tD_night = (row.du1_d?.close_night > row.du1_d?.close_day ? (row.du1_d?.tests_night || 0) : 0) + (row.du2_d?.close_night > row.du2_d?.close_day ? (row.du2_d?.tests_night || 0) : 0);
+
+        // Day Revenue: sales * rate minus tests * rate
+        let revP_day = Math.max(0, (day_ms_total - (tP_day * 5)) * pRate);
+        let revD_day = Math.max(0, (day_hsd_total - (tD_day * 5)) * dRate);
+        let revTotal_day = revP_day + revD_day;
+
+        // Night Revenue
+        let revP_night = Math.max(0, (night_ms_total - (tP_night * 5)) * pRate);
+        let revD_night = Math.max(0, (night_hsd_total - (tD_night * 5)) * dRate);
+        let revTotal_night = revP_night + revD_night;
+
+        // Total 24hr Revenue
+        let revTotal = revTotal_day + revTotal_night;
+
+        // Cost & Profit (FIFO)
+        let dateWac = wacMap[row.date] || { ms: 0, hsd: 0 };
+        let costTotal = (msVol * dateWac.ms) + (hsdVol * dateWac.hsd);
+        let profitTotal = revTotal - costTotal;
+
+        // Expenses
+        const dayExps = typeof KC_EXPENSES_DATA !== 'undefined' ? KC_EXPENSES_DATA[row.date] : null;
+        let expenses_html = "&mdash;";
+        if (dayExps && dayExps.length > 0) {
+          const totAmt = dayExps.reduce((sum, item) => sum + (parseFloat(item.amount) || 0), 0);
+          expenses_html = `
+            <div class="expense-popover-container">
+              <button class="expense-btn" onclick="toggleExpensePopover(event, '${row.date}')">
+                ₹ ${totAmt.toFixed(0)}
+              </button>
+            </div>
+          `;
+        }
+
+        rowsHtml += `
+          <tr>
+            <td class="sticky-col-left"><strong>${formatDate(row.date)}</strong>${row._dirty ? '<span style="color:#f97316; font-weight:bold; font-size:0.75rem; margin-left:2px;" title="Local unsynced edit">*</span>' : ''}${anomaly.badgesHtml ? `<div style="margin-top: 4px; display: flex; flex-direction: column; gap: 2px;">${anomaly.badgesHtml}</div>` : ""}</td>
+            <td class="col-petrol ${anomaly.isPriceChange ? "cell-anomaly-price-change" : ""}" style="font-weight: 500;">${pRate.toFixed(2)}</td>
+            <td class="col-diesel ${anomaly.isPriceChange ? "cell-anomaly-price-change" : ""}" style="font-weight: 500;">${dRate.toFixed(2)}</td>
+
+            <!-- DU 1 Sales -->
+            <td class="col-petrol bg-petrol-group">${du1_ms_day.toFixed(1)} L</td>
+            <td class="col-petrol bg-petrol-group">${du1_ms_night.toFixed(1)} L</td>
+            <td class="col-diesel bg-diesel-group">${du1_hsd_day.toFixed(1)} L</td>
+            <td class="col-diesel bg-diesel-group">${du1_hsd_night.toFixed(1)} L</td>
+
+            <!-- DU 2 Sales -->
+            <td class="col-petrol bg-petrol-group">${du2_ms_day.toFixed(1)} L</td>
+            <td class="col-petrol bg-petrol-group">${du2_ms_night.toFixed(1)} L</td>
+            <td class="col-diesel bg-diesel-group">${du2_hsd_day.toFixed(1)} L</td>
+            <td class="col-diesel bg-diesel-group">${du2_hsd_night.toFixed(1)} L</td>
+
+            <!-- Day Shift Totals -->
+            <td class="col-petrol bg-petrol-group" style="font-weight:600;">${day_ms_total.toFixed(1)} L</td>
+            <td class="col-diesel bg-diesel-group" style="font-weight:600;">${day_hsd_total.toFixed(1)} L</td>
+
+            <!-- Night Shift Totals -->
+            <td class="col-petrol bg-petrol-group" style="font-weight:600;">${night_ms_total.toFixed(1)} L</td>
+            <td class="col-diesel bg-diesel-group" style="font-weight:600;">${night_hsd_total.toFixed(1)} L</td>
+
+            <!-- 24hr Net Liters -->
+            <td class="col-petrol bg-petrol-group" style="font-weight:600;">${msVol.toFixed(1)} L</td>
+            <td class="col-diesel bg-diesel-group" style="font-weight:600;">${hsdVol.toFixed(1)} L</td>
+
+            <!-- Shift Revenues -->
+            <td class="font-mono text-muted">${formatCurrency(revTotal_day)}</td>
+            <td class="font-mono text-muted">${formatCurrency(revTotal_night)}</td>
+
+            <!-- Total 24hr Revenue -->
+            <td class="font-mono fw-700">${formatCurrency(revTotal)}</td>
+
+            <!-- Cost & Profit -->
+            <td class="font-mono ${profitTotal < 0 ? "text-danger" : "text-success"}" style="font-weight: 600;">
+              ${formatCurrency(profitTotal)}
+            </td>
+
+            <!-- Expenses -->
+            <td>${expenses_html}</td>
+
+            <!-- Action -->
+            <td class="sticky-col-right">
+              <button class="btn btn-secondary btn-sm" onclick="editLedgerEntry(${index})" style="padding: 0.25rem 0.5rem; font-size:0.75rem;">Edit</button>
+              <button class="btn btn-danger btn-sm" onclick="deleteLedgerRow('${row.date}')" style="padding: 0.25rem 0.5rem; font-size:0.75rem;">Del</button>
+            </td>
+          </tr>
+        `;
+      });
+
+      if (fullLedgerRows.length > window.ledgerRenderLimit) {
+        rowsHtml += `
+          <tr>
+            <td colspan="23" style="text-align: center; padding: 1.25rem; background: rgba(255,255,255,0.01);">
+              <button class="btn btn-secondary btn-sm" onclick="window.ledgerRenderLimit += 45; renderLedger();" style="font-weight: 700; padding: 0.5rem 1.5rem; background: var(--primary); border: none; color: #fff; border-radius: 4px; cursor: pointer;">
+                🔍 Load 45 More Operating Days (${fullLedgerRows.length - window.ledgerRenderLimit} days remaining)
+              </button>
+            </td>
+          </tr>
+        `;
+      }
     } else {
       let shiftLabel = ledgerShiftFilter === 'day' ? 'Day Shift' : 'Night Shift';
       headerHtml = `
@@ -4388,6 +4588,8 @@ document.getElementById('dash-trigger-purchase-btn').addEventListener('click', (
     document.getElementById("shift-filter-24h-btn").style.background = filter === "24h" ? "var(--primary)" : "transparent";
     document.getElementById("shift-filter-day-btn").style.background = filter === "day" ? "var(--primary)" : "transparent";
     document.getElementById("shift-filter-night-btn").style.background = filter === "night" ? "var(--primary)" : "transparent";
+    const btnBoth = document.getElementById("shift-filter-both-btn");
+    if (btnBoth) btnBoth.style.background = filter === "both" ? "var(--primary)" : "transparent";
     renderLedger();
   }
   const btn24 = document.getElementById("shift-filter-24h-btn");
@@ -4396,6 +4598,8 @@ document.getElementById('dash-trigger-purchase-btn').addEventListener('click', (
   if (btnDay) btnDay.addEventListener("click", () => setShiftFilter("day"));
   const btnNight = document.getElementById("shift-filter-night-btn");
   if (btnNight) btnNight.addEventListener("click", () => setShiftFilter("night"));
+  const btnBoth = document.getElementById("shift-filter-both-btn");
+  if (btnBoth) btnBoth.addEventListener("click", () => setShiftFilter("both"));
 
 // Segmented View Selectors: Spreadsheet vs Split Analyst
 document.getElementById('view-type-table-btn').addEventListener('click', () => {
