@@ -225,7 +225,10 @@ function syncPull() {
       setSyncStatus("syncing");
       const { data: stateData, error: stateErr } = yield supabaseClient.from("app_state").select("*");
       if (stateErr) throw stateErr;
-      const { data: pendingData, error: pendingErr } = yield supabaseClient.from("pending_entries").select("*");
+      const cutoff = new Date();
+      cutoff.setDate(cutoff.getDate() - 7);
+      const cutoffISO = cutoff.toISOString();
+      const { data: pendingData, error: pendingErr } = yield supabaseClient.from("pending_entries").select("*").or(`status.in.(pending,queued,syncing,pending_approval),reviewed_at.gte.${cutoffISO}`);
       if (pendingErr) throw pendingErr;
       const { data: ledgerData, error: ledgerErr } = yield supabaseClient.from("daily_ledger").select("*");
       if (ledgerErr) throw ledgerErr;
@@ -708,6 +711,15 @@ function initSync() {
       });
       const prevPendingCount = (db.pending_entries || []).length;
       db.pending_entries = Array.from(mergedPendingMap.values());
+      
+      // Prune local approved/rejected entries that are older than 7 days to keep database fast
+      const pruneCutoff = new Date();
+      pruneCutoff.setDate(pruneCutoff.getDate() - 7);
+      const pruneCutoffISO = pruneCutoff.toISOString();
+      db.pending_entries = db.pending_entries.filter((e) => {
+        if (!["approved", "rejected"].includes(e.status)) return true;
+        return e.reviewedAt && e.reviewedAt >= pruneCutoffISO;
+      });
       
       // Play a chime if new pending entries were downloaded from the cloud
       if (db.pending_entries.length > prevPendingCount && typeof getSession === 'function') {
