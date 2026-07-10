@@ -369,7 +369,7 @@
           <div class="subtitle">Totalizer data silently altered</div>
         </div>
         <div class="stat-card warning">
-          <h3>Faked Sales Volumes</h3>
+          <h3>Sales Mismatch Volumes</h3>
           <div class="value" id="stat-fakes" style="color:var(--warning);">0</div>
           <div class="subtitle">Continuity-forced ghost entries</div>
         </div>
@@ -400,7 +400,7 @@
           <select id="filter-type" class="filter-input" onchange="applyFilters()">
             <option value="">All Issues</option>
             <option value="Mutated Reading">Mutated Reading</option>
-            <option value="Faked Sales Volume">Faked Sales Volume</option>
+            <option value="Sales Volume Mismatch">Sales Volume Mismatch</option>
             <option value="Mapping Glitch">Mapping Glitch</option>
           </select>
         </div>
@@ -463,7 +463,7 @@
             <div id="modal-honest-sales" style="font-size:0.85rem; color:var(--text-muted); margin-top:0.5rem;"></div>
           </div>
           <div class="comparison-card active">
-            <h4 style="margin:0 0 0.5rem 0; color:var(--danger);">Active Database Record (Corrupted by AI)</h4>
+            <h4 style="margin:0 0 0.5rem 0; color:var(--danger);">Active Database Record (Current / Edited)</h4>
             <div id="modal-active-val" style="font-family:monospace; font-size:1.1rem; font-weight:700;"></div>
             <div id="modal-active-sales" style="font-size:0.85rem; color:var(--text-muted); margin-top:0.5rem;"></div>
           </div>
@@ -510,7 +510,7 @@
       document.getElementById('modal-honest-sales').textContent = `Calculated Physical Sales: ${issue.rawDetails.honestSales.toFixed(2)} L`;
       
       document.getElementById('modal-active-val').textContent = issue.activeVal;
-      document.getElementById('modal-active-sales').textContent = `Stored Faked Sales: ${issue.rawDetails.activeSales.toFixed(2)} L`;
+      document.getElementById('modal-active-sales').textContent = `Stored Sales: ${issue.rawDetails.activeSales.toFixed(2)} L`;
       
       document.getElementById('modal-rule').textContent = issue.rule;
       document.getElementById('modal-explanation').textContent = issue.explanation;
@@ -596,7 +596,7 @@
               rule = "Rule 5: Sacred Accounting Invariants";
               explanation = `Critical mapping logic failure. The nozzle physically reported 0 or was inactive, but the database assigned negative readings (${activeDayOpen.toFixed(2)} to ${activeDayClose.toFixed(2)}) to solve continuity math constraints.`;
             } else if (Math.abs(activeDaySales - honestDaySales) > 0.5) {
-              issueType = "Faked Sales Volume";
+              issueType = "Sales Volume Mismatch";
               diff = Math.abs(activeDaySales - honestDaySales);
               rule = "Rule 5 & 6: Silent Data Manipulation";
               explanation = `The software's forced-continuity logic faked the sales calculation to bridge a meter jump. True physical sales were ${honestDaySales.toFixed(2)} Litres, but the algorithm forced a sale of ${activeDaySales.toFixed(2)} Litres, generating a phantom transaction of ${diff.toFixed(2)} Litres.`;
@@ -642,7 +642,7 @@
               rule = "Rule 5: Sacred Accounting Invariants";
               explanation = `Critical mapping logic failure. The database assigned negative readings (${activeNightOpen.toFixed(2)} to ${activeNightClose.toFixed(2)}) to solve continuity constraints.`;
             } else if (Math.abs(activeNightSales - honestNightSales) > 0.5) {
-              issueType = "Faked Sales Volume";
+              issueType = "Sales Volume Mismatch";
               diff = Math.abs(activeNightSales - honestNightSales);
               rule = "Rule 5 & 6: Silent Data Manipulation";
               explanation = `The software faked the sales calculation to bridge a meter jump. Physical sales: ${honestNightSales.toFixed(2)} L, Stored Sales: ${activeNightSales.toFixed(2)} L. Phantom volume: ${diff.toFixed(2)} L.`;
@@ -702,7 +702,7 @@
       }
 
       tbody.innerHTML = filteredDiscrepancies.map((issue) => {
-        const typeClass = issue.issueType === 'Faked Sales Volume' ? 'badge orange' : (issue.issueType === 'Mapping Glitch' ? 'badge red' : 'badge red');
+        const typeClass = issue.issueType === 'Sales Volume Mismatch' ? 'badge orange' : (issue.issueType === 'Mapping Glitch' ? 'badge red' : 'badge red');
         return `
           <tr onclick='openModal(${JSON.stringify(issue).replace(/'/g, "&apos;")})'>
             <td><strong>${issue.date}</strong></td>
@@ -710,7 +710,7 @@
             <td>${issue.nozzle}</td>
             <td><span class="${typeClass}">${issue.issueType}</span></td>
             <td style="font-family:monospace; font-weight:700;">${issue.difference.toFixed(2)} L</td>
-            <td><span class="badge red">🔴 Corrupted</span></td>
+            <td><span class="badge orange">⚠️ Mismatch</span></td>
           </tr>
         `;
       }).join('');

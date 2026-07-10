@@ -2330,3 +2330,198 @@ textarea {
 .resize-row-handle.dragging {
   background: rgba(99, 102, 241, 0.6) !important;
 }
+
+/* ============================================================ */
+/* OWNER DASHBOARD RESPONSIVENESS AND MOBILE IMPROVEMENTS (OnePlus 13 & similar phones) */
+/* ============================================================ */
+@media (max-width: 768px) {
+  /* 1. Global Layout & Paddings */
+  body {
+    flex-direction: column !important;
+  }
+  
+  .app-container {
+    flex-direction: column !important;
+  }
+  
+  .main-content {
+    margin-left: 0 !important;
+    padding: 0.75rem !important; /* maximum screen usage */
+    min-height: auto !important;
+  }
+
+  .panel {
+    padding: 1rem !important;
+    border-radius: var(--radius-md) !important;
+  }
+
+  .panel-header {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 0.5rem !important;
+  }
+
+  .panel-actions {
+    width: 100% !important;
+    flex-direction: column !important;
+    gap: 0.5rem !important;
+  }
+
+  .panel-actions .btn,
+  .panel-actions select {
+    width: 100% !important;
+  }
+
+  /* 2. Top Header and Swipeable Category Bar */
+  .sidebar {
+    width: 100% !important;
+    height: auto !important;
+    position: sticky !important;
+    top: 0;
+    z-index: 1001;
+    padding: 0.75rem 1rem !important;
+    border-right: none !important;
+    border-bottom: 1px solid var(--border) !important;
+    background: rgba(10, 14, 23, 0.95) !important;
+    backdrop-filter: blur(12px) !important;
+    -webkit-backdrop-filter: blur(12px) !important;
+  }
+
+  .logo-container {
+    margin-bottom: 0.5rem !important;
+    justify-content: space-between !important;
+    display: flex !important;
+    align-items: center !important;
+    width: 100% !important;
+    padding-left: 0 !important;
+  }
+
+  .logo-container .logo-icon {
+    width: 32px !important;
+    height: 32px !important;
+  }
+
+  .logo-container .logo-icon svg {
+    width: 18px !important;
+    height: 18px !important;
+  }
+
+  .logo-text {
+    font-size: 1.1rem !important;
+  }
+
+  /* Make nav-links horizontally scrollable capsules (like Youtube category filter) */
+  .nav-links {
+    flex-direction: row !important;
+    flex-wrap: nowrap !important;
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    gap: 0.4rem !important;
+    padding: 0.35rem 0 !important;
+    width: 100% !important;
+    scrollbar-width: none !important; /* Firefox */
+  }
+
+  .nav-links::-webkit-scrollbar {
+    display: none !important; /* Chrome, Safari, Opera */
+  }
+
+  .nav-item {
+    margin-bottom: 0 !important;
+    flex: 0 0 auto !important; /* Do not shrink/grow */
+  }
+
+  .nav-item button {
+    padding: 0.4rem 0.85rem !important;
+    font-size: 0.8rem !important;
+    border-radius: 9999px !important; /* Beautiful capsule buttons */
+    white-space: nowrap !important;
+    background: rgba(255, 255, 255, 0.04) !important;
+    border: 1px solid rgba(255, 255, 255, 0.08) !important;
+    gap: 0.5rem !important;
+  }
+
+  .nav-item.active button {
+    background: var(--primary) !important;
+    border-color: var(--primary) !important;
+    color: #fff !important;
+  }
+
+  /* 3. Form Rows Stacking */
+  .form-row {
+    flex-direction: column !important;
+    gap: 0.75rem !important;
+  }
+
+  .form-group {
+    width: 100% !important;
+  }
+
+  /* 4. Log Readings Modal Stacking */
+  .modal-ledger-grid {
+    grid-template-columns: 1fr !important; /* Stack DU cards vertically */
+    gap: 0.75rem !important;
+  }
+
+  .modal-box {
+    width: 95% !important;
+    padding: 1.25rem !important;
+    margin: 10px !important;
+  }
+
+  /* 5. Density calculations form rows */
+  .du-inputs-container {
+    grid-template-columns: 1fr !important;
+    gap: 1rem !important;
+  }
+
+  /* 6. Dashboard Grid Stacking */
+  .grid-2, .grid-3 {
+    grid-template-columns: 1fr !important;
+    gap: 1rem !important;
+  }
+
+  .main-content header {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 0.75rem !important;
+    margin-bottom: 1.5rem !important;
+  }
+
+  .main-content header h1 {
+    font-size: 1.5rem !important;
+  }
+
+  .current-time-box {
+    width: 100% !important;
+    box-sizing: border-box !important;
+    justify-content: space-between !important;
+    font-size: 0.8rem !important;
+    padding: 0.5rem 0.8rem !important;
+  }
+
+  /* 7. Action Button Touch Targets */
+  .btn {
+    min-height: 40px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.85rem !important;
+  }
+
+  /* Inputs sizing */
+  input[type="text"],
+  input[type="number"],
+  input[type="date"],
+  select {
+    min-height: 40px !important;
+    font-size: 16px !important; /* Prevent iOS zoom */
+  }
+
+  /* Settings Grid */
+  .settings-grid {
+    grid-template-columns: 1fr !important;
+    gap: 1rem !important;
+  }
+}
+
