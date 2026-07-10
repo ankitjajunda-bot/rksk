@@ -750,30 +750,6 @@ function initSync() {
       const mergedLedgerMap = /* @__PURE__ */ new Map();
       (cloudData.daily_ledger || []).forEach((cloudEntry) => {
         if (deletedDates.includes(cloudEntry.date)) return;
-        
-        let cloudCorrected = false;
-        // Safety Guard: Validate incoming cloud totalizers against verified refined ledger
-        const refinedEntry = window.REFINED_SALES_LEDGER && window.REFINED_SALES_LEDGER.daily_ledger.find(r => r.date === cloudEntry.date);
-        if (refinedEntry) {
-          ['du1_p', 'du1_d', 'du2_p', 'du2_d'].forEach(nozzle => {
-            if (refinedEntry[nozzle]) {
-              if (!cloudEntry[nozzle]) {
-                cloudEntry[nozzle] = { ...refinedEntry[nozzle] };
-                cloudCorrected = true;
-              } else {
-                const fields = ['open', 'close_day', 'close_night', 'tests_day', 'tests_night'];
-                fields.forEach(f => {
-                  if (cloudEntry[nozzle][f] !== refinedEntry[nozzle][f]) {
-                    cloudEntry[nozzle][f] = refinedEntry[nozzle][f];
-                    cloudCorrected = true;
-                  }
-                });
-              }
-            }
-          });
-        }
-        
-        cloudEntry._dirty = cloudCorrected;
         mergedLedgerMap.set(cloudEntry.date, cloudEntry);
       });
       unsyncedLedger.forEach((localEntry) => {

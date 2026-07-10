@@ -309,40 +309,6 @@ function loadDB() {
         draftRow._dirty = true;
         db.daily_ledger.push(draftRow);
         dbModified = true;
-      } else {
-        // Enforce honest physical readings: nozzles opens/closes/tests, density dips
-        let rowChanged = false;
-        ['du1_p', 'du1_d', 'du2_p', 'du2_d'].forEach(nozzle => {
-          if (draftRow[nozzle]) {
-            if (!db.daily_ledger[idx][nozzle]) {
-              db.daily_ledger[idx][nozzle] = { ...draftRow[nozzle] };
-              rowChanged = true;
-            } else {
-              // Update open, close_day, close_night, and tests to reflect honest truth
-              const fields = ['open', 'close_day', 'close_night', 'tests_day', 'tests_night'];
-              fields.forEach(f => {
-                if (db.daily_ledger[idx][nozzle][f] !== draftRow[nozzle][f]) {
-                  db.daily_ledger[idx][nozzle][f] = draftRow[nozzle][f];
-                  rowChanged = true;
-                }
-              });
-            }
-          }
-        });
-        
-        if (db.daily_ledger[idx].dip_ms_cm !== draftRow.dip_ms_cm) {
-          db.daily_ledger[idx].dip_ms_cm = draftRow.dip_ms_cm;
-          rowChanged = true;
-        }
-        if (db.daily_ledger[idx].dip_hsd_cm !== draftRow.dip_hsd_cm) {
-          db.daily_ledger[idx].dip_hsd_cm = draftRow.dip_hsd_cm;
-          rowChanged = true;
-        }
-
-        if (rowChanged) {
-          db.daily_ledger[idx]._dirty = true;
-          dbModified = true;
-        }
       }
     });
 
