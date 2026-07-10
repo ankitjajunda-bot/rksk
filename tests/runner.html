@@ -160,6 +160,12 @@
             throw new Error(`Expected: ${expected}\nActual:   ${actual}`);
           }
         },
+        toBeCloseTo(expected, precision = 2) {
+          const limit = Math.pow(10, -precision) / 2;
+          if (Math.abs(actual - expected) >= limit) {
+            throw new Error(`Expected close to: ${expected} (within ${precision} decimals)\nActual:   ${actual}`);
+          }
+        },
         toEqual(expected) {
           const actJson = JSON.stringify(actual);
           const expJson = JSON.stringify(expected);
@@ -177,8 +183,8 @@
 
     // Load and run the test scripts sequentially
     Promise.all([
-      fetch('math_engine.test.js').then(r => r.text()),
-      fetch('ledger_engine.test.js').then(r => r.text())
+      fetch(`math_engine.test.js?v=${Date.now()}`).then(r => r.text()),
+      fetch(`ledger_engine.test.js?v=${Date.now()}`).then(r => r.text())
     ])
     .then(([mathCode, ledgerCode]) => {
       // Strip require statements

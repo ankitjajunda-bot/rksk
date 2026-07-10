@@ -3846,16 +3846,28 @@ function updatePriceInputRequirements() {
   if (petrolSection) petrolSection.style.display = needPetrol ? 'block' : 'none';
   if (dieselSection) dieselSection.style.display = needDiesel ? 'block' : 'none';
 
+  const totalPInput = document.getElementById('purchase-total-cost-petrol');
+  const totalDInput = document.getElementById('purchase-total-cost-diesel');
+
   if (pricePInput) {
     if (needPetrol) {
       pricePInput.required = true;
       pricePInput.removeAttribute('disabled');
       pricePInput.placeholder = "e.g. 90.50";
+      if (totalPInput) {
+        totalPInput.removeAttribute('disabled');
+        totalPInput.placeholder = "e.g. 362000";
+      }
     } else {
       pricePInput.required = false;
       pricePInput.setAttribute('disabled', 'true');
       pricePInput.value = "";
       pricePInput.placeholder = "Not applicable";
+      if (totalPInput) {
+        totalPInput.setAttribute('disabled', 'true');
+        totalPInput.value = "";
+        totalPInput.placeholder = "Not applicable";
+      }
     }
   }
 
@@ -3864,16 +3876,31 @@ function updatePriceInputRequirements() {
       priceDInput.required = true;
       priceDInput.removeAttribute('disabled');
       priceDInput.placeholder = "e.g. 82.20";
+      if (totalDInput) {
+        totalDInput.removeAttribute('disabled');
+        totalDInput.placeholder = "e.g. 657600";
+      }
     } else {
       priceDInput.required = false;
       priceDInput.setAttribute('disabled', 'true');
       priceDInput.value = "";
       priceDInput.placeholder = "Not applicable";
+      if (totalDInput) {
+        totalDInput.setAttribute('disabled', 'true');
+        totalDInput.value = "";
+        totalDInput.placeholder = "Not applicable";
+      }
     }
   }
 
   if (typeof updateLiveAstmCalculations === 'function') {
     updateLiveAstmCalculations();
+  }
+  if (typeof syncPetrolCost === 'function') {
+    syncPetrolCost();
+  }
+  if (typeof syncDieselCost === 'function') {
+    syncDieselCost();
   }
 }
 
@@ -3922,6 +3949,76 @@ customDInput.addEventListener('input', () => {
   updateCustomLoadTotals();
   updatePriceInputRequirements();
 });
+
+// Bidirectional cost calculations helper
+function getCurrentFormQuantities() {
+  const loadType = tankerLoadSelect.value;
+  let petrolQty = 0;
+  let dieselQty = 0;
+
+  if (loadType === 'full-petrol') {
+    petrolQty = 12000;
+  } else if (loadType === 'full-diesel') {
+    dieselQty = 12000;
+  } else if (loadType === 'mixed-8d-4p') {
+    dieselQty = 8000;
+    petrolQty = 4000;
+  } else if (loadType === 'mixed-8p-4d') {
+    petrolQty = 8000;
+    dieselQty = 4000;
+  } else if (loadType === 'custom') {
+    petrolQty = parseInt(customPInput.value) || 0;
+    dieselQty = parseInt(customDInput.value) || 0;
+  }
+  return { petrolQty, dieselQty };
+}
+
+function syncPetrolCost() {
+  const { petrolQty } = getCurrentFormQuantities();
+  const rateInput = document.getElementById('purchase-price-petrol');
+  const totalInput = document.getElementById('purchase-total-cost-petrol');
+  if (!rateInput || !totalInput || petrolQty <= 0) return;
+  
+  const rate = parseFloat(rateInput.value) || 0;
+  totalInput.value = rate > 0 ? (rate * petrolQty).toFixed(2) : "";
+}
+
+function syncPetrolRate() {
+  const { petrolQty } = getCurrentFormQuantities();
+  const rateInput = document.getElementById('purchase-price-petrol');
+  const totalInput = document.getElementById('purchase-total-cost-petrol');
+  if (!rateInput || !totalInput || petrolQty <= 0) return;
+
+  const total = parseFloat(totalInput.value) || 0;
+  rateInput.value = total > 0 ? (total / petrolQty).toFixed(2) : "";
+}
+
+function syncDieselCost() {
+  const { dieselQty } = getCurrentFormQuantities();
+  const rateInput = document.getElementById('purchase-price-diesel');
+  const totalInput = document.getElementById('purchase-total-cost-diesel');
+  if (!rateInput || !totalInput || dieselQty <= 0) return;
+
+  const rate = parseFloat(rateInput.value) || 0;
+  totalInput.value = rate > 0 ? (rate * dieselQty).toFixed(2) : "";
+}
+
+function syncDieselRate() {
+  const { dieselQty } = getCurrentFormQuantities();
+  const rateInput = document.getElementById('purchase-price-diesel');
+  const totalInput = document.getElementById('purchase-total-cost-diesel');
+  if (!rateInput || !totalInput || dieselQty <= 0) return;
+
+  const total = parseFloat(totalInput.value) || 0;
+  rateInput.value = total > 0 ? (total / dieselQty).toFixed(2) : "";
+}
+
+// Attach bidirectional input listeners
+document.getElementById('purchase-price-petrol').addEventListener('input', syncPetrolCost);
+document.getElementById('purchase-total-cost-petrol').addEventListener('input', syncPetrolRate);
+document.getElementById('purchase-price-diesel').addEventListener('input', syncDieselCost);
+document.getElementById('purchase-total-cost-diesel').addEventListener('input', syncDieselRate);
+
 
 // Auto-calculate modal tests based on nozzle activity in real-time
 function updateModalTests() {

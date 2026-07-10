@@ -1247,12 +1247,23 @@
 
               <div class="form-row">
                 <div class="form-group">
-                  <label for="purchase-price-petrol">Petrol Purchase Price (/Liter)</label>
+                  <label for="purchase-price-petrol">Petrol Rate (/Liter)</label>
                   <input type="number" id="purchase-price-petrol" step="0.01" min="0.1" placeholder="e.g. 90.50" required>
                 </div>
                 <div class="form-group">
-                  <label for="purchase-price-diesel">Diesel Purchase Price (/Liter)</label>
+                  <label for="purchase-total-cost-petrol">Petrol Total Cost (from bill)</label>
+                  <input type="number" id="purchase-total-cost-petrol" step="0.01" min="1" placeholder="e.g. 362000">
+                </div>
+              </div>
+
+              <div class="form-row">
+                <div class="form-group">
+                  <label for="purchase-price-diesel">Diesel Rate (/Liter)</label>
                   <input type="number" id="purchase-price-diesel" step="0.01" min="0.1" placeholder="e.g. 82.20" required>
+                </div>
+                <div class="form-group">
+                  <label for="purchase-total-cost-diesel">Diesel Total Cost (from bill)</label>
+                  <input type="number" id="purchase-total-cost-diesel" step="0.01" min="1" placeholder="e.g. 657600">
                 </div>
               </div>
               <div id="petrol-astm-section" style="border-top: 1px solid var(--border); padding-top: 1rem; margin-top: 1rem; display: none;">

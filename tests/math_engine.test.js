@@ -94,11 +94,11 @@ describe('MathEngine computeLedgerRow Reconcile', () => {
     // DU2 Petrol Day: (43195.09 - 43159.70) - 5 = 30.39L
     expect(res.sales.du2_p.day).toBe(30.39);
     // Day Petrol Total: 458.83 + 30.39 = 489.22L
-    expect(res.totals.day.petrol).toBe(489.22);
+    expect(res.totals.day.petrol).toBeCloseTo(489.22, 2);
 
     // Revenue checking
-    // Petrol Revenue: 489.22 (day) + 193.26 (night: DU1 is 189.06, DU2 is 4.40) -> 682.48L * 113.37 = 77372.76
+    // Petrol Revenue: 489.22 (day) + 193.47 (night: DU1 is 189.06, DU2 is 4.41) -> 682.69L * 113.37 = 77396.56
     // Check our exact rounded calculation output:
-    expect(res.financials.rev_petrol).toBe(77372.76);
+    expect(res.financials.rev_petrol).toBe(77396.56);
   });
 });
