@@ -4735,4 +4735,174 @@ function makeSpreadsheetResizable() {
   });
 }
 
+// ====== STOCK ANCHOR & SYSTEM HELPERS ======
+
+window.applyStockAnchor = function() {
+  const dateEl = document.getElementById('anchor-date');
+  const petrolEl = document.getElementById('anchor-petrol');
+  const dieselEl = document.getElementById('anchor-diesel');
+  const statusEl = document.getElementById('anchor-status');
+
+  const date = dateEl?.value;
+  const petrol_L = parseFloat(petrolEl?.value);
+  const diesel_L = parseFloat(dieselEl?.value);
+
+  if (!date || isNaN(petrol_L) || isNaN(diesel_L)) {
+    if (statusEl) statusEl.textContent = '⚠️ Please fill in date, petrol L and diesel L.';
+    return;
+  }
+
+  if (!db.settings) db.settings = {};
+  db.settings.stock_anchor = { date, petrol_L, diesel_L };
+  saveDB();
+
+  if (statusEl) {
+    statusEl.textContent = `✅ Anchor set: ${date} | Petrol ${petrol_L.toFixed(0)} L | Diesel ${diesel_L.toFixed(0)} L`;
+    statusEl.style.color = '#10b981';
+  }
+
+  renderLedger();
+  showNotification(`⚓ Stock anchor set for ${date}. All historical inventory recalculated!`, 'success');
+};
+
+window.clearStockAnchor = function() {
+  if (db.settings) delete db.settings.stock_anchor;
+  saveDB();
+  const statusEl = document.getElementById('anchor-status');
+  if (statusEl) { statusEl.textContent = 'Anchor cleared.'; statusEl.style.color = 'var(--text-muted)'; }
+  renderLedger();
+};
+
+function loadAnchorUI() {
+  const anchor = db.settings?.stock_anchor;
+  if (!anchor) return;
+  const dateEl = document.getElementById('anchor-date');
+  const petrolEl = document.getElementById('anchor-petrol');
+  const dieselEl = document.getElementById('anchor-diesel');
+  const statusEl = document.getElementById('anchor-status');
+  if (dateEl) dateEl.value = anchor.date || '';
+  if (petrolEl) petrolEl.value = anchor.petrol_L != null ? anchor.petrol_L : '';
+  if (dieselEl) dieselEl.value = anchor.diesel_L != null ? anchor.diesel_L : '';
+  if (statusEl) {
+    statusEl.textContent = `✅ Active anchor: ${anchor.date} | P ${anchor.petrol_L?.toFixed(0)} L | D ${anchor.diesel_L?.toFixed(0)} L`;
+    statusEl.style.color = '#10b981';
+  }
+}
+window.loadAnchorUI = loadAnchorUI;
+
+function toggleExpensePopover(event, date) {
+  event.stopPropagation();
+  const openPopovers = document.querySelectorAll('.expense-popover');
+  openPopovers.forEach(p => p.remove());
+
+  const dayExps = (typeof KC_EXPENSES_DATA !== 'undefined') ? KC_EXPENSES_DATA[date] : null;
+  if (!dayExps || dayExps.length === 0) return;
+
+  const container = event.target.closest('.expense-popover-container');
+  if (!container) return;
+
+  const popover = document.createElement('div');
+  popover.className = 'expense-popover';
+  
+  let listHtml = '';
+  dayExps.forEach(it => {
+    const amtStr = typeof it.amount === 'number' ? '₹ ' + it.amount.toFixed(0) : it.amount;
+    listHtml += `<div class="expense-popover-item"><span>${it.name}</span><span class="item-val">${amtStr}</span></div>`;
+  });
+
+  popover.innerHTML = `
+    <div class="expense-popover-header">
+      <span class="expense-popover-title">DSR Expenses: ${formatDate(date)}</span>
+      <button class="expense-popover-close" onclick="this.closest('.expense-popover').remove()">&times;</button>
+    </div>
+    <div class="expense-popover-list">
+      ${listHtml}
+    </div>
+  `;
+
+  container.appendChild(popover);
+
+  const closeHandler = (e) => {
+    if (!popover.contains(e.target) && e.target !== event.target) {
+      popover.remove();
+      document.removeEventListener('click', closeHandler);
+    }
+  };
+  document.addEventListener('click', closeHandler);
+}
+window.toggleExpensePopover = toggleExpensePopover;
+
+window.jumpToDsrCell = function(date, unit, field) {
+  const rowEl = document.getElementById(`dsr-row-${date}`);
+  if (!rowEl) return;
+  rowEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  const span = rowEl.querySelector(`span[onblur*="'${unit}'"][onblur*="'${field}'"]`);
+  if (span) {
+    span.style.transition = 'none';
+    span.style.background = '#facc15';
+    span.style.color = '#000';
+    span.style.fontWeight = '800';
+    span.style.borderRadius = '4px';
+    setTimeout(() => {
+      span.focus();
+      const range = document.createRange();
+      range.selectNodeContents(span);
+      const sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(range);
+    }, 350);
+    setTimeout(() => {
+      span.style.transition = 'all 1s ease';
+      span.style.background = '';
+      span.style.color = '';
+      span.style.fontWeight = '';
+    }, 1500);
+  }
+};
+
+let tempModalExpenses = [];
+function renderModalExpenses() {
+  const container = document.getElementById('modal-expenses-list');
+  if (!container) return;
+  if (tempModalExpenses.length === 0) {
+    container.innerHTML = `<div style="color: var(--text-dim); text-align: center; padding: 0.5rem;">No daily cash expenses logged for this date.</div>`;
+    return;
+  }
+  container.innerHTML = '';
+  tempModalExpenses.forEach((exp, idx) => {
+    const div = document.createElement('div');
+    div.style.cssText = 'display:flex; justify-content:space-between; align-items:center; background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.05); padding:4px 8px; border-radius:4px; margin-bottom: 2px;';
+    div.innerHTML = `
+      <span class="modal-expense-name"></span>
+      <div style="display:flex; gap:10px; align-items:center;">
+        <span style="font-weight:700; color:var(--primary);">₹ ${exp.amount.toFixed(0)}</span>
+        <button type="button" onclick="deleteModalExpense(${idx})" style="background:none; border:none; color:#ef4444; font-size:1.1rem; line-height:1; cursor:pointer; padding:0 4px;">&times;</button>
+      </div>
+    `;
+    div.querySelector('.modal-expense-name').textContent = exp.name;
+    container.appendChild(div);
+  });
+}
+function addModalExpense() {
+  const nameInput = document.getElementById('new-dayexp-name');
+  const amtInput = document.getElementById('new-dayexp-amount');
+  if (!nameInput || !amtInput) return;
+  const name = nameInput.value.trim();
+  const amt = parseFloat(amtInput.value);
+  if (!name || isNaN(amt) || amt <= 0) {
+    showNotification('Please enter a valid description and amount.', 'warning');
+    return;
+  }
+  tempModalExpenses.push({ name, amount: amt });
+  nameInput.value = '';
+  amtInput.value = '';
+  renderModalExpenses();
+}
+function deleteModalExpense(idx) {
+  tempModalExpenses.splice(idx, 1);
+  renderModalExpenses();
+}
+window.addModalExpense = addModalExpense;
+window.deleteModalExpense = deleteModalExpense;
+
 
