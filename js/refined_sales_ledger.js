@@ -15,6 +15,10 @@ window.REFINED_SALES_LEDGER = {
   "daily_ledger": [
     {
       "date": "2026-07-04",
+      "prices": {
+        "petrol": 113.37,
+        "diesel": 98.41
+      },
       "du1_p": {
         "open": 1512796.1,
         "close_day": 1513202.13,
@@ -49,6 +53,10 @@ window.REFINED_SALES_LEDGER = {
     },
     {
       "date": "2026-07-03",
+      "prices": {
+        "petrol": 113.37,
+        "diesel": 98.41
+      },
       "du1_p": {
         "open": 1512190.13,
         "close_day": 1512796.1,
@@ -81,6 +89,10 @@ window.REFINED_SALES_LEDGER = {
     },
     {
       "date": "2026-07-02",
+      "prices": {
+        "petrol": 113.37,
+        "diesel": 98.41
+      },
       "du1_p": {
         "open": 1511580.54,
         "close_day": 1512085.72,
@@ -109,6 +121,10 @@ window.REFINED_SALES_LEDGER = {
     },
     {
       "date": "2026-07-01",
+      "prices": {
+        "petrol": 113.37,
+        "diesel": 98.41
+      },
       "du1_p": {
         "open": 1511096.01,
         "close_day": 1511476.09,
@@ -137,6 +153,10 @@ window.REFINED_SALES_LEDGER = {
     },
     {
       "date": "2026-06-30",
+      "prices": {
+        "petrol": 113.37,
+        "diesel": 98.41
+      },
       "du1_p": {
         "open": 1510356.73,
         "close_day": 1510916.0,
@@ -165,6 +185,10 @@ window.REFINED_SALES_LEDGER = {
     },
     {
       "date": "2026-06-29",
+      "prices": {
+        "petrol": 113.37,
+        "diesel": 98.41
+      },
       "du1_p": {
         "open": 1509694.23,
         "close_day": 1510194.98,
@@ -196,6 +220,10 @@ window.REFINED_SALES_LEDGER = {
     },
     {
       "date": "2026-06-28",
+      "prices": {
+        "petrol": 113.37,
+        "diesel": 98.41
+      },
       "du1_p": {
         "open": 1509082.69,
         "close_day": 1509531.39,
@@ -224,6 +252,10 @@ window.REFINED_SALES_LEDGER = {
     },
     {
       "date": "2026-06-27",
+      "prices": {
+        "petrol": 113.37,
+        "diesel": 98.41
+      },
       "du1_p": {
         "open": 1508330.67,
         "close_day": 1508841.24,
@@ -252,6 +284,10 @@ window.REFINED_SALES_LEDGER = {
     },
     {
       "date": "2026-06-26",
+      "prices": {
+        "petrol": 113.37,
+        "diesel": 98.41
+      },
       "du1_p": {
         "open": 1507674.75,
         "close_day": 1508251.34,
@@ -283,6 +319,10 @@ window.REFINED_SALES_LEDGER = {
     },
     {
       "date": "2026-06-25",
+      "prices": {
+        "petrol": 113.37,
+        "diesel": 98.41
+      },
       "du1_p": {
         "open": 1506902.09,
         "close_day": 1507521.69,
