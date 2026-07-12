@@ -4372,23 +4372,24 @@ function updateModalLiveCalculations() {
       const openVal = parseFloat(openEl.value) || 0;
       const closeDayVal = parseFloat(closeDayEl.value) || 0;
       
-      if (closeDayVal > 0) {
-        const salesDay = Math.max(0, closeDayVal - openVal);
+      if (closeDayVal >= openVal) {
+        const salesDay = closeDayVal - openVal;
         dayHelper.textContent = `(Day Sales: ${salesDay.toFixed(1)} L)`;
       } else {
-        dayHelper.textContent = '';
+        dayHelper.textContent = `(Day Sales: 0.0 L)`;
       }
     }
     
-    if (closeDayEl && closeNightEl && nightHelper) {
+    if (openEl && closeDayEl && closeNightEl && nightHelper) {
+      const openVal = parseFloat(openEl.value) || 0;
       const closeDayVal = parseFloat(closeDayEl.value) || 0;
       const closeNightVal = parseFloat(closeNightEl.value) || 0;
       
-      if (closeNightVal > 0) {
-        const salesNight = Math.max(0, closeNightVal - closeDayVal);
+      if (closeNightVal >= closeDayVal && closeDayVal >= openVal) {
+        const salesNight = closeNightVal - closeDayVal;
         nightHelper.textContent = `(Night Sales: ${salesNight.toFixed(1)} L)`;
       } else {
-        nightHelper.textContent = '';
+        nightHelper.textContent = `(Night Sales: 0.0 L)`;
       }
     }
   });
