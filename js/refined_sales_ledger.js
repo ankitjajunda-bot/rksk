@@ -2030,7 +2030,7 @@ window.REFINED_SALES_LEDGER = {
         "tests_night": 0
       },
       "du1_d": {
-        "open": 1217849,
+        "open": 1217849.0,
         "close_day": 1218266.31,
         "close_night": 1218971.58,
         "tests_day": 1,
@@ -2076,12 +2076,12 @@ window.REFINED_SALES_LEDGER = {
       "du1_d": {
         "open": 1217186.42,
         "close_day": 1217696.91,
-        "close_night": 1217849,
+        "close_night": 1217849.0,
         "tests_day": 1,
         "tests_night": 0
       },
       "du2_p": {
-        "open": 41003,
+        "open": 41003.0,
         "close_day": 41158.47,
         "close_night": 41158.47,
         "tests_day": 1,
@@ -2126,8 +2126,8 @@ window.REFINED_SALES_LEDGER = {
       },
       "du2_p": {
         "open": 40759.18,
-        "close_day": 41003,
-        "close_night": 41003,
+        "close_day": 41003.0,
+        "close_night": 41003.0,
         "tests_day": 1,
         "tests_night": 0
       },
@@ -2452,8 +2452,8 @@ window.REFINED_SALES_LEDGER = {
         "tests_night": 0
       },
       "du2_d": {
-        "open": 1192387.19,
-        "close_day": 1192722.07,
+        "open": 1190216.79,
+        "close_day": 1190551.67,
         "close_night": 1190551.67,
         "tests_day": 1,
         "tests_night": 0
@@ -2493,9 +2493,9 @@ window.REFINED_SALES_LEDGER = {
         "tests_night": 0
       },
       "du2_d": {
-        "open": 1191936.07,
-        "close_day": 1192252.82,
-        "close_night": 1192387.19,
+        "open": 1189765.67,
+        "close_day": 1190082.42,
+        "close_night": 1190216.79,
         "tests_day": 1,
         "tests_night": 0
       },
@@ -2534,9 +2534,9 @@ window.REFINED_SALES_LEDGER = {
         "tests_night": 0
       },
       "du2_d": {
-        "open": 1191292.8,
-        "close_day": 1191719.99,
-        "close_night": 1191936.07,
+        "open": 1189122.4,
+        "close_day": 1189549.59,
+        "close_night": 1189765.67,
         "tests_day": 1,
         "tests_night": 0
       },
@@ -2575,9 +2575,9 @@ window.REFINED_SALES_LEDGER = {
         "tests_night": 0
       },
       "du2_d": {
-        "open": 1190642.6,
-        "close_day": 1191108.42,
-        "close_night": 1191292.8,
+        "open": 1188472.2,
+        "close_day": 1188938.02,
+        "close_night": 1189122.4,
         "tests_day": 1,
         "tests_night": 0
       },
@@ -2616,9 +2616,9 @@ window.REFINED_SALES_LEDGER = {
         "tests_night": 0
       },
       "du2_d": {
-        "open": 1190082.02,
-        "close_day": 1190540.73,
-        "close_night": 1190642.6,
+        "open": 1187911.62,
+        "close_day": 1188370.33,
+        "close_night": 1188472.2,
         "tests_day": 1,
         "tests_night": 0
       },
@@ -2657,9 +2657,9 @@ window.REFINED_SALES_LEDGER = {
         "tests_night": 0
       },
       "du2_d": {
-        "open": 1189270.86,
-        "close_day": 1189929.61,
-        "close_night": 1190082.02,
+        "open": 1187100.46,
+        "close_day": 1187759.21,
+        "close_night": 1187911.62,
         "tests_day": 1,
         "tests_night": 0
       },
@@ -2698,9 +2698,9 @@ window.REFINED_SALES_LEDGER = {
         "tests_night": 0
       },
       "du2_d": {
-        "open": 1188687.5,
-        "close_day": 1189050.7,
-        "close_night": 1189270.86,
+        "open": 1186517.1,
+        "close_day": 1186880.3,
+        "close_night": 1187100.46,
         "tests_day": 1,
         "tests_night": 0
       },
@@ -2739,9 +2739,9 @@ window.REFINED_SALES_LEDGER = {
         "tests_night": 0
       },
       "du2_d": {
-        "open": 1188271.71,
-        "close_day": 1188569.71,
-        "close_night": 1188687.5,
+        "open": 1186101.31,
+        "close_day": 1186399.31,
+        "close_night": 1186517.1,
         "tests_day": 1,
         "tests_night": 0
       },
