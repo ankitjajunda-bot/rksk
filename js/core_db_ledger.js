@@ -3818,6 +3818,8 @@ function openLogReadingsModal(targetDate) {
   // Dynamic pre-fill helper
   applyLedgerPrefill();
   updateModalTests();
+  injectModalHelperTexts();
+  updateModalLiveCalculations();
   openModal('log-readings-modal');
 }
 
@@ -3867,6 +3869,8 @@ function editLedgerEntry(index) {
   }
 
   updateModalTests();
+  injectModalHelperTexts();
+  updateModalLiveCalculations();
   openModal('log-readings-modal');
 }
 
@@ -4324,6 +4328,73 @@ document.getElementById('purchase-price-diesel').addEventListener('input', syncD
 document.getElementById('purchase-total-cost-diesel').addEventListener('input', syncDieselRate);
 
 
+function injectModalHelperTexts() {
+  const prefixes = ['du1_p', 'du1_d', 'du2_p', 'du2_d'];
+  prefixes.forEach(prefix => {
+    // 1. Day Close helper
+    const closeDayInput = document.getElementById(`${prefix}_close_day`);
+    if (closeDayInput && !document.getElementById(`${prefix}_close_day_helper`)) {
+      const helper = document.createElement('div');
+      helper.id = `${prefix}_close_day_helper`;
+      helper.style.fontSize = '0.72rem';
+      helper.style.color = '#22c55e';
+      helper.style.fontWeight = '700';
+      helper.style.marginTop = '3px';
+      helper.style.minHeight = '14px';
+      closeDayInput.parentNode.appendChild(helper);
+    }
+    // 2. Night Close helper
+    const closeNightInput = document.getElementById(`${prefix}_close_night`);
+    if (closeNightInput && !document.getElementById(`${prefix}_close_night_helper`)) {
+      const helper = document.createElement('div');
+      helper.id = `${prefix}_close_night_helper`;
+      helper.style.fontSize = '0.72rem';
+      helper.style.color = '#3b82f6';
+      helper.style.fontWeight = '700';
+      helper.style.marginTop = '3px';
+      helper.style.minHeight = '14px';
+      closeNightInput.parentNode.appendChild(helper);
+    }
+  });
+}
+
+function updateModalLiveCalculations() {
+  const prefixes = ['du1_p', 'du1_d', 'du2_p', 'du2_d'];
+  prefixes.forEach(prefix => {
+    const openEl = document.getElementById(`${prefix}_open`);
+    const closeDayEl = document.getElementById(`${prefix}_close_day`);
+    const closeNightEl = document.getElementById(`${prefix}_close_night`);
+    
+    const dayHelper = document.getElementById(`${prefix}_close_day_helper`);
+    const nightHelper = document.getElementById(`${prefix}_close_night_helper`);
+    
+    if (openEl && closeDayEl && dayHelper) {
+      const openVal = parseFloat(openEl.value) || 0;
+      const closeDayVal = parseFloat(closeDayEl.value) || 0;
+      
+      if (closeDayVal > 0) {
+        const testDay = (closeDayVal > openVal) ? 5 : 0;
+        const salesDay = Math.max(0, closeDayVal - openVal - testDay);
+        dayHelper.textContent = `(Day Sales: ${salesDay.toFixed(1)} L)`;
+      } else {
+        dayHelper.textContent = '';
+      }
+    }
+    
+    if (closeDayEl && closeNightEl && nightHelper) {
+      const closeDayVal = parseFloat(closeDayEl.value) || 0;
+      const closeNightVal = parseFloat(closeNightEl.value) || 0;
+      
+      if (closeNightVal > 0) {
+        const salesNight = Math.max(0, closeNightVal - closeDayVal);
+        nightHelper.textContent = `(Night Sales: ${salesNight.toFixed(1)} L)`;
+      } else {
+        nightHelper.textContent = '';
+      }
+    }
+  });
+}
+
 // Auto-calculate modal tests based on nozzle activity in real-time
 function updateModalTests() {
   const checkAndSet = (prefix) => {
@@ -4343,12 +4414,20 @@ function updateModalTests() {
   checkAndSet('du2_d');
 }
 
-// Bind events to totalizers in the log readings form to update tests in real-time
+// Bind events to totalizers in the log readings form to update tests and live calculations in real-time
 ['du1_p', 'du1_d', 'du2_p', 'du2_d'].forEach(prefix => {
   const openInput = document.getElementById(`${prefix}_open`);
   const closeDayInput = document.getElementById(`${prefix}_close_day`);
-  if (openInput) openInput.addEventListener('input', updateModalTests);
-  if (closeDayInput) closeDayInput.addEventListener('input', updateModalTests);
+  const closeNightInput = document.getElementById(`${prefix}_close_night`);
+  
+  const updateHandler = () => {
+    updateModalTests();
+    updateModalLiveCalculations();
+  };
+  
+  if (openInput) openInput.addEventListener('input', updateHandler);
+  if (closeDayInput) closeDayInput.addEventListener('input', updateHandler);
+  if (closeNightInput) closeNightInput.addEventListener('input', updateHandler);
 });
 
 // Form submits
