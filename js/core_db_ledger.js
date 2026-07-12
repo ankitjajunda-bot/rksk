@@ -1707,6 +1707,17 @@ function renderLedger() {
   const splitContainer = document.getElementById('ledger-split-container');
   const toggleBtn = document.getElementById('shift-filter-selector');
 
+  const formatTotalizerCell = (val) => {
+    if (val === null || val === undefined || val === '') {
+      return `<span style="display:inline-block; padding: 2px 5px; background: rgba(239, 68, 68, 0.15); border: 1px dashed #ef4444; color: #fca5a5; border-radius: 3px; font-weight: bold; font-size: 0.78rem;" title="Warning: Reading is missing!">&mdash;</span>`;
+    }
+    const num = parseFloat(val);
+    if (isNaN(num) || num === 0) {
+      return `<span style="display:inline-block; padding: 2px 5px; background: rgba(239, 68, 68, 0.15); border: 1px dashed #ef4444; color: #fca5a5; border-radius: 3px; font-weight: bold; font-size: 0.78rem;" title="Warning: Reading is 0.0!">0.0</span>`;
+    }
+    return num.toFixed(1);
+  };
+
   if (db.daily_ledger.length === 0) {
     if (ledgerViewMode === 'table') {
       table.innerHTML = `<tbody><tr><td style="text-align: center; color: var(--text-dim); padding: 3rem;">No daily readings logged. Click "Log Daily Readings" to start.</td></tr></tbody>`;
@@ -2061,7 +2072,7 @@ function renderLedger() {
         nozzles.forEach(p => {
           const open = row[p] ? (row[p].open || 0) : 0;
           const prevClose = prevRow[p] ? (prevRow[p].close_night || 0) : 0;
-          if (Math.abs(open - prevClose) > 0.01 && (open > 0 || prevClose > 0)) {
+          if (Math.abs(open - prevClose) > 0.1 && (open > 0 || prevClose > 0)) {
             hasContinuityBreak = true;
             const diff = open - prevClose;
             breakDetails.push(`${p.toUpperCase().replace('_', ' ')}: Expected ${prevClose}, Got ${open} (Gap: ${diff > 0 ? '+' : ''}${diff.toFixed(2)} L)`);
@@ -2438,31 +2449,31 @@ function renderLedger() {
             <td class="col-diesel ${anomaly.isPriceChange ? "cell-anomaly-price-change" : ""}" style="font-weight: 500;">${dRate.toFixed(2)}</td>
 
             <!-- DU 1 Petrol -->
-            <td class="bg-petrol-group">${(row.du1_p?.open ?? 0).toFixed(1)}</td>
-            <td class="bg-petrol-group">${(row.du1_p?.close_day ?? 0).toFixed(1)}</td>
+            <td class="bg-petrol-group">${formatTotalizerCell(row.du1_p?.open)}</td>
+            <td class="bg-petrol-group">${formatTotalizerCell(row.du1_p?.close_day)}</td>
             <td class="col-petrol bg-petrol-group" style="font-weight: 500;">${du1_ms_day.toFixed(1)} L</td>
-            <td class="bg-petrol-group">${(row.du1_p?.close_night ?? 0).toFixed(1)}</td>
+            <td class="bg-petrol-group">${formatTotalizerCell(row.du1_p?.close_night)}</td>
             <td class="col-petrol bg-petrol-group" style="font-weight: 500;">${du1_ms_night.toFixed(1)} L</td>
 
             <!-- DU 1 HSD -->
-            <td class="bg-diesel-group">${(row.du1_d?.open ?? 0).toFixed(1)}</td>
-            <td class="bg-diesel-group">${(row.du1_d?.close_day ?? 0).toFixed(1)}</td>
+            <td class="bg-diesel-group">${formatTotalizerCell(row.du1_d?.open)}</td>
+            <td class="bg-diesel-group">${formatTotalizerCell(row.du1_d?.close_day)}</td>
             <td class="col-diesel bg-diesel-group" style="font-weight: 500;">${du1_hsd_day.toFixed(1)} L</td>
-            <td class="bg-diesel-group">${(row.du1_d?.close_night ?? 0).toFixed(1)}</td>
+            <td class="bg-diesel-group">${formatTotalizerCell(row.du1_d?.close_night)}</td>
             <td class="col-diesel bg-diesel-group" style="font-weight: 500;">${du1_hsd_night.toFixed(1)} L</td>
 
             <!-- DU 2 Petrol -->
-            <td class="bg-petrol-group">${(row.du2_p?.open ?? 0).toFixed(1)}</td>
-            <td class="bg-petrol-group">${(row.du2_p?.close_day ?? 0).toFixed(1)}</td>
+            <td class="bg-petrol-group">${formatTotalizerCell(row.du2_p?.open)}</td>
+            <td class="bg-petrol-group">${formatTotalizerCell(row.du2_p?.close_day)}</td>
             <td class="col-petrol bg-petrol-group" style="font-weight: 500;">${du2_ms_day.toFixed(1)} L</td>
-            <td class="bg-petrol-group">${(row.du2_p?.close_night ?? 0).toFixed(1)}</td>
+            <td class="bg-petrol-group">${formatTotalizerCell(row.du2_p?.close_night)}</td>
             <td class="col-petrol bg-petrol-group" style="font-weight: 500;">${du2_ms_night.toFixed(1)} L</td>
 
             <!-- DU 2 HSD -->
-            <td class="bg-diesel-group">${(row.du2_d?.open ?? 0).toFixed(1)}</td>
-            <td class="bg-diesel-group">${(row.du2_d?.close_day ?? 0).toFixed(1)}</td>
+            <td class="bg-diesel-group">${formatTotalizerCell(row.du2_d?.open)}</td>
+            <td class="bg-diesel-group">${formatTotalizerCell(row.du2_d?.close_day)}</td>
             <td class="col-diesel bg-diesel-group" style="font-weight: 500;">${du2_hsd_day.toFixed(1)} L</td>
-            <td class="bg-diesel-group">${(row.du2_d?.close_night ?? 0).toFixed(1)}</td>
+            <td class="bg-diesel-group">${formatTotalizerCell(row.du2_d?.close_night)}</td>
             <td class="col-diesel bg-diesel-group" style="font-weight: 500;">${du2_hsd_night.toFixed(1)} L</td>
 
             <!-- Day Shift Totals -->
@@ -2636,16 +2647,16 @@ function renderLedger() {
             <td class="col-diesel ${anomaly.isPriceChange ? "cell-anomaly-price-change" : ""}" style="font-weight: 500;">${dRate.toFixed(2)}</td>
 
             <!-- DU 1 -->
-            <td class="col-petrol bg-petrol-group ${ (Number(msOpen1) > 0 && Number(msOpen1) === Number(msClose1)) ? 'cell-anomaly-no-sale' : '' }">${msOpen1 ? msOpen1.toFixed(1) : "-"}</td>
-            <td class="col-petrol bg-petrol-group ${ (Number(msOpen1) > 0 && Number(msOpen1) === Number(msClose1)) ? 'cell-anomaly-no-sale' : '' }">${msClose1 ? msClose1.toFixed(1) : "-"}</td>
-            <td class="col-diesel bg-diesel-group ${ (Number(hsdOpen1) > 0 && Number(hsdOpen1) === Number(hsdClose1)) ? 'cell-anomaly-no-sale' : '' }">${hsdOpen1 ? hsdOpen1.toFixed(1) : "-"}</td>
-            <td class="col-diesel bg-diesel-group ${ (Number(hsdOpen1) > 0 && Number(hsdOpen1) === Number(hsdClose1)) ? 'cell-anomaly-no-sale' : '' }">${hsdClose1 ? hsdClose1.toFixed(1) : "-"}</td>
+            <td class="col-petrol bg-petrol-group ${ (Number(msOpen1) > 0 && Number(msOpen1) === Number(msClose1)) ? 'cell-anomaly-no-sale' : '' }">${formatTotalizerCell(msOpen1)}</td>
+            <td class="col-petrol bg-petrol-group ${ (Number(msOpen1) > 0 && Number(msOpen1) === Number(msClose1)) ? 'cell-anomaly-no-sale' : '' }">${formatTotalizerCell(msClose1)}</td>
+            <td class="col-diesel bg-diesel-group ${ (Number(hsdOpen1) > 0 && Number(hsdOpen1) === Number(hsdClose1)) ? 'cell-anomaly-no-sale' : '' }">${formatTotalizerCell(hsdOpen1)}</td>
+            <td class="col-diesel bg-diesel-group ${ (Number(hsdOpen1) > 0 && Number(hsdOpen1) === Number(hsdClose1)) ? 'cell-anomaly-no-sale' : '' }">${formatTotalizerCell(hsdClose1)}</td>
 
             <!-- DU 2 -->
-            <td class="col-petrol bg-petrol-group ${ (Number(msOpen2) > 0 && Number(msOpen2) === Number(msClose2)) ? 'cell-anomaly-no-sale' : '' }">${msOpen2 ? msOpen2.toFixed(1) : "-"}</td>
-            <td class="col-petrol bg-petrol-group ${ (Number(msOpen2) > 0 && Number(msOpen2) === Number(msClose2)) ? 'cell-anomaly-no-sale' : '' }">${msClose2 ? msClose2.toFixed(1) : "-"}</td>
-            <td class="col-diesel bg-diesel-group ${ (Number(hsdOpen2) > 0 && Number(hsdOpen2) === Number(hsdClose2)) ? 'cell-anomaly-no-sale' : '' }">${hsdOpen2 ? hsdOpen2.toFixed(1) : "-"}</td>
-            <td class="col-diesel bg-diesel-group ${ (Number(hsdOpen2) > 0 && Number(hsdOpen2) === Number(hsdClose2)) ? 'cell-anomaly-no-sale' : '' }">${hsdClose2 ? hsdClose2.toFixed(1) : "-"}</td>
+            <td class="col-petrol bg-petrol-group ${ (Number(msOpen2) > 0 && Number(msOpen2) === Number(msClose2)) ? 'cell-anomaly-no-sale' : '' }">${formatTotalizerCell(msOpen2)}</td>
+            <td class="col-petrol bg-petrol-group ${ (Number(msOpen2) > 0 && Number(msOpen2) === Number(msClose2)) ? 'cell-anomaly-no-sale' : '' }">${formatTotalizerCell(msClose2)}</td>
+            <td class="col-diesel bg-diesel-group ${ (Number(hsdOpen2) > 0 && Number(hsdOpen2) === Number(hsdClose2)) ? 'cell-anomaly-no-sale' : '' }">${formatTotalizerCell(hsdOpen2)}</td>
+            <td class="col-diesel bg-diesel-group ${ (Number(hsdOpen2) > 0 && Number(hsdOpen2) === Number(hsdClose2)) ? 'cell-anomaly-no-sale' : '' }">${formatTotalizerCell(hsdClose2)}</td>
 
             <!-- Net Liters -->
             <td class="col-petrol bg-petrol-group" style="font-weight:600;">${msVol ? msVol.toFixed(1) : "0.0"} L</td>
