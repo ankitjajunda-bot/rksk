@@ -859,6 +859,65 @@ function saveDailyReadings(data) {
     const prevRowString = JSON.stringify(db.daily_ledger[existingIdx]);
     db.stock.petrol = targetPetrolStock;
     db.stock.diesel = targetDieselStock;
+
+    // Auto-propagation of totalizer corrections
+    const nozzles = ['du1_p', 'du1_d', 'du2_p', 'du2_d'];
+    let nextDayUpdates = {};
+    let prevDayUpdates = {};
+
+    nozzles.forEach(nz => {
+      const oldNz = oldRow[nz] || {};
+      const newNz = data[nz] || {};
+      if (newNz.close_night !== oldNz.close_night) {
+        nextDayUpdates[nz] = newNz.close_night;
+      }
+      if (newNz.open !== oldNz.open) {
+        prevDayUpdates[nz] = newNz.open;
+      }
+    });
+
+    const activeDateObj = new Date(data.date + 'T12:00:00');
+
+    if (Object.keys(nextDayUpdates).length > 0) {
+      const nextDateObj = new Date(activeDateObj);
+      nextDateObj.setDate(activeDateObj.getDate() + 1);
+      const nextDateStr = nextDateObj.toISOString().split('T')[0];
+      const nextRow = db.daily_ledger.find(r => r.date === nextDateStr);
+      if (nextRow) {
+        let modified = false;
+        Object.keys(nextDayUpdates).forEach(nz => {
+          if (nextRow[nz]) {
+            nextRow[nz].open = nextDayUpdates[nz];
+            modified = true;
+          }
+        });
+        if (modified) {
+          nextRow._dirty = true;
+          SystemLogger.info('saveDailyReadings', `Auto-propagated DU/Nozzle close_night forward to ${nextDateStr} open`, nextDayUpdates);
+        }
+      }
+    }
+
+    if (Object.keys(prevDayUpdates).length > 0) {
+      const prevDateObj = new Date(activeDateObj);
+      prevDateObj.setDate(activeDateObj.getDate() - 1);
+      const prevDateStr = prevDateObj.toISOString().split('T')[0];
+      const prevRow = db.daily_ledger.find(r => r.date === prevDateStr);
+      if (prevRow) {
+        let modified = false;
+        Object.keys(prevDayUpdates).forEach(nz => {
+          if (prevRow[nz]) {
+            prevRow[nz].close_night = prevDayUpdates[nz];
+            modified = true;
+          }
+        });
+        if (modified) {
+          prevRow._dirty = true;
+          SystemLogger.info('saveDailyReadings', `Auto-propagated DU/Nozzle open backward to ${prevDateStr} close_night`, prevDayUpdates);
+        }
+      }
+    }
+
     db.daily_ledger[existingIdx] = data;
     db.daily_ledger[existingIdx]._dirty = true;
     
