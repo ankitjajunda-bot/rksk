@@ -71,12 +71,14 @@ function getUsers() {
   return mergedUsers;
 }
 
-function saveUsers(u, immediate = false) {
+function saveUsers(u, immediate = false, markDirty = true) {
   if (db) {
     db.users = u;
-    db.dirty_app_state_keys = db.dirty_app_state_keys || [];
-    if (!db.dirty_app_state_keys.includes('users')) {
-      db.dirty_app_state_keys.push('users');
+    if (markDirty) {
+      db.dirty_app_state_keys = db.dirty_app_state_keys || [];
+      if (!db.dirty_app_state_keys.includes('users')) {
+        db.dirty_app_state_keys.push('users');
+      }
     }
     saveDB(immediate);
   }
@@ -120,7 +122,7 @@ function initAuth() {
         db.users = {};
         db.pending_entries = [];
         db.sync_queue = [];
-        db.dirty_app_state_keys = ['users'];
+        db.dirty_app_state_keys = (db.dirty_app_state_keys || []).filter(k => k !== 'users');
         yield saveDB(true);
       }
       localStorage.setItem(resetKey, "true");
@@ -142,7 +144,7 @@ function initAuth() {
       };
       modified = true;
     }
-    if (modified) saveUsers(users, true);
+    if (modified) saveUsers(users, true, false);
   });
 }
 

@@ -620,7 +620,7 @@ function initSync() {
         return isDirty || isQueued;
       };
 
-      const keysToCheck = ["settings", "stock", "price_history", "purchases", "holidays", "users", "cashflow"];
+      const keysToCheck = ["settings", "stock", "price_history", "purchases", "holidays", "cashflow"];
       db.conflicts = db.conflicts || {};
       keysToCheck.forEach((k) => {
         const localVal = db[k];
