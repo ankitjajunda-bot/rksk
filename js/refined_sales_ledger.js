@@ -26430,10 +26430,18 @@ window.REFINED_SALES_LEDGER = {
 // Alias: ensure ALL legacy code paths that reference DSR_DRAFT_DATA get refined data
 const DSR_DRAFT_DATA = window.REFINED_SALES_LEDGER;
 
-// Force-clear stale localStorage on first load so refined data takes effect immediately
-if (!localStorage.getItem('octaneflow_refined_ledger_v1_applied')) {
+// Force-clear stale localStorage and IndexedDB database to purge old faked/dirty records completely
+if (!localStorage.getItem('octaneflow_honest_reset_v5_applied')) {
   localStorage.removeItem('octaneflow_db');
   localStorage.removeItem('octaneflow_dirty_reset_v1');
-  localStorage.setItem('octaneflow_refined_ledger_v1_applied', 'true');
-  console.log('[REFINED LEDGER] Cleared stale localStorage. Verified honest data will be loaded.');
+  if (window.indexedDB) {
+    try {
+      window.indexedDB.deleteDatabase("OctaneFlowDB");
+      console.log('[HONEST LEDGER RESET] Deleted stale IndexedDB database OctaneFlowDB.');
+    } catch (e) {
+      console.error('[HONEST LEDGER RESET] Failed to delete IndexedDB:', e);
+    }
+  }
+  localStorage.setItem('octaneflow_honest_reset_v5_applied', 'true');
+  console.log('[HONEST LEDGER RESET] Cleared browser localStorage & IndexedDB caches. verified honest data will be fetched.');
 }
