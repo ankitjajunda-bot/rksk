@@ -266,7 +266,7 @@ function loadDB() {
 
     // One-time migration: force-overwrite all totalizer readings with refined (honest) data
     // This ensures any stale falsified readings in localStorage are purged
-    if (!localStorage.getItem('octaneflow_refined_ledger_migration_v1')) {
+    if (!localStorage.getItem('octaneflow_refined_ledger_migration_v2')) {
       if (db.daily_ledger && window.REFINED_SALES_LEDGER) {
         const refinedByDate = {};
         window.REFINED_SALES_LEDGER.daily_ledger.forEach(r => { refinedByDate[r.date] = r; });
@@ -297,7 +297,7 @@ function loadDB() {
             }
           }
         });
-        localStorage.setItem('octaneflow_refined_ledger_migration_v1', 'true');
+        localStorage.setItem('octaneflow_refined_ledger_migration_v2', 'true');
         dbModified = true;
         console.log('[REFINED LEDGER MIGRATION] Force-synced all totalizer readings from verified honest data.');
       }
