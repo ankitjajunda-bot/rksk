@@ -829,7 +829,8 @@ function saveDailyReadings(data) {
   const maxD = db.settings?.diesel_capacity || 25000;
 
   if (existingIdx !== -1) {
-    const oldCalc = computeLedgerRow(db.daily_ledger[existingIdx]);
+    const oldRow = db.daily_ledger[existingIdx];
+    const oldCalc = computeLedgerRow(oldRow);
     const oldNetP = oldCalc.totals.net_24h.petrol;
     const oldNetD = oldCalc.totals.net_24h.diesel;
 
