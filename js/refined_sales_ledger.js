@@ -314,13 +314,13 @@ window.REFINED_SALES_LEDGER = {
       "du1_p": {
         "open": 1506257.79,
         "close_day": 1506842.47,
-        "close_night": 1506902.09,
+        "close_night": 1506842.47,
         "tests": 0.0
       },
       "du1_d": {
         "open": 1253177.05,
         "close_day": 1253550.56,
-        "close_night": 1253752.57,
+        "close_night": 1253550.56,
         "tests": 0.0
       },
       "du2_p": {
@@ -332,7 +332,7 @@ window.REFINED_SALES_LEDGER = {
       "du2_d": {
         "open": 1245404.02,
         "close_day": 1245659.21,
-        "close_night": 1245679.53,
+        "close_night": 1245659.21,
         "tests": 0.0
       },
       "_flags": [
