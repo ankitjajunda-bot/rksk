@@ -2063,7 +2063,8 @@ function renderLedger() {
           const prevClose = prevRow[p] ? (prevRow[p].close_night || 0) : 0;
           if (Math.abs(open - prevClose) > 0.01 && (open > 0 || prevClose > 0)) {
             hasContinuityBreak = true;
-            breakDetails.push(`${p.toUpperCase().replace('_', ' ')}: Expected ${prevClose}, Got ${open}`);
+            const diff = open - prevClose;
+            breakDetails.push(`${p.toUpperCase().replace('_', ' ')}: Expected ${prevClose}, Got ${open} (Gap: ${diff > 0 ? '+' : ''}${diff.toFixed(2)} L)`);
           }
         });
       }

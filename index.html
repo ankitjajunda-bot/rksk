@@ -24,8 +24,8 @@
     };
     window.onunhandledrejection = function(event) {
         var msg = event.reason ? event.reason.message || event.reason : "Unknown error";
-        if (typeof msg === 'string' && msg.includes('ServiceWorker')) {
-            console.warn('Ignored ServiceWorker error:', msg);
+        if (typeof msg === 'string' && (msg.includes('ServiceWorker') || msg.includes('newestWorker'))) {
+            console.warn('Ignored ServiceWorker/newestWorker error:', msg);
             return;
         }
         showGlobalError("Unhandled Promise Rejection: " + msg);
