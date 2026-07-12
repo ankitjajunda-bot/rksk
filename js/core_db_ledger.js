@@ -885,16 +885,31 @@ function saveDailyReadings(data) {
       const nextDateStr = nextDateObj.toISOString().split('T')[0];
       const nextRow = db.daily_ledger.find(r => r.date === nextDateStr);
       if (nextRow) {
+        const oldNextCalc = computeLedgerRow(nextRow);
+        const oldNextP = oldNextCalc.totals.net_24h.petrol;
+        const oldNextD = oldNextCalc.totals.net_24h.diesel;
+
         let modified = false;
         Object.keys(nextDayUpdates).forEach(nz => {
-          if (nextRow[nz]) {
+          if (!nextRow[nz]) {
+            nextRow[nz] = { open: 0, close_day: 0, close_night: 0, tests_day: 0, tests_night: 0 };
+          }
+          if (nextRow[nz].open !== nextDayUpdates[nz]) {
             nextRow[nz].open = nextDayUpdates[nz];
             modified = true;
           }
         });
+
         if (modified) {
           nextRow._dirty = true;
-          SystemLogger.info('saveDailyReadings', `Auto-propagated DU/Nozzle close_night forward to ${nextDateStr} open`, nextDayUpdates);
+          const newNextCalc = computeLedgerRow(nextRow);
+          const newNextP = newNextCalc.totals.net_24h.petrol;
+          const newNextD = newNextCalc.totals.net_24h.diesel;
+
+          db.stock.petrol += (oldNextP - newNextP);
+          db.stock.diesel += (oldNextD - newNextD);
+
+          SystemLogger.info('saveDailyReadings', `Auto-propagated DU/Nozzle close_night forward to ${nextDateStr} open. Next day sales adjusted: Petrol = ${(newNextP - oldNextP).toFixed(2)} L, Diesel = ${(newNextD - oldNextD).toFixed(2)} L.`, nextDayUpdates);
         }
       }
     }
@@ -905,16 +920,31 @@ function saveDailyReadings(data) {
       const prevDateStr = prevDateObj.toISOString().split('T')[0];
       const prevRow = db.daily_ledger.find(r => r.date === prevDateStr);
       if (prevRow) {
+        const oldPrevCalc = computeLedgerRow(prevRow);
+        const oldPrevP = oldPrevCalc.totals.net_24h.petrol;
+        const oldPrevD = oldPrevCalc.totals.net_24h.diesel;
+
         let modified = false;
         Object.keys(prevDayUpdates).forEach(nz => {
-          if (prevRow[nz]) {
+          if (!prevRow[nz]) {
+            prevRow[nz] = { open: 0, close_day: 0, close_night: 0, tests_day: 0, tests_night: 0 };
+          }
+          if (prevRow[nz].close_night !== prevDayUpdates[nz]) {
             prevRow[nz].close_night = prevDayUpdates[nz];
             modified = true;
           }
         });
+
         if (modified) {
           prevRow._dirty = true;
-          SystemLogger.info('saveDailyReadings', `Auto-propagated DU/Nozzle open backward to ${prevDateStr} close_night`, prevDayUpdates);
+          const newPrevCalc = computeLedgerRow(prevRow);
+          const newPrevP = newPrevCalc.totals.net_24h.petrol;
+          const newPrevD = newPrevCalc.totals.net_24h.diesel;
+
+          db.stock.petrol += (oldPrevP - newPrevP);
+          db.stock.diesel += (oldPrevD - newPrevD);
+
+          SystemLogger.info('saveDailyReadings', `Auto-propagated DU/Nozzle open backward to ${prevDateStr} close_night. Prev day sales adjusted: Petrol = ${(newPrevP - oldPrevP).toFixed(2)} L, Diesel = ${(newPrevD - oldPrevD).toFixed(2)} L.`, prevDayUpdates);
         }
       }
     }
