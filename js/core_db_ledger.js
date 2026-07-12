@@ -4373,8 +4373,7 @@ function updateModalLiveCalculations() {
       const closeDayVal = parseFloat(closeDayEl.value) || 0;
       
       if (closeDayVal > 0) {
-        const testDay = (closeDayVal > openVal) ? 5 : 0;
-        const salesDay = Math.max(0, closeDayVal - openVal - testDay);
+        const salesDay = Math.max(0, closeDayVal - openVal);
         dayHelper.textContent = `(Day Sales: ${salesDay.toFixed(1)} L)`;
       } else {
         dayHelper.textContent = '';
