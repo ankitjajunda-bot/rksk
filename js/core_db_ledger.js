@@ -2281,8 +2281,10 @@ function renderLedger() {
             <tr class="header-group">
               <th rowspan="2" class="sticky-col-left" style="min-width: 85px;">Date</th>
               <th colspan="2">Selling Rate</th>
-              <th colspan="4">DU 1 (Shift Net Sales)</th>
-              <th colspan="4">DU 2 (Shift Net Sales)</th>
+              <th colspan="5">DU 1 Petrol (MS)</th>
+              <th colspan="5">DU 1 Diesel (HSD)</th>
+              <th colspan="5">DU 2 Petrol (MS)</th>
+              <th colspan="5">DU 2 Diesel (HSD)</th>
               <th colspan="2">Day Shift Sales</th>
               <th colspan="2">Night Shift Sales</th>
               <th colspan="2">24hr Net Liters</th>
@@ -2297,15 +2299,33 @@ function renderLedger() {
               <th class="col-petrol">Petrol</th>
               <th class="col-diesel">Diesel</th>
 
-              <th class="col-petrol bg-petrol-group">MS Day</th>
-              <th class="col-petrol bg-petrol-group">MS Night</th>
-              <th class="col-diesel bg-diesel-group">HSD Day</th>
-              <th class="col-diesel bg-diesel-group">HSD Night</th>
+              <!-- DU 1 Petrol -->
+              <th class="col-petrol bg-petrol-group">Open</th>
+              <th class="col-petrol bg-petrol-group">Day Close</th>
+              <th class="col-petrol bg-petrol-group">Day Liters</th>
+              <th class="col-petrol bg-petrol-group">Night Close</th>
+              <th class="col-petrol bg-petrol-group">Night Liters</th>
 
-              <th class="col-petrol bg-petrol-group">MS Day</th>
-              <th class="col-petrol bg-petrol-group">MS Night</th>
-              <th class="col-diesel bg-diesel-group">HSD Day</th>
-              <th class="col-diesel bg-diesel-group">HSD Night</th>
+              <!-- DU 1 Diesel -->
+              <th class="col-diesel bg-diesel-group">Open</th>
+              <th class="col-diesel bg-diesel-group">Day Close</th>
+              <th class="col-diesel bg-diesel-group">Day Liters</th>
+              <th class="col-diesel bg-diesel-group">Night Close</th>
+              <th class="col-diesel bg-diesel-group">Night Liters</th>
+
+              <!-- DU 2 Petrol -->
+              <th class="col-petrol bg-petrol-group">Open</th>
+              <th class="col-petrol bg-petrol-group">Day Close</th>
+              <th class="col-petrol bg-petrol-group">Day Liters</th>
+              <th class="col-petrol bg-petrol-group">Night Close</th>
+              <th class="col-petrol bg-petrol-group">Night Liters</th>
+
+              <!-- DU 2 Diesel -->
+              <th class="col-diesel bg-diesel-group">Open</th>
+              <th class="col-diesel bg-diesel-group">Day Close</th>
+              <th class="col-diesel bg-diesel-group">Day Liters</th>
+              <th class="col-diesel bg-diesel-group">Night Close</th>
+              <th class="col-diesel bg-diesel-group">Night Liters</th>
 
               <th class="col-petrol bg-petrol-group">MS (Petrol)</th>
               <th class="col-diesel bg-diesel-group">HSD (Diesel)</th>
@@ -2327,7 +2347,7 @@ function renderLedger() {
                 <strong>${formatDate(row.date)}</strong>
                 <span style="display:block; font-size:0.68rem; color:#ef4444; margin-top:2px;">⏳ Pending</span>
               </td>
-              <td colspan="22" style="text-align:center; color: var(--text-muted); font-size:0.78rem; font-style:italic; padding: 0.6rem 0;">
+              <td colspan="33" style="text-align:center; color: var(--text-muted); font-size:0.78rem; font-style:italic; padding: 0.6rem 0;">
                 No readings entered yet
               </td>
               <td class="sticky-col-right">
@@ -2416,17 +2436,33 @@ function renderLedger() {
             <td class="col-petrol ${anomaly.isPriceChange ? "cell-anomaly-price-change" : ""}" style="font-weight: 500;">${pRate.toFixed(2)}</td>
             <td class="col-diesel ${anomaly.isPriceChange ? "cell-anomaly-price-change" : ""}" style="font-weight: 500;">${dRate.toFixed(2)}</td>
 
-            <!-- DU 1 Sales -->
-            <td class="col-petrol bg-petrol-group">${du1_ms_day.toFixed(1)} L</td>
-            <td class="col-petrol bg-petrol-group">${du1_ms_night.toFixed(1)} L</td>
-            <td class="col-diesel bg-diesel-group">${du1_hsd_day.toFixed(1)} L</td>
-            <td class="col-diesel bg-diesel-group">${du1_hsd_night.toFixed(1)} L</td>
+            <!-- DU 1 Petrol -->
+            <td class="bg-petrol-group">${(row.du1_p?.open ?? 0).toFixed(1)}</td>
+            <td class="bg-petrol-group">${(row.du1_p?.close_day ?? 0).toFixed(1)}</td>
+            <td class="col-petrol bg-petrol-group" style="font-weight: 500;">${du1_ms_day.toFixed(1)} L</td>
+            <td class="bg-petrol-group">${(row.du1_p?.close_night ?? 0).toFixed(1)}</td>
+            <td class="col-petrol bg-petrol-group" style="font-weight: 500;">${du1_ms_night.toFixed(1)} L</td>
 
-            <!-- DU 2 Sales -->
-            <td class="col-petrol bg-petrol-group">${du2_ms_day.toFixed(1)} L</td>
-            <td class="col-petrol bg-petrol-group">${du2_ms_night.toFixed(1)} L</td>
-            <td class="col-diesel bg-diesel-group">${du2_hsd_day.toFixed(1)} L</td>
-            <td class="col-diesel bg-diesel-group">${du2_hsd_night.toFixed(1)} L</td>
+            <!-- DU 1 HSD -->
+            <td class="bg-diesel-group">${(row.du1_d?.open ?? 0).toFixed(1)}</td>
+            <td class="bg-diesel-group">${(row.du1_d?.close_day ?? 0).toFixed(1)}</td>
+            <td class="col-diesel bg-diesel-group" style="font-weight: 500;">${du1_hsd_day.toFixed(1)} L</td>
+            <td class="bg-diesel-group">${(row.du1_d?.close_night ?? 0).toFixed(1)}</td>
+            <td class="col-diesel bg-diesel-group" style="font-weight: 500;">${du1_hsd_night.toFixed(1)} L</td>
+
+            <!-- DU 2 Petrol -->
+            <td class="bg-petrol-group">${(row.du2_p?.open ?? 0).toFixed(1)}</td>
+            <td class="bg-petrol-group">${(row.du2_p?.close_day ?? 0).toFixed(1)}</td>
+            <td class="col-petrol bg-petrol-group" style="font-weight: 500;">${du2_ms_day.toFixed(1)} L</td>
+            <td class="bg-petrol-group">${(row.du2_p?.close_night ?? 0).toFixed(1)}</td>
+            <td class="col-petrol bg-petrol-group" style="font-weight: 500;">${du2_ms_night.toFixed(1)} L</td>
+
+            <!-- DU 2 HSD -->
+            <td class="bg-diesel-group">${(row.du2_d?.open ?? 0).toFixed(1)}</td>
+            <td class="bg-diesel-group">${(row.du2_d?.close_day ?? 0).toFixed(1)}</td>
+            <td class="col-diesel bg-diesel-group" style="font-weight: 500;">${du2_hsd_day.toFixed(1)} L</td>
+            <td class="bg-diesel-group">${(row.du2_d?.close_night ?? 0).toFixed(1)}</td>
+            <td class="col-diesel bg-diesel-group" style="font-weight: 500;">${du2_hsd_night.toFixed(1)} L</td>
 
             <!-- Day Shift Totals -->
             <td class="col-petrol bg-petrol-group" style="font-weight:600;">${day_ms_total.toFixed(1)} L</td>
@@ -2467,7 +2503,7 @@ function renderLedger() {
       if (fullLedgerRows.length > window.ledgerRenderLimit) {
         rowsHtml += `
           <tr>
-            <td colspan="23" style="text-align: center; padding: 1.25rem; background: rgba(255,255,255,0.01);">
+            <td colspan="35" style="text-align: center; padding: 1.25rem; background: rgba(255,255,255,0.01);">
               <button class="btn btn-secondary btn-sm" onclick="window.ledgerRenderLimit += 45; renderLedger();" style="font-weight: 700; padding: 0.5rem 1.5rem; background: var(--primary); border: none; color: #fff; border-radius: 4px; cursor: pointer;">
                 🔍 Load 45 More Operating Days (${fullLedgerRows.length - window.ledgerRenderLimit} days remaining)
               </button>
